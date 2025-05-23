@@ -301,7 +301,7 @@
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
-    let adyContents, fileName, sOs, isCirrusLogic, hasxo180, cDist, nSpeakers, subLO, subHI, multisubDelay, noDistance = false;
+    let adyContents, fileName, sOs, isCirrusLogic, hasxo180, cDist, nSpeakers, subLO, subHI, multisubDelay;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = {}, delayAdjustment = {}, freqIndex = [], freqLength;
     let maxNegative, maxPositive, targetCurvePath, TARGET_VALUE, targetArray = [];
     let bassMode = "Standard", numSub = 1, swChannelCount = 0;
@@ -10153,7 +10153,6 @@ zip.file("_micCal.txt", micCal);
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false, excessPhaseI = NaN;
-      let frontIndice;
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       let finals = [], front_i = NaN, xo_sum = 0, avg_xo = 80;
