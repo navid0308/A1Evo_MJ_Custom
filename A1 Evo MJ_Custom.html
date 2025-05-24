@@ -263,12 +263,6 @@
         Avoid sub polarity inversion
         <span class="explanation">Avoids subwoofer polarity inversion checks in optimizations. Select this option if your sub(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
-      <label>
-        Frequency Range 10-
-        <input type="number" id="endFrequency" onchange="updateCheckboxStates('endFrequency')" min="300" max="20000" placeholder="300">
-        hz
-        <span class="explanation">Frequency to correct upto. Minimum is 300hz, maximum is 20000hz.</span>
-      </label>
     </small>
   </div>
   <div class="notice">*Evo will perform best with the default options with majority of systems</div>
@@ -295,7 +289,7 @@
       "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012"];
 
     /////////////////////////// Customization parameters for enthusiasts //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    let endFrequency = 300;// End frequency for amplitude correction filters
+    let endFrequency = 20000;// End frequency for amplitude correction filters
     ///////////////////////// For optimal sound quality, OCA recommends to maintain the default values above! ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     let noInversion = false;// If true, avoids subwoofer polarity inversion. This may limit alignment options and could negatively impact sound quality
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -9744,13 +9738,7 @@ zip.file("_micCal.txt", micCal);
     }
     function updateCheckboxStates(triggeredBy) {
       const noInversionCheckbox = document.getElementById('noInversion');
-      const endFrequencyText = document.getElementById('endFrequency').value;
       noInversion = noInversionCheckbox.checked;
-      if (endFrequencyText !== "") { endFrequency = parseFloat(endFrequencyText); }
-      if (endFrequency < 300 || endFrequency > 20000) {
-        console.warn(`End frequency must be between 300hz and 20000hz. Defaulting to 300hz.`);
-        endFrequency = 300;
-      }
     }
     async function optimizeOCA() {
       clearCommands();
@@ -9763,7 +9751,6 @@ zip.file("_micCal.txt", micCal);
       disableGraph();
       const startTime = performance.now();
       document.getElementById('noInversion').disabled = true;
-      document.getElementById('endFrequency').disabled = true;
       await bootUp();
       console.log("Optimization started...");
       console.warn("Please keep REW on 'SPL & Phase' tab, close any child windows and stay on this web page until optimization is completed!");
@@ -10097,7 +10084,7 @@ zip.file("_micCal.txt", micCal);
         await fetch_mREW(i, 'PUT', { title: commandId[id] });
       }
     }
-    async function witchCraft() {   
+    async function witchCraft() {
       while (true) {
         try {
           const response = await fetch(`http://localhost:4735/eq/house-curve`, {
@@ -10178,9 +10165,7 @@ zip.file("_micCal.txt", micCal);
           "shape": "BU",
           "slopedBPerOctave": 12
         }]}, "Filters set");
-      await new Promise((resolve) => setTimeout(resolve, 100));
       await postNext('Generate predicted measurement', mCount + 1);
-      await new Promise((resolve) => setTimeout(resolve, 100));
       await postSafe(`${baseUrl}/${mCount}/filters`, {
         filters: [{
           "index": 21,
@@ -10191,9 +10176,7 @@ zip.file("_micCal.txt", micCal);
           "shape": "L-R",
           "slopedBPerOctave": 24
         }]}, "Filters set");
-      await new Promise((resolve) => setTimeout(resolve, 100));
       await postNext('Generate predicted measurement', mCount);
-      await new Promise((resolve) => setTimeout(resolve, 100));
       await postNext('Smooth', mCount + 2, { smoothing: "None" });
       await postNext('Smooth', mCount + 3, { smoothing: "None" });
       [isPossibleI, requiredDelayI, isInverted, excessPhaseI] = await align4system(mCount + 2, mCount + 3);
@@ -10320,7 +10303,6 @@ zip.file("_micCal.txt", micCal);
               "shape": "BU",
               "slopedBPerOctave": 12
             }]}, "Filters set");
-          await new Promise((resolve) => setTimeout(resolve, 100));
           await postNext('Generate predicted measurement', mCount + 1);
           await postSafe(`${baseUrl}/${mCount}/filters`, {
             filters: [{
@@ -10332,7 +10314,6 @@ zip.file("_micCal.txt", micCal);
               "shape": "L-R",
               "slopedBPerOctave": 24
             }]}, "Filters set");
-          await new Promise((resolve) => setTimeout(resolve, 100));
           await postNext('Generate predicted measurement', mCount);
           await postNext('Smooth', mCount + 3, { smoothing: "None" });
           await postNext('Smooth', mCount + 2, { smoothing: "None" });
@@ -10381,9 +10362,7 @@ zip.file("_micCal.txt", micCal);
             "slopedBPerOctave": 12
           }]
         }, "Filters set");
-        await new Promise((resolve) => setTimeout(resolve, 100));
         await postNext('Generate predicted measurement', j);
-        await new Promise((resolve) => setTimeout(resolve, 100));
         await postSafe(`${baseUrl}/${nSpeakers * 3}/filters`, {
           filters: [{
             "index": 21,
@@ -10395,16 +10374,13 @@ zip.file("_micCal.txt", micCal);
             "slopedBPerOctave": 24
           }]
         }, "Filters set");
-        await new Promise((resolve) => setTimeout(resolve, 100));
         await postSafe(`${baseUrl}/${nSpeakers * 3}/filters`, {
           filters: [{
             "index": 22,
             "type": "None"
           }]
         }, "Filters set");
-        await new Promise((resolve) => setTimeout(resolve, 100));
         await postNext('Generate predicted measurement', nSpeakers * 3);
-        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       let kOrg = 1;
       for (i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
@@ -10425,9 +10401,7 @@ zip.file("_micCal.txt", micCal);
           "slopedBPerOctave": 24
         }]
       }, "Filters set");
-      await new Promise((resolve) => setTimeout(resolve, 100));
       await postNext('Generate predicted measurement', nSpeakers * 3);
-      await new Promise((resolve) => setTimeout(resolve, 100));
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length
       await fetch_mREW(mCount, 'PUT', { title: "LFEchannel" });
@@ -10742,12 +10716,12 @@ zip.file("_micCal.txt", micCal);
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
-      postSafe("http://localhost:4735/alignment-tool/mode", noInversion ? "Phase" : "Impulse", "Mode set");
+      postSafe("http://localhost:4735/alignment-tool/mode", "Impulse", "Mode set");
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", -hiDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", -loDelay, "Maximum positive delay set to");
       console.info("Commencing 'iterative' impulse alignment frequency vs expected SPL analysis. Please sit tight...")
       for (let checkFreq = 20; checkFreq <= 250; checkFreq++) {
-        const postAlignResult = await postAlign(noInversion ? 'Align phase slopes' : 'Align IRs', checkFreq);
+        const postAlignResult = await postAlign('Align IRs', checkFreq);
         if (postAlignResult.message === 'Delay too large') { continue; }
         
         const invertB = await fetchAlign('invert-b');
@@ -10785,7 +10759,7 @@ zip.file("_micCal.txt", micCal);
         console.infoUpdate(`Checking: @${checkFreq}Hz, Best: ${(-1 * requiredDelay).toFixed(2)}ms @${bestFreq}hz Inverted: ${isInverted}`);
       }
       if (isPossible) {
-        const postAlignResult = await postAlign(noInversion ? 'Align phase slopes' : 'Align IRs', bestFreq);
+        const postAlignResult = await postAlign('Align IRs', bestFreq);
         const delayB = await fetchAlign('delay-b');
         requiredDelay = -parseFloat(delayB);
         isInverted = await fetchAlign('invert-b');
@@ -10804,12 +10778,12 @@ zip.file("_micCal.txt", micCal);
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
-      await postSafe("http://localhost:4735/alignment-tool/mode", noInversion ? "Phase" : "Impulse", "Mode set");
+      await postSafe("http://localhost:4735/alignment-tool/mode", "Impulse", "Mode set");
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Commencing in-depth frequency and SPL analysis...")
       for (checkFreq = 20; checkFreq <= 250; checkFreq++) {
-        const postAlignResult = await postAlign(noInversion ? 'Align phase slopes' : 'Align IRs', checkFreq);
+        const postAlignResult = await postAlign('Align IRs', checkFreq);
         if (postAlignResult.message === 'Delay too large' && previousDelay != postAlignResult.delay) {
           previousDelay = postAlignResult.delay;
           continue;
@@ -10857,7 +10831,7 @@ zip.file("_micCal.txt", micCal);
         console.infoUpdate(`Checking: @${checkFreq}Hz, Best: ${(-1 * requiredDelay).toFixed(2)}ms @${bestFreq}hz Inverted: ${isInverted}`);
       }
       if (isPossible) {
-        const postAlignResult = await postAlign(noInversion ? 'Align phase slopes' : 'Align IRs', bestFreq);
+        const postAlignResult = await postAlign('Align IRs', bestFreq);
         const delayB = await fetchAlign('delay-b');
         requiredDelay = -parseFloat(delayB);
         isInverted = await fetchAlign('invert-b');
