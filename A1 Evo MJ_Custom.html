@@ -10270,24 +10270,24 @@ zip.file("_micCal.txt", micCal);
       let freqIndex = [];
       hasxo180 ? freqIndex = [15.75, 40, 60, 80, 90, 100, 110, 120, 150, 180, 200, 250] : freqIndex = [15.75, 40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
       for (let i = nSpeakers + 2; i < mCount; i += 2) {
-        let single_channel = false;
+        let singleChannel = false;
         const title = commandId[(i - nSpeakers) / 2];
         if (title === "C" || title === "CH" || title === "TS") {
-          single_channel = true;
+          singleChannel = true;
         }
         let rolloff = parseFloat(customCrossover[(i - nSpeakers) / 2]);
         if (rolloff < 40) { rolloff *= 10; }
-        if (!single_channel) {
-          let rolloff_r = parseFloat(customCrossover[1 + (i - nSpeakers) / 2]);
-          if (rolloff_r < 40) { rolloff_r *= 10; }
-          rolloff = Math.max(rolloff, rolloff_r);
+        if (!singleChannel) {
+          let rolloffR = parseFloat(customCrossover[1 + (i - nSpeakers) / 2]);
+          if (rolloffR < 40) { rolloffR *= 10; }
+          rolloff = Math.max(rolloff, rolloffR);
         }
-        let best_xo = rolloff, minRmsError= Infinity;
+        let bestXo = rolloff, minRmsError= Infinity;
 
         for (let j = 0; j < freqIndex.length; j++) {
-          let check_xo = freqIndex[j];
-          if (check_xo < rolloff || check_xo > 2 * rolloff) { continue; }
-          if (single_channel) {
+          let checkXo = freqIndex[j];
+          if (checkXo < rolloff || checkXo > 2 * rolloff) { continue; }
+          if (singleChannel) {
             await postNext('Magn plus phase average', [i, i]);
           }
           else {
@@ -10299,7 +10299,7 @@ zip.file("_micCal.txt", micCal);
               "type": "High pass",
               "enabled": true,
               "isAuto": false,
-              "frequency": check_xo,
+              "frequency": checkXo,
               "shape": "BU",
               "slopedBPerOctave": 12
             }]}, "Filters set");
@@ -10310,7 +10310,7 @@ zip.file("_micCal.txt", micCal);
               "type": "Low pass",
               "enabled": true,
               "isAuto": false,
-              "frequency": check_xo,
+              "frequency": checkXo,
               "shape": "L-R",
               "slopedBPerOctave": 24
             }]}, "Filters set");
@@ -10321,20 +10321,20 @@ zip.file("_micCal.txt", micCal);
           const rmsError = await rmsOfXO(mCount + 4);
           if (rmsError < minRmsError) {
             minRmsError = rmsError;
-            best_xo = check_xo;
+            bestXo = checkXo;
           }
           for (let k = mCount + 4; k > mCount; k--) {
             await postDelete(k);
           }
         }
-        if (single_channel) {
-          console.log(`Best XO for ${commandId[(i - nSpeakers) / 2]}: ${best_xo}hz. Detected rolloff: ${rolloff}`);
-          customCrossover[(i - nSpeakers) / 2] = best_xo;
+        if (singleChannel) {
+          console.log(`Best XO for ${commandId[(i - nSpeakers) / 2]}: ${bestXo}hz. Detected rolloff: ${rolloff}`);
+          customCrossover[(i - nSpeakers) / 2] = bestXo;
         }
         else {
-          console.log(`Best XO for ${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}: ${best_xo}hz. Detected rolloff: ${rolloff}`);
-          customCrossover[(i - nSpeakers) / 2] = best_xo;
-          customCrossover[1 + (i - nSpeakers) / 2] = best_xo;
+          console.log(`Best XO for ${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}: ${bestXo}hz. Detected rolloff: ${rolloff}`);
+          customCrossover[(i - nSpeakers) / 2] = bestXo;
+          customCrossover[1 + (i - nSpeakers) / 2] = bestXo;
           i += 2;
         }
       }
