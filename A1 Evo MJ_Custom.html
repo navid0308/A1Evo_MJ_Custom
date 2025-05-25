@@ -10774,7 +10774,7 @@ zip.file("_micCal.txt", micCal);
       return [isPossible, requiredDelay, isInverted, excessPhase];
     }
     async function alignMsub(ind1, ind2, loDelay, hiDelay, start=20, end=100, ppo=96) {
-      let isInverted = false, isPossible = false, requiredDelay = NaN, sumIndex = null, bestFreq = NaN, curr_score = -Infinity, best_score = curr_score;
+      let isInverted = false, isPossible = false, requiredDelay = NaN, sumIndex = null, bestFreq = NaN, bestScore = -Infinity;
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
@@ -10820,9 +10820,9 @@ zip.file("_micCal.txt", micCal);
           aSumArray.push(sumMagnitude);
           magSum += sumMagnitude;
         }
-        curr_score = magSum / calculateSTD(aSumArray);
-        if (best_score < curr_score) {
-          best_score = curr_score;
+        const currScore = magSum / calculateSTD(aSumArray);
+        if (bestScore < currScore) {
+          bestScore = currScore;
           bestFreq = checkFreq;
           isPossible = true;
           requiredDelay = delayB;
