@@ -9757,7 +9757,7 @@ zip.file("_micCal.txt", micCal);
       await groundWorks();
       await printTrims();
       await generateFilters();
-      await witchCraft();
+      await calculateRolloffs();
       await optimizeSubDelay();
       await finalizeXO();
       await drawResults();
@@ -10084,23 +10084,7 @@ zip.file("_micCal.txt", micCal);
         await fetch_mREW(i, 'PUT', { title: commandId[id] });
       }
     }
-    async function witchCraft() {
-      while (true) {
-        try {
-          const response = await fetch(`http://localhost:4735/eq/house-curve`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-          });
-          if (!response.ok) { throw new Error('Network response was not OK!'); }
-          const data = await response.json();
-          if (data.message === "House curve cleared") { break; }
-          else { await new Promise(resolve => setTimeout(resolve, speedDelay)); }
-        }
-        catch (error) {
-          throw new Error('Error fetching result:', error);
-          await new Promise(resolve => setTimeout(resolve, speedDelay));
-        }
-      }
+    async function calculateRolloffs() {
       await fetchSafe('target-level', 1, 75.0);
       await postNext('Generate target measurement', 1);
       await postNext('Minimum phase version', nSpeakers * 3 + 1, {
@@ -10112,7 +10096,7 @@ zip.file("_micCal.txt", micCal);
       });
       await postNext('Smooth', nSpeakers * 3 + 2, { smoothing: "None" });
       await postDelete(nSpeakers * 3 + 1);
-      console.log("Calculating 'steady state' roll off frequencies...");
+      console.log("Calculating 'steady state' roll off frequencies based on target curve...");
       for (let j = 0; j < freqLength; j++) {
         await genSpeaker(nSpeakers * 3 + 1, freqIndex[j]);
       }
@@ -10136,7 +10120,6 @@ zip.file("_micCal.txt", micCal);
       for (i = mCount; i > nSpeakers * 3; i--) {
         await postDelete(i);
       }
-      await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, "House curve set");
     }
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
@@ -10281,7 +10264,7 @@ zip.file("_micCal.txt", micCal);
         if (!singleChannel) {
           let rolloffR = parseFloat(customCrossover[1 + (i - nSpeakers) / 2]);
           if (rolloffR < 40) { rolloffR *= 10; }
-          rolloff = Math.max(rolloff, rolloffR);
+          rolloff = Math.min(rolloff, rolloffR);
         }
         let bestXo = rolloff, minRmsError= Infinity;
 
