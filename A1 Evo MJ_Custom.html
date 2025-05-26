@@ -10136,6 +10136,7 @@ zip.file("_micCal.txt", micCal);
       for (i = mCount; i > nSpeakers * 3; i--) {
         await postDelete(i);
       }
+      await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, "House curve set");
     }
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
@@ -10340,7 +10341,6 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function drawResults() {
-      await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, "House curve set");
       const meas = await fetch_mREW();
       const measCount = Object.keys(meas).length
       for (let i = measCount; i > nSpeakers * 3; i--) {
