@@ -9697,8 +9697,9 @@ zip.file("_micCal.txt", micCal);
       if (isNaN(dist) || dist === 0) {
         dist = parseFloat(channels[1].customDistance);
         if (isNaN(dist) || dist === 0 || dist === null) {
-          console.error(`NO DISTANCE FOUND FOR SPEAKER ${channels[1].commandId}. PLEASE CHANGE DISTANCE BY 1cm IN MULTIEQ APP AND THEN TRY AGAIN`);
-          throw new Error;
+          console.warn(`No distance found for ${channels[1].commandId}! Defaulting to 3m.`)
+          console.warn(`To fix: Open ady in MultEQ phone app then -\nSpeaker Detection Results > Change distance of any channel by 1cm > Save and then retry.`);
+          dist = 3.00;
         }
       }
       return dist;
