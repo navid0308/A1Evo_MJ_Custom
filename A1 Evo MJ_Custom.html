@@ -10067,7 +10067,7 @@ zip.file("_micCal.txt", micCal);
         let fIndex2 = Object.keys(mFilter.results);
         const fIndex1 = (parseInt(fIndex2) - nSpeakers * 2) / 2 + 0.5;
         let { "New measurement": fName } = mFilter.results[fIndex2];
-        fName = fName.slice(8, -4) + "final";
+        fName = fName.slice(8, -4) + "-EQed";
         fIndex2 = parseInt(fIndex2);
         await postNext('Arithmetic', [fIndex1, fIndex2], { function: "A * B" });
         await fetch_mREW(fIndex2 + 1, 'PUT', { title: fName });
@@ -10077,7 +10077,7 @@ zip.file("_micCal.txt", micCal);
       }
       for (i = nSpeakers + 1; i < nSpeakers * 3; i += 2) {
         const id = (i - nSpeakers) / 2 + 0.5;
-        await fetch_mREW(i, 'PUT', { title: commandId[id] });
+        await fetch_mREW(i, 'PUT', { title: `${commandId[id]}-filters` });
       }
     }
     async function calculateRolloffs() {
@@ -10122,26 +10122,26 @@ zip.file("_micCal.txt", micCal);
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false, excessPhaseI = NaN;
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      let finals = [], front_i = NaN, xo_sum = 0, avg_xo = 80;
+      let eqResults = [], xoSum = 0, xoAvg = 80;
       for (i = nSpeakers; i < mCount; i++) {
         const mData = await fetch_mREW(i);
         const title = mData.title;
-        if (title.endsWith("final"))
+        if (title.endsWith("-EQed"))
         {
-          finals.push(i);
-          xo_sum += customCrossover[(i - nSpeakers) / 2];
+          eqResults.push(i);
+          xoSum += customCrossover[(i - nSpeakers) / 2];
         }
       }
-      if (xo_sum > 0) { avg_xo = xo_sum / finals.length; }
-      await postNext('Magn plus phase average', Array.from(finals));
-      console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS average XO ${avg_xo.toFixed(2)}hz`); 
+      if (xoSum > 0) { xoAvg = xoSum / eqResults.length; }
+      await postNext('Magn plus phase average', Array.from(eqResults));
+      console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS average XO ${xoAvg.toFixed(2)}hz`); 
       await postSafe(`${baseUrl}/${mCount + 1}/filters`, {
         filters: [{
           "index": 21,
           "type": "High pass",
           "enabled": true,
           "isAuto": false,
-          "frequency": avg_xo,
+          "frequency": xoAvg,
           "shape": "BU",
           "slopedBPerOctave": 12
         }]}, "Filters set");
@@ -10152,7 +10152,7 @@ zip.file("_micCal.txt", micCal);
           "type": "Low pass",
           "enabled": true,
           "isAuto": false,
-          "frequency": avg_xo,
+          "frequency": xoAvg,
           "shape": "L-R",
           "slopedBPerOctave": 24
         }]}, "Filters set");
@@ -10216,10 +10216,6 @@ zip.file("_micCal.txt", micCal);
       if (Object.values(invertSub).some(Boolean)) {
         console.log("Reminder: DO NOT FORGET to physically switch the polarity of subwoofer(s) as instructed above!");
         console.log("You DO NOT need to repeat Audyssey measurements after subwoofer inversion(s), optimization calculations already account for that.");
-      }
-      for (i = nSpeakers + 1; i < nSpeakers * 3; i += 2) {
-        const id = (i - nSpeakers) / 2 + 0.5;
-        await fetch_mREW(i, 'PUT', {title: commandId[id]});
       }
       for (i = 1; i <= nSpeakers; i++) {
         customCrossover[i] === 15.75 ? customCrossover[i] = "L" : customCrossover[i] = String(customCrossover[i]).slice(0, 2);
@@ -10365,7 +10361,7 @@ zip.file("_micCal.txt", micCal);
       for (i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
         const addition = await postNext('Arithmetic', [i + 1, i], { function: "A + B" });
         let key = Object.keys(addition.results)[0]
-        const chName = commandId[kOrg] + "channel";
+        const chName = commandId[kOrg] + `final-${customCrossover[kOrg]}hz-xo`;
         await fetch_mREW(key, 'PUT', { title: chName });
         kOrg++;
       }
@@ -10383,7 +10379,7 @@ zip.file("_micCal.txt", micCal);
       await postNext('Generate predicted measurement', nSpeakers * 3);
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length
-      await fetch_mREW(mCount, 'PUT', { title: "LFEchannel" });
+      await fetch_mREW(mCount, 'PUT', { title: "LFEfinal-120hz-LPF" });
       await fetchSafe('target-level', 1, 75.0);
       await postNext('Generate target measurement', 1);
       let targetName = targetCurvePath.split('\\').pop().split('.').slice(0, -1).join('.');
