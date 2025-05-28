@@ -9915,7 +9915,6 @@ zip.file("_micCal.txt", micCal);
       return;
     }
     async function groundWorks() {
-      let bugExists = false, reported = false;
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
       for (let i = 1; i <= mCount; i++) {
@@ -9936,14 +9935,7 @@ zip.file("_micCal.txt", micCal);
       for (i = 1; i <= mCount; i += micPositions) {
         console.infoUpdate(`Computing optimal spatial averaging configuration for speaker #${(i - 1) / micPositions + 1}`)
         const indices = Array.from({length: micPositions }, (_, j) => i + j);
-        bugExists = await fixVolumeBug(indices);
-        if (bugExists) { console.warn(`Large volume level deviations have been detected with speaker #${(i - 1) / micPositions + 1} measurements in your calibration file.`); reported = true;}
         await postNext('Cross corr align', indices);
-      }
-      if (reported) {
-        console.log("A1 Evo has corrected faulty measurements for a 'known' Editor app (Android version) bug of fixed ± 6/12dB volume offsets.");
-        console.log("It's still advisable to compare volume levels of your imported measurements in REW for other possible causes.");
-        console.log("You may be risking a suboptimal calibration based on inaccurate speaker measurements otherwise!");
       }
       let count = 1;
       measurements = await fetch_mREW();
@@ -10067,7 +10059,7 @@ zip.file("_micCal.txt", micCal);
         let fIndex2 = Object.keys(mFilter.results);
         const fIndex1 = (parseInt(fIndex2) - nSpeakers * 2) / 2 + 0.5;
         let { "New measurement": fName } = mFilter.results[fIndex2];
-        fName = fName.slice(8, -4) + "-EQed";
+        fName = fName.slice(8, -4) + "-equalized";
         fIndex2 = parseInt(fIndex2);
         await postNext('Arithmetic', [fIndex1, fIndex2], { function: "A * B" });
         await fetch_mREW(fIndex2 + 1, 'PUT', { title: fName });
@@ -10090,7 +10082,7 @@ zip.file("_micCal.txt", micCal);
         "frequency warping": false,
         "replicate data": true
       });
-      await postNext('Smooth', nSpeakers * 3 + 2, { smoothing: "None" });
+      await postNext('Smooth', nSpeakers * 3 + 2, { smoothing: "1/48" });
       await postDelete(nSpeakers * 3 + 1);
       console.log("Calculating 'steady state' roll off frequencies based on target curve...");
       for (let j = 0; j < freqLength; j++) {
@@ -10126,7 +10118,7 @@ zip.file("_micCal.txt", micCal);
       for (i = nSpeakers; i < mCount; i++) {
         const mData = await fetch_mREW(i);
         const title = mData.title;
-        if (title.endsWith("-EQed"))
+        if (title.endsWith("-equalized"))
         {
           eqResults.push(i);
           xoSum += customCrossover[(i - nSpeakers) / 2];
@@ -10157,8 +10149,8 @@ zip.file("_micCal.txt", micCal);
           "slopedBPerOctave": 24
         }]}, "Filters set");
       await postNext('Generate predicted measurement', mCount);
-      await postNext('Smooth', mCount + 2, { smoothing: "None" });
-      await postNext('Smooth', mCount + 3, { smoothing: "None" });
+      await postNext('Smooth', mCount + 2, { smoothing: "1/48" });
+      await postNext('Smooth', mCount + 3, { smoothing: "1/48" });
       [isPossibleI, requiredDelayI, isInverted, excessPhaseI] = await align4system(mCount + 2, mCount + 3);
       if (isPossibleI) {
         subMoves = requiredDelayI;
@@ -10291,8 +10283,8 @@ zip.file("_micCal.txt", micCal);
               "slopedBPerOctave": 24
             }]}, "Filters set");
           await postNext('Generate predicted measurement', mCount);
-          await postNext('Smooth', mCount + 3, { smoothing: "None" });
-          await postNext('Smooth', mCount + 2, { smoothing: "None" });
+          await postNext('Smooth', mCount + 3, { smoothing: "1/48" });
+          await postNext('Smooth', mCount + 2, { smoothing: "1/48" });
           await postNext('Arithmetic', [mCount + 3, mCount + 2], { function: "A + B" });
           const rmsError = await rmsOfXO(mCount + 4);
           if (rmsError < minRmsError) {
@@ -10390,10 +10382,18 @@ zip.file("_micCal.txt", micCal);
         const title = titleM.title;
         if (title.includes("EQ")) { await postDelete(i); }
       }
+      measurements = await fetch_mREW();
+      mCount = Object.keys(measurements).length
+      for (i = 1; i <= mCount; i++) {
+        titleM = await fetch_mREW(i);
+        const title = titleM.title;
+        if (title.endsWith("-filters") || title.endsWith(" @ 75dB")) { continue; }
+        await postNext('Smooth', i, { smoothing: "1/6" });
+      }
     }
     async function findXO(indX, mCount) {
       let iXO, sum, minSum = Infinity, k;
-      await postNext('Smooth', indX, { smoothing: "None" });
+      await postNext('Smooth', indX, { smoothing: "1/48" });
       const magnitudeArray = [];
       const spResponse = await fetchSafe('frequency-response', indX);
       let startFreq = spResponse.startFreq;
@@ -10465,8 +10465,8 @@ zip.file("_micCal.txt", micCal);
       if (hiDelay < -maxDelay) {hiDelay = -maxDelay;}
       if (loDelay < 0) {tempLo = loDelay; loDelay = 0;}
       if (hiDelay > 0) {tempHi = hiDelay; hiDelay = 0;}
-      await postNext('Smooth', i1, { smoothing: "None" });
-      await postNext('Smooth', i2, { smoothing: "None" });
+      await postNext('Smooth', i1, { smoothing: "1/48" });
+      await postNext('Smooth', i2, { smoothing: "1/48" });
       [isPossibleI, requiredDelayI, isInverted, sumIndex] = await alignMsub(i1, i2, hiDelay, loDelay);
       if ((tempLo < 0 && requiredDelayI < tempLo) || (tempHi > 0 && requiredDelayI > tempHi)) { isPossibleI = false; }
       alignmentResults.push({ isPossibleI, requiredDelayI, isInverted });
@@ -10485,8 +10485,8 @@ zip.file("_micCal.txt", micCal);
         tempLo = 0; tempHi = 0;
         if (loDelay < 0) {tempLo = loDelay; loDelay = 0;}
         if (hiDelay > 0) {tempHi = hiDelay; hiDelay = 0;}
-        await postNext('Smooth', sumIndex, { smoothing: "None" });
-        await postNext('Smooth', i2, { smoothing: "None" });
+        await postNext('Smooth', sumIndex, { smoothing: "1/48" });
+        await postNext('Smooth', i2, { smoothing: "1/48" });
         [isPossibleI, requiredDelayI, isInverted, sumIndex] = await alignMsub(sumIndex, i2, hiDelay, loDelay);
         if ((tempLo < 0 && requiredDelayI < tempLo) || (tempHi > 0 && requiredDelayI > tempHi)) { isPossibleI = false; }
         alignmentResults.push({ isPossibleI, requiredDelayI, isInverted });
@@ -10830,7 +10830,7 @@ zip.file("_micCal.txt", micCal);
         "frequency warping": false,
         "replicate data": false
       });
-      await postNext('Smooth', mCount + 1, { smoothing: "None" });
+      await postNext('Smooth', mCount + 1, { smoothing: "1/48" });
       const phaseArray = [];
       const epResponse = await fetchSafe('frequency-response', mCount + 1);
       const startFreq = epResponse.startFreq;
@@ -10855,20 +10855,6 @@ zip.file("_micCal.txt", micCal);
       sum /= (k2 - k1 + 1);
       await postDelete(mCount + 1);
       return sum;
-    }
-    async function fixVolumeBug(indices) {
-      const m = await fetch_mREW(indices[0]);
-      let freq = 1000, span = 4, maxDiff = Infinity, bug = false;
-      const t = m.title;
-      if (t.startsWith("SW")) { freq = 50; span = 2; }
-      const volShift = await postNext('Align SPL', indices, { frequencyHz: freq, spanOctaves: span, targetdB: 'average' });
-      const volDelta = -parseFloat(volShift.results[indices[0]].alignSPLOffsetdB);
-      if (Math.abs(volDelta) < maxDiff) { maxDiff = Math.abs(volDelta); }
-      for (let j = 0; j < indices.length; j++) {
-        await postNext('Add SPL offset', indices[j], { offset: volDelta });
-      }
-      if (maxDiff > 5.25) { bug = true; }
-      return bug;
     }
     async function genSub(freq, i = null) {
       if (i === null) {i = nSpeakers * 3};
