@@ -297,7 +297,7 @@
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
     let adyContents, fileName, sOs, isCirrusLogic, hasxo180, cDist, nSpeakers, subLO, subHI, multisubDelay;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = {}, delayAdjustment = {}, freqIndex = [], freqLength;
-    let maxNegative, maxPositive, targetCurvePath, TARGET_VALUE, targetArray = [];
+    let maxNegative, maxPositive, targetCurvePath, targetArray = [];
     let bassMode = "Standard", numSub = 1, swChannelCount = 0;
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
 
@@ -359,7 +359,7 @@
           const { responseData, commandId } = detectedChannel;
           return Promise.all(Object.entries(responseData).map(([arrayKey, arrayData]) => {
             const dataString = arrayData.join('\n');
-            const rewHeader = `* Impulse Response data saved by REW\n0 // Peak value before normalisation\n0 // Peak index\n16384 // Response length\n2.0833333333333333E-5 // Sample interval (seconds)\n0.0 // Start time (seconds)\n* Data start\n${dataString}`;
+            const rewHeader = `* Impulse Response data saved by REW\n0 // Peak value before normalisation\n0 // Peak index\n16384 // Response length\n2.0833333333333333E-5 // Sample interval (seconds)\n0.0 // Start time (seconds)\n78.0 // Data offset (dB)\n* Data start\n${dataString}`;
             const measurementName = `${commandId}${arrayKey}.txt`;
             zip.file(measurementName, rewHeader);
             totalMeasurements++;
@@ -372,6 +372,7 @@ const micCal = `* Impulse Response data saved by REW
 16384 // Response length
 2.0833333333333333E-5 // Sample interval (seconds)
 0.0 // Start time (seconds)
+3.0 // Data offset (dB)
 * Data start
 1.6256958
 -1.1237009
@@ -9802,7 +9803,6 @@ zip.file("_micCal.txt", micCal);
       console.info("Applying mic calibration file to measurements...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      await postNext('Add SPL offset', mCount, {offset: -TARGET_VALUE});
       for (let i = 1; i < mCount; i++) {
         const irWindows = await fetchSafe('ir-windows', i);
         const leftW = parseFloat(irWindows.leftWindowWidthms);
@@ -9834,7 +9834,6 @@ zip.file("_micCal.txt", micCal);
         await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
         console.infoUpdate(`${baseMessage} (${q}/${mCount})`);
       }
-      TARGET_VALUE = parseFloat(measurements[1].splOffsetdB) - 3.0;
       if (isCirrusLogic) {await addmicCal();}
       await console.infoUpdate("Resetting default equalizer to 'Generic/Generic'...");
       await postSafe(`http://localhost:4735/eq/default-equaliser`, {manufacturer: "Generic", model: "Generic"}, "Default equaliser changed");
@@ -9976,13 +9975,9 @@ zip.file("_micCal.txt", micCal);
       for (i = mCount; i >= 1; i--) {
         await postDelete(i);
       }
-      console.infoUpdate("Removing imported impulse volume offsets...");
-      const offsetSPL = 75 - TARGET_VALUE;
       for (i = 1; i <= nSpeakers + numSub - 1; i++) {
         commandId[i] = title[i].slice(0, -1); // unnecessary coupling
-        await postNext('Add SPL offset', i, { offset: offsetSPL });
       }
-      TARGET_VALUE = 75.0;
       console.infoUpdate("Executing precision temporal alignment across the speaker array for optimal coherence...");
       const oIndices = Array.from({ length: nSpeakers + numSub - 1 }, (_, j) => j + 1);
       await postNext('Time align', oIndices);
@@ -9996,9 +9991,9 @@ zip.file("_micCal.txt", micCal);
       msecMin = maxM - limInsec;
       msecMax = minM + limInsec;
       for (i = nSpeakers; i <= nSpeakers + numSub - 1; i++) {
-          const overDelay = mSec[i] - msecMax;
-          mSec[i] -= overDelay;
-          await postNext2('Offset t=0', i, {offset: -overDelay, unit: "seconds"});
+        const overDelay = mSec[i] - msecMax;
+        mSec[i] -= overDelay;
+        await postNext2('Offset t=0', i, {offset: -overDelay, unit: "seconds"});
       }
       console.infoUpdate("Completed speaker volume and time alignment!");
       if (numSub > 1) {
@@ -10593,7 +10588,7 @@ zip.file("_micCal.txt", micCal);
     async function getTargetArray(start, end, ppo=96) {
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      await fetchSafe('target-level', 1, TARGET_VALUE);
+      await fetchSafe('target-level', 1, 75.0);
       await postNext('Generate target measurement', 1);
       const targetArray = [];
       const targetResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, mCount + 1);
