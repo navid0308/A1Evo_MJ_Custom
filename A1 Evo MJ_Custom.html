@@ -10512,8 +10512,9 @@ zip.file("_micCal.txt", micCal);
       const subOrder = subOrders[numSub];
       let finalIndices = [];
       let finalResults = [];
+      let configIdx = 1;
       for (const configSub of subOrder) {
-        console.log(`Testing sub array config: [${configSub}]`);
+        console.log(`Testing sub array config ${configIdx++}/${subOrder.length}: [${configSub}]`);
         const result = await multipleSubs(configSub);
         const { finalIndex, alignmentResults } = result;
         if (finalIndex === null) {
@@ -10633,7 +10634,7 @@ zip.file("_micCal.txt", micCal);
       const subArray = response2array(freqResponse, start, end);
       let bestOffset = null;
       let lowestRmsError = Infinity;
-      for (let offset = -12.5; offset <= 12.5; offset += 0.5) {
+      for (let offset = -20; offset <= 20; offset += 0.5) { // extra room for combining multi-sub
         const rmsError = calculateRmsError(subArray, targetArray, offset);
         if (rmsError < lowestRmsError) {
           lowestRmsError = rmsError;
@@ -10648,7 +10649,7 @@ zip.file("_micCal.txt", micCal);
       const spArray = response2array(freqResponse, start, end);
       let bestOffset = null;
       let lowestRmsError = Infinity;
-      for (let offset = -12.5; offset <= 12.5; offset += 0.5) {
+      for (let offset = -12; offset <= 12; offset += 0.5) {
         const rmsError = calculateRmsError(spArray, targetArray, offset);
         if (rmsError < lowestRmsError) {
           lowestRmsError = rmsError;
