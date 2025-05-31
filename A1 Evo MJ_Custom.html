@@ -29520,7 +29520,7 @@ zip.file("_micCal.txt", micCal);
       const bytesSub = Uint8Array.from(atob(subResponse.magnitude), c => c.charCodeAt(0));
       const bufferSub = bytesSub.buffer;
       const dataSub = new DataView(bufferSub);
-      spSum = 0; overLimit = false;
+      spSum = 0;
       for (k = 0; k <= 681; k++) {
         const subMagnitude = dataSub.getFloat32(k * 4);
         subArray.push([sfreqArray[k], subMagnitude + subTarget[k]]);
@@ -29533,6 +29533,7 @@ zip.file("_micCal.txt", micCal);
       subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
       k = 0;
       for (let channel of jsonData.detectedChannels) {
+        overLimit = false;
         if (channel.commandId.startsWith("SW")) {
           const customDistanceValue = parseFloat(customDistance[nSpeakers]) + parseFloat(delayAdjustment[nSpeakers]) - parseFloat(channel.delayAdjustment);
           let customLevelValue = parseFloat(customLevel[nSpeakers + k]) + parseFloat(channel.trimAdjustment);
