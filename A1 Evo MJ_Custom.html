@@ -10638,14 +10638,14 @@ zip.file("_micCal.txt", micCal);
     }
     async function getSubwooferTrim(noM, start=20, end=100, ppo=96) {
       const targetArray = await getTargetArray(start, end, ppo);
-      const freqResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, noM);
+      const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
       const subArray = response2array(freqResponse, start, end);
       let bestOffset = null;
-      let lowestRMSError = Infinity;
+      let lowestMAError = Infinity;
       for (let offset = -20; offset <= 20; offset += 0.5) { // extra room for combining multi-sub
-        const RMSError = calculateRMSError(subArray, targetArray, offset);
-        if (RMSError < lowestRMSError) {
-          lowestRMSError = RMSError;
+        const MAError = calculateMAError(subArray, targetArray, offset);
+        if (MAError < lowestMAError) {
+          lowestMAError = MAError;
           bestOffset = offset;
         }
       }
@@ -10653,7 +10653,7 @@ zip.file("_micCal.txt", micCal);
     }
     async function getSpeakerTrim(noM, start=250, end=4000, ppo=96) {
       const targetArray = await getTargetArray(start, end, ppo);
-      const freqResponse = await fetchSafe(`frequency-response?smoothing=Psy&ppo=${ppo}`, noM);
+      const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
       const spArray = response2array(freqResponse, start, end);
       let bestOffset = null;
       let lowestMAError = Infinity;
