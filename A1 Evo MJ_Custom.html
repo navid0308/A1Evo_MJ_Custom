@@ -10127,28 +10127,8 @@ zip.file("_micCal.txt", micCal);
       if (xoSum > 0) { xoAvg = xoSum / eqResults.length; }
       await postNext('Magn plus phase average', Array.from(eqResults));
       console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS average XO ${xoAvg.toFixed(2)}hz`); 
-      await postSafe(`${baseUrl}/${mCount + 1}/filters`, {
-        filters: [{
-          "index": 21,
-          "type": "High pass",
-          "enabled": true,
-          "isAuto": false,
-          "frequency": xoAvg,
-          "shape": "BU",
-          "slopedBPerOctave": 12
-        }]}, "Filters set");
-      await postNext('Generate predicted measurement', mCount + 1);
-      await postSafe(`${baseUrl}/${mCount}/filters`, {
-        filters: [{
-          "index": 21,
-          "type": "Low pass",
-          "enabled": true,
-          "isAuto": false,
-          "frequency": xoAvg,
-          "shape": "L-R",
-          "slopedBPerOctave": 24
-        }]}, "Filters set");
-      await postNext('Generate predicted measurement', mCount);
+      await genSpeaker(mCount + 1, xoAvg);
+      await genSub(mCount, xoAvg);
       await postNext('Smooth', mCount + 2, { smoothing: "1/48" });
       await postNext('Smooth', mCount + 3, { smoothing: "1/48" });
       [isPossibleI, requiredDelayI, isInverted] = await align4system(mCount + 2, mCount + 3);
@@ -10250,28 +10230,8 @@ zip.file("_micCal.txt", micCal);
           else {
             await postNext('Magn plus phase average', [i, i + 2]);
           }
-          await postSafe(`${baseUrl}/${mCount + 1}/filters`, {
-            filters: [{
-              "index": 21,
-              "type": "High pass",
-              "enabled": true,
-              "isAuto": false,
-              "frequency": checkXo,
-              "shape": "BU",
-              "slopedBPerOctave": 12
-            }]}, "Filters set");
-          await postNext('Generate predicted measurement', mCount + 1);
-          await postSafe(`${baseUrl}/${mCount}/filters`, {
-            filters: [{
-              "index": 21,
-              "type": "Low pass",
-              "enabled": true,
-              "isAuto": false,
-              "frequency": checkXo,
-              "shape": "L-R",
-              "slopedBPerOctave": 24
-            }]}, "Filters set");
-          await postNext('Generate predicted measurement', mCount);
+          await genSpeaker(mCount + 1, checkXo);
+          await genSub(mCount, checkXo);
           await postNext('Smooth', mCount + 3, { smoothing: "1/48" });
           await postNext('Smooth', mCount + 2, { smoothing: "1/48" });
           await postNext('Arithmetic', [mCount + 3, mCount + 2], { function: "A + B" });
@@ -10307,36 +10267,8 @@ zip.file("_micCal.txt", micCal);
         let xo;
         customCrossover[i] < 40 ? xo = customCrossover[i] * 10 : xo = customCrossover[i]
         const j = nSpeakers + 2 * i;
-        await postSafe(`${baseUrl}/${j}/filters`, {
-          filters: [{
-            "index": 21,
-            "type": "High pass",
-            "enabled": true,
-            "isAuto": false,
-            "frequency": xo,
-            "shape": "BU",
-            "slopedBPerOctave": 12
-          }]
-        }, "Filters set");
-        await postNext('Generate predicted measurement', j);
-        await postSafe(`${baseUrl}/${nSpeakers * 3}/filters`, {
-          filters: [{
-            "index": 21,
-            "type": "Low pass",
-            "enabled": true,
-            "isAuto": false,
-            "frequency": xo,
-            "shape": "L-R",
-            "slopedBPerOctave": 24
-          }]
-        }, "Filters set");
-        await postSafe(`${baseUrl}/${nSpeakers * 3}/filters`, {
-          filters: [{
-            "index": 22,
-            "type": "None"
-          }]
-        }, "Filters set");
-        await postNext('Generate predicted measurement', nSpeakers * 3);
+        await genSpeaker(j, xo);
+        await genSub(nSpeakers * 3, xo);
       }
       let kOrg = 1;
       for (i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
@@ -10346,18 +10278,7 @@ zip.file("_micCal.txt", micCal);
         await fetch_mREW(key, 'PUT', { title: chName });
         kOrg++;
       }
-      await postSafe(`${baseUrl}/${nSpeakers * 3}/filters`, {
-        filters: [{
-          "index": 21,
-          "type": "Low pass",
-          "enabled": true,
-          "isAuto": false,
-          "frequency": 120,
-          "shape": "L-R",
-          "slopedBPerOctave": 24
-        }]
-      }, "Filters set");
-      await postNext('Generate predicted measurement', nSpeakers * 3);
+      await genSub(nSpeakers * 3, 120);
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length
       await fetch_mREW(mCount, 'PUT', { title: "LFEfinal-120hz-LPF" });
@@ -10488,7 +10409,7 @@ zip.file("_micCal.txt", micCal);
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false;
       let maxSubVolume = 0, minSubVolume = 0;
       for (let i = nSpeakers; i <= (nSpeakers + numSub - 1); i++) {
-        await genSub(250, i);
+        await genSub(i, 250);
       }
       for (let i = nSpeakers; i <= (nSpeakers + numSub - 1); i++) {
         if (customLevel[i] > maxSubVolume) {maxSubVolume = customLevel[i]};
@@ -10796,8 +10717,7 @@ zip.file("_micCal.txt", micCal);
       await postDelete(mCount + 1);
       return sum;
     }
-    async function genSub(freq, i = null) {
-      if (i === null) {i = nSpeakers * 3};
+    async function genSub(i, freq) {
       await postSafe(`${baseUrl}/${i}/filters`, {
         filters: [{
           "index": 21,
@@ -10823,12 +10743,6 @@ zip.file("_micCal.txt", micCal);
           "frequency": freq,
           "shape": "BU",
           "slopedBPerOctave": slope
-        }]
-      }, "Filters set");
-      await postSafe(`${baseUrl}/${i}/filters`, {
-        filters: [{
-          "index": 22,
-          "type": "None"
         }]
       }, "Filters set");
       await postNext('Generate predicted measurement', i);
