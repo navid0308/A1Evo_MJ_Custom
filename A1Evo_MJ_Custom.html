@@ -10014,7 +10014,8 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function generateFilters() {
-      console.log(`Generating proprietary room correction filters based on Hilbert transforms of the impulse responses...`);
+      console.log(`Generating EQ filters based on FDW + Min. Phase responses...`);
+      console.info("Starting...");
       for (let i = 1; i <= nSpeakers; i++) {
         await postSafe(`http://localhost:4735/measurements/${i}/target-settings`, { shape: "None" }, "Update processed");
         await postSafe(`http://localhost:4735/measurements/${i}/room-curve-settings`, { addRoomCurve: false }, "Update processed");
@@ -10041,13 +10042,14 @@ zip.file("_micCal.txt", micCal);
         allowHighShelf: false
       }, "Update processed");
       for (i = nSpeakers + 1; i <= nSpeakers * 2; i++) {
+        console.infoUpdate(`Equalizing channel - ${commandId[i - nSpeakers]}`);
         await fetchSafe('target-level', i, 75.0);
         await postNext('Smooth', i, { smoothing: "Var" });
         try {
           await postNext('Match target', i);
         }
         catch (error) {
-          console.debug(`${commandId[i - nSpeakers]} could not be equalized!`);
+          console.warn(`${commandId[i - nSpeakers]} could not be equalized!`);
         }
         const mFilter = await postNext('Generate filters measurement', i);
         let fIndex2 = Object.keys(mFilter.results);
@@ -10065,6 +10067,7 @@ zip.file("_micCal.txt", micCal);
         const id = (i - nSpeakers) / 2 + 0.5;
         await fetch_mREW(i, 'PUT', { title: `${commandId[id]}-filters` });
       }
+      console.infoUpdate("Completed equalizing all channels!");
     }
     async function calculateRolloffs() {
       await fetchSafe('target-level', 1, 75.0);
@@ -10078,7 +10081,7 @@ zip.file("_micCal.txt", micCal);
       });
       await postNext('Smooth', nSpeakers * 3 + 2, { smoothing: "1/48" });
       await postDelete(nSpeakers * 3 + 1);
-      console.log("Calculating 'steady state' roll off frequencies based on target curve...");
+      console.log("Calculating roll-off frequencies based on target curve...");
       for (let j = 0; j < freqLength; j++) {
         await genSpeaker(nSpeakers * 3 + 1, freqIndex[j]);
       }
@@ -10088,16 +10091,14 @@ zip.file("_micCal.txt", micCal);
       for (let i = nSpeakers + 2; i <= nSpeakers * 3 - 2; i += 2) {
         const iXO = await findXO(i, mCount);
         customCrossover[j] = freqIndex[iXO - nSpeakers * 3 - 2];
-        j++;
-      }
-      for (i = 1; i < nSpeakers; i++) {
-        if (customCrossover[i] === 15.75) {
-          console.info(`Speaker ${commandId[i]}: 'Large/Full range' shifted to 40hz`);
-          customCrossover[i] = 40;
+        if (customCrossover[j] === 15.75) {
+          console.info(`${commandId[j]} - detected roll-off: 'Large/Full range' shifted to 40hz`);
+          customCrossover[j] = 40;
         }
         else {
-          console.info(`Speaker ${commandId[i]}: ${customCrossover[i]}Hz`);
+          console.info(`${commandId[j]} - detected roll-off: ${customCrossover[j]}Hz`);
         }
+        j++;
       }
       for (i = mCount; i > nSpeakers * 3; i--) {
         await postDelete(i);
@@ -10120,7 +10121,7 @@ zip.file("_micCal.txt", micCal);
       }
       if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
       await postNext('Magn plus phase average', Array.from(eqResults));
-      console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS using average rolloff: ${avgRolloff.toFixed(2)}hz`); 
+      console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS using average roll-off: ${avgRolloff.toFixed(2)}hz`); 
       await genSpeaker(mCount + 1, avgRolloff);
       await genSub(mCount, avgRolloff);
       await postNext('Smooth', mCount + 2, { smoothing: "1/48" });
@@ -10164,9 +10165,9 @@ zip.file("_micCal.txt", micCal);
         }
         customDistance[i] = Math.round(parseFloat(customDistance[i]) * 100) / 100;
         if (i >= nSpeakers) {
-          console.warn(`${commandId[i]}: ${customDistance[i].toFixed(2)} meters, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
+          console.warn(`${commandId[i]} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
         } else {
-          console.info(`${commandId[i]}: ${customDistance[i].toFixed(2)} meters`);
+          console.info(`${commandId[i]} - distance: ${customDistance[i].toFixed(2)}m`);
         }
       }
       let delay0 = -Infinity;
@@ -10209,7 +10210,6 @@ zip.file("_micCal.txt", micCal);
           rolloff = Math.min(rolloff, rolloffR);
         }
         let bestXo = rolloff, minRmsError= Infinity;
-
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXo = freqIndex[j];
           if (checkXo < rolloff || checkXo > 2 * rolloff) { continue; }
@@ -10234,11 +10234,11 @@ zip.file("_micCal.txt", micCal);
           }
         }
         if (singleChannel) {
-          console.info(`${commandId[(i - nSpeakers) / 2]}: ${bestXo}hz. Detected rolloff: ${rolloff}`);
+          console.info(`${commandId[(i - nSpeakers) / 2]} - best XO: ${bestXo}hz. Detected roll-off: ${rolloff}`);
           customCrossover[(i - nSpeakers) / 2] = bestXo;
         }
         else {
-          console.info(`${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}: ${bestXo}hz. Detected rolloff: ${rolloff}`);
+          console.info(`${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]} - best XO: ${bestXo}hz. Detected roll-off: ${rolloff}`);
           customCrossover[(i - nSpeakers) / 2] = bestXo;
           customCrossover[1 + (i - nSpeakers) / 2] = bestXo;
           i += 2;
@@ -10246,12 +10246,13 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function drawResults() {
+      console.log("Generating expected final outputs for each channel...");
+      console.info("Starting...");
       const meas = await fetch_mREW();
       const measCount = Object.keys(meas).length
       for (let i = measCount; i > nSpeakers * 3; i--) {
         await postDelete(i);
       }
-      console.log("Generating expected final outputs for each channel...");
       for (i = 1; i < nSpeakers; i++) {
         let xo;
         customCrossover[i] < 40 ? xo = customCrossover[i] * 10 : xo = customCrossover[i]
@@ -10261,12 +10262,14 @@ zip.file("_micCal.txt", micCal);
       }
       let kOrg = 1;
       for (i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
+        console.infoUpdate(`Generating final output for channel - ${commandId[kOrg]}`);
         const addition = await postNext('Arithmetic', [i + 1, i], { function: "A + B" });
         let key = Object.keys(addition.results)[0]
         const chName = commandId[kOrg] + `final-${customCrossover[kOrg]}hz-xo`;
         await fetch_mREW(key, 'PUT', { title: chName });
         kOrg++;
       }
+      console.infoUpdate("Generating final output for channel - LFE");
       await genSub(nSpeakers * 3, 120);
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length
@@ -10289,6 +10292,7 @@ zip.file("_micCal.txt", micCal);
         if (title.endsWith("-filters") || title.endsWith(" @ 75dB")) { continue; }
         await postNext('Smooth', i, { smoothing: "1/6" });
       }
+      console.infoUpdate("Completed generating final outputs for all channels!");
     }
     async function findXO(indX, mCount) {
       let iXO, sum, minSum = Infinity, k;
@@ -29406,7 +29410,7 @@ zip.file("_micCal.txt", micCal);
         }
         spSum /= 192;
         spSum = Math.round(spSum * 2) / 2;
-        if (spSum != 0.0) { console.info(`${commandId[i]}: ${spSum}dB Audyssey auto-leveling compensation added.`); }
+        if (spSum != 0.0) { console.info(`${commandId[i]} - compensated by: ${spSum}dB`); }
         customLevel[i] += spSum;
         if (customLevel[i] < -12) { customLevel[i] = -12; overLimit = true; }
         if (overLimit) { console.warn(`${commandId[i]} could not be fully compensated for auto-leveling! Decrease gain of this speaker before next Audyssey measurement.`); }
@@ -29449,7 +29453,7 @@ zip.file("_micCal.txt", micCal);
           const customDistanceValue = parseFloat(customDistance[nSpeakers]) + parseFloat(delayAdjustment[nSpeakers]) - parseFloat(channel.delayAdjustment);
           let customLevelValue = parseFloat(customLevel[nSpeakers + k]) + parseFloat(channel.trimAdjustment);
           channel.customDistance = Math.round(parseFloat(customDistanceValue) * 100) / 100;
-          if (spSum != 0.0) { console.info(`${channel.commandId}: ${spSum}dB Audyssey auto-leveling compensation added.`); }
+          if (spSum != 0.0) { console.info(`${channel.commandId} - compensated by: ${spSum}dB`); }
           customLevelValue += spSum;
           if (customLevelValue < -12) { customLevelValue = -12; overLimit = true; }
           if (overLimit) {console.warn(`${channel.commandId} could not be fully compensated for auto-leveling! Decrease gain of this sub before next Audyssey measurement.`);}
