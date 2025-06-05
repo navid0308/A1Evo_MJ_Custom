@@ -9936,7 +9936,16 @@ zip.file("_micCal.txt", micCal);
       for (i = 1; i <= mCount; i += micPositions) {
         console.infoUpdate(`Computing optimal spatial averaging configuration for speaker #${(i - 1) / micPositions + 1}`)
         const indices = Array.from({length: micPositions }, (_, j) => i + j);
-        await postNext('Cross corr align', indices);
+        try {
+          await postNext('Cross corr align', indices);
+        }
+        catch (error) {
+          // expected to fail with single position ady, only an issue if it fails with multiple position ady
+          if (micPositions > 1) {
+            console.error(`Failed to cross correlate align measurements - ${indices} due to ${error}`);
+            throw new Error;
+          }
+        }
         const oIndex = (i - 1) / micPositions + 1;
         mSec[oIndex] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
         title[oIndex] = measurements[i].title.slice(0, -1) + "o";
@@ -9948,7 +9957,7 @@ zip.file("_micCal.txt", micCal);
         await postDelete(mCount + oIndex)
         // avg
         await alignVol2MLP(indicesAgain, customLevel[count]);
-        await postNext('Magn plus phase average', indicesAgain);
+        micPositions === 1 ? await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed") : await postNext('Magn plus phase average', indicesAgain);
         await fetch_mREW(mCount + oIndex, 'PUT', { title: title[oIndex] });
         // align avg to target curve
         let volAdjust = parseFloat(customLevel[count]);
@@ -10581,6 +10590,7 @@ zip.file("_micCal.txt", micCal);
       return bestOffset;
     }
     async function alignVol2MLP(indices, mlp_volume) {
+      if (indices.length <= 1) { return; }
       let measurements = await fetch_mREW();
       for (let i = 0; i < indices.length; i++) {
         idx_volume = 0.0;
