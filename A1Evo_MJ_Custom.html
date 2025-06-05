@@ -29410,10 +29410,10 @@ zip.file("_micCal.txt", micCal);
         }
         spSum /= 192;
         spSum = Math.round(spSum * 2) / 2;
-        if (spSum != 0.0) { console.info(`${commandId[i]} - compensated by: ${spSum}dB`); }
         customLevel[i] += spSum;
         if (customLevel[i] < -12) { customLevel[i] = -12; overLimit = true; }
-        if (overLimit) { console.warn(`${commandId[i]} could not be fully compensated for auto-leveling! Decrease gain of this speaker before next Audyssey measurement.`); }
+        if (overLimit) { console.warn(`${commandId[i]} could not be fully compensated by ${spSum}dB for auto-leveling! Decrease gain of this speaker before next Audyssey measurement.`); }
+        if (!overLimit && spSum != 0.0) { console.info(`${commandId[i]} - compensated by: ${spSum}dB`); }
         const customTargetCurvePoints = fltArray.map(point => `{${point[0]}, ${point[1]}}`);
         const thisChannel = jsonData.detectedChannels.find(channel => channel.commandId === commandId[i]);
         thisChannel.customTargetCurvePoints = customTargetCurvePoints;
@@ -29453,10 +29453,10 @@ zip.file("_micCal.txt", micCal);
           const customDistanceValue = parseFloat(customDistance[nSpeakers]) + parseFloat(delayAdjustment[nSpeakers]) - parseFloat(channel.delayAdjustment);
           let customLevelValue = parseFloat(customLevel[nSpeakers + k]) + parseFloat(channel.trimAdjustment);
           channel.customDistance = Math.round(parseFloat(customDistanceValue) * 100) / 100;
-          if (spSum != 0.0) { console.info(`${channel.commandId} - compensated by: ${spSum}dB`); }
           customLevelValue += spSum;
           if (customLevelValue < -12) { customLevelValue = -12; overLimit = true; }
-          if (overLimit) {console.warn(`${channel.commandId} could not be fully compensated for auto-leveling! Decrease gain of this sub before next Audyssey measurement.`);}
+          if (overLimit) {console.warn(`${channel.commandId} could not be fully compensated by ${spSum}dB for auto-leveling! Decrease gain of this sub before next Audyssey measurement.`);}
+          if (!overLimit && spSum != 0.0) { console.info(`${channel.commandId} - compensated by: ${spSum}dB`); }
           channel.customLevel = customLevelValue.toFixed(1);
           channel.frequencyRangeRolloff = 250;
           if (numSub > 1) { k++ };
