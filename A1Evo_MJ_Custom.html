@@ -9927,7 +9927,7 @@ zip.file("_micCal.txt", micCal);
       const micPositions = mCount / (nSpeakers + numSub - 1);
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
-      console.info(`Optimizing volume & time alignment using <${micPositions}> different microphone positions...`);
+      console.log(`Optimizing volume & time alignment using <${micPositions}> different microphone positions...`);
       console.info(`This will take a while but ensure 'direct sound' is prioritized for every measurement impulse.`);
       let count = 1;
       measurements = await fetch_mREW();
