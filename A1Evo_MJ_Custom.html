@@ -263,6 +263,11 @@
         Avoid sub polarity inversion
         <span class="explanation">Avoids subwoofer polarity inversion checks in optimizations. Select this option if your sub(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
+      <label>
+        <input type="checkbox" id="movieMode" onchange="updateCheckboxStates('movieMode')">
+        Movie mode
+        <span class="explanation">This mode levels and EQs more aggressively and prioritizes immersion over natural sound of your speakers.</span>
+      </label>
     </small>
   </div>
   <div class="notice">*Evo will perform best with the default options with majority of systems</div>
@@ -292,13 +297,14 @@
     let endFrequency = 20000;// End frequency for amplitude correction filters
     ///////////////////////// For optimal sound quality, OCA recommends to maintain the default values above! ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     let noInversion = false;// If true, avoids subwoofer polarity inversion. This may limit alignment options and could negatively impact sound quality
+    let movieMode = false;// If true, speakers are leveled using 250-20k instead of 250-4k. This results in slightly more aggresive EQ but better channel to channel consistency
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
-    let adyContents, fileName, sOs, isCirrusLogic, hasxo180, cDist, nSpeakers, subLO, subHI, multisubDelay;
+    let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = {}, delayAdjustment = {}, freqIndex = [], freqLength;
     let maxNegative, maxPositive, targetCurvePath, targetArray = [];
-    let bassMode = "Standard", numSub = 1, swChannelCount = 0;
+    let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "_";
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
 
     function extractAdy(event) {
@@ -351,7 +357,7 @@
         subHI = highestTrimAdjustment >= 0 ? 12 - highestTrimAdjustment : highestTrimAdjustment;
         maxDelayAdjustment != 0.00 ? multisubDelay = maxDelayAdjustment : multisubDelay = 0.00;
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
-        cDist = getDistance(jsonData.detectedChannels);
+        flDist = getDistance(jsonData.detectedChannels);
         let totalMeasurements = 0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
@@ -9697,11 +9703,11 @@ zip.file("_micCal.txt", micCal);
       return modifiedName;
     }
     function getDistance(channels) {
-      let dist = parseFloat(channels[1].channelReport.distance);
+      let dist = parseFloat(channels[0].channelReport.distance);
       if (isNaN(dist) || dist === 0) {
-        dist = parseFloat(channels[1].customDistance);
+        dist = parseFloat(channels[0].customDistance);
         if (isNaN(dist) || dist === 0 || dist === null) {
-          console.warn(`No distance found for ${channels[1].commandId}! Defaulting to 3m.`)
+          console.warn(`No distance found for ${channels[0].commandId}! Defaulting to 3m.`)
           console.warn(`To fix: Open ady in MultEQ phone app then -\nSpeaker Detection Results > Change distance of any channel by 1cm > Save and then retry.`);
           dist = 3.00;
         }
@@ -9744,6 +9750,8 @@ zip.file("_micCal.txt", micCal);
     function updateCheckboxStates(triggeredBy) {
       const noInversionCheckbox = document.getElementById('noInversion');
       noInversion = noInversionCheckbox.checked;
+      const movieModeCheckbox = document.getElementById('movieMode');
+      movieMode = movieModeCheckbox.checked;
     }
     async function optimizeOCA() {
       clearCommands();
@@ -9756,6 +9764,7 @@ zip.file("_micCal.txt", micCal);
       disableGraph();
       const startTime = performance.now();
       document.getElementById('noInversion').disabled = true;
+      document.getElementById('movieMode').disabled = true;
       await bootUp();
       console.info("Optimization started...");
       console.warn("Please keep REW on 'SPL & Phase' tab, close any child windows and stay on this web page until optimization is completed!");
@@ -10002,7 +10011,6 @@ zip.file("_micCal.txt", micCal);
         maxNegative = (msecMin - mSec[nSpeakers]) * 1000;
         maxPositive = 0;
       }
-      const speaker1 = title[1].replace("o","");
       console.info(`Available bass system volume adjustment range → { ${subLO}dB : ${subHI}dB }`);
       console.info(`Total 'delay headroom' available to subwoofer after maxing out all tweaks → ${-maxNegative.toFixed(2)}ms`);
       if (maxNegative > 0) {
@@ -10159,9 +10167,16 @@ zip.file("_micCal.txt", micCal);
         mSec[nSpeakers] += subMoves;
         invertSub[nSpeakers] = isInverted;
       }
+      let flIndex = 1;
+      for (i = 1; i <= nSpeakers; i++) {
+        if (commandId[i].startsWith("FL")) {
+          flIndex = i;
+          break;
+        }
+      }
       let distMinSub = Infinity;
       for (i = nSpeakers; i <= nSpeakers + numSub - 1; i++) {
-        customDistance[i] = cDist + (mSec[i] - mSec[1]) * sOs;
+        customDistance[i] = flDist + (mSec[i] - mSec[flIndex]) * sOs;
         if (customDistance[i] < distMinSub) {distMinSub = customDistance[i];}
       }
       if (distMinSub < 0) {
@@ -10171,13 +10186,14 @@ zip.file("_micCal.txt", micCal);
       }
       console.log("Final speaker distances:");
       for (i = 1; i <= nSpeakers + numSub - 1; i++) {
-        customDistance[i] = cDist + (mSec[i] - mSec[1]) * sOs;
+        customDistance[i] = flDist + (mSec[i] - mSec[flIndex]) * sOs;
         if (distMinSub < 0) {
           customDistance[i] += Math.abs(distMinSub) + multisubDelay;
         }
         customDistance[i] = Math.round(parseFloat(customDistance[i]) * 100) / 100;
         if (i >= nSpeakers) {
           console.warn(`${commandId[i]} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
+          swInvMsg += invertSub[i] ? `Invert${commandId[i]}_` : "";
         } else {
           console.info(`${commandId[i]} - distance: ${customDistance[i].toFixed(2)}m`);
         }
@@ -10577,7 +10593,7 @@ zip.file("_micCal.txt", micCal);
       }
       return bestOffset;
     }
-    async function getSpeakerTrim(noM, start=250, end=4000, ppo=96) {
+    async function getSpeakerTrim(noM, start=250, end=(movieMode ? 20000 : 4000), ppo=96) {
       const targetArray = await getTargetArray(start, end, ppo);
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
       const spArray = response2array(freqResponse, start, end);
@@ -29490,8 +29506,8 @@ zip.file("_micCal.txt", micCal);
       const day = String(now.getDate()).padStart(2, '0');
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
-      const timestamp = `${year}${month}${day}_${hours}${minutes}`;
-      downloadLink.download = getadyName(fileName, `_${timestamp}_A1EvoMJ.ady`);
+      const timestamp = `${year}-${month}-${day}_${hours}-${minutes}`;
+      downloadLink.download = getadyName(fileName, (movieMode ? "_MovieMode" : "") + swInvMsg + `A1EvoMJCustom_${timestamp}.ady`);
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
       downloadLink.click();
