@@ -10593,7 +10593,7 @@ zip.file("_micCal.txt", micCal);
       }
       return bestOffset;
     }
-    async function getSpeakerTrim(noM, start=250, end=(movieMode ? 20000 : 4000), ppo=96) {
+    async function getSpeakerTrim(noM, start=250, end=(movieMode ? 10000 : 4000), ppo=96) {
       const targetArray = await getTargetArray(start, end, ppo);
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
       const spArray = response2array(freqResponse, start, end);
@@ -10610,7 +10610,7 @@ zip.file("_micCal.txt", micCal);
     }
     async function alignVol2MLP(indices, mlp_volume) {
       if (indices.length <= 1) { return; }
-      let measurements = await fetch_mREW();
+      const measurements = await fetch_mREW();
       for (let i = 0; i < indices.length; i++) {
         idx_volume = 0.0;
         if (measurements[indices[i]].title.startsWith("SW")) {
