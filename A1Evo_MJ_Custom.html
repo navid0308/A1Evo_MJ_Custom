@@ -10472,21 +10472,18 @@ zip.file("_micCal.txt", micCal);
         console.log("Please identify the reason and fix excessive delays in one or more of your subs then repeat Audyssey calibration!");
         throw new error;
       }
-      let bestScore = -Infinity, bestI, iCount = 1, bestCount = null;
+      let bestEP = Infinity, bestI, iCount = 1, bestCount = null;
       for (const index of finalIndices) {
         if (index !== null) {
-          const tempSumEP = await calcEP(index);
-          const tempSum = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, index);
-          const tempSumArray = response2array(tempSum, start, end);
-          const currScore = calculateLinearityScore(tempSumArray) / tempSumEP;
-          if (bestScore < currScore) { bestScore = currScore; bestI = index; bestCount = iCount; }
-          console.info(`Configuration #${iCount} linearity score: ${currScore.toFixed(2)}`);
+          const currEP = await calcEP(index);
+          if (bestEP > currEP) { bestEP = currEP; bestI = index; bestCount = iCount; }
+          console.info(`Configuration #${iCount} excess phase: ${currEP.toFixed(2)}°`);
           iCount++;
         }
       }
       const targetIndex = finalResults.indexOf(bestI);
       const configurationArray = finalResults[targetIndex + 1];
-      console.info(`Optimal selection: Configuration #${bestCount} [${configurationArray}] with ${(bestScore).toFixed(2)} linearity score.`);
+      console.info(`Optimal selection: Configuration #${bestCount} [${configurationArray}] with excess phase: ${(bestEP).toFixed(2)}°`);
       invertSub[nSpeakers + configurationArray[0]] = false;
       for (let i = 0; i < (numSub - 1); i++) {
         const requiredDelayIValue = finalResults[targetIndex + 2][i].requiredDelayI;
@@ -10555,18 +10552,6 @@ zip.file("_micCal.txt", micCal);
         sumOfAbsoluteErrors += Math.abs((rpArray[i] + offset) - targetArray[i]);
       }
       return sumOfAbsoluteErrors / rpArray.length;
-    }
-    function calculateLinearityScore(rpArray) {
-      if (rpArray.length === 0) { return -Infinity; }
-      function calculateSTD(arr) {
-        const mean = arr.reduce((acc, val) => acc + val, 0) / arr.length;
-        return Math.sqrt(
-          arr.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) /
-            (arr.length)
-        );
-      }
-      let magSum = rpArray.reduce((a, b) => a + b, 0);
-      return magSum / calculateSTD(rpArray);
     }
     async function getTargetArray(start, end, ppo=96) {
       const measurements = await fetch_mREW();
@@ -10676,7 +10661,7 @@ zip.file("_micCal.txt", micCal);
       return [isPossible, requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, loDelay, hiDelay, start=20, end=100, ppo=96) {
-      let isInverted = false, isPossible = false, requiredDelay = NaN, sumIndex = null, bestFreq = NaN, bestScore = -Infinity;
+      let isInverted = false, isPossible = false, requiredDelay = NaN, sumIndex = null, bestFreq = NaN, maxSum = -Infinity;
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
@@ -10696,9 +10681,9 @@ zip.file("_micCal.txt", micCal);
 
         const tempSum = await fetchAlign(`aligned-frequency-response?smoothing=1%2F48&ppo=${ppo}`);
         const tempSumArray = response2array(tempSum, start, end);
-        const currScore = calculateLinearityScore(tempSumArray);
-        if (bestScore < currScore) {
-          bestScore = currScore;
+        const currSum = tempSumArray.reduce((a, b) => a + b, 0);
+        if (maxSum < currSum) {
+          maxSum = currSum;
           bestFreq = checkFreq;
           isPossible = true;
           requiredDelay = delayB;
