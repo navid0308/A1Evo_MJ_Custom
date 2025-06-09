@@ -10475,10 +10475,9 @@ zip.file("_micCal.txt", micCal);
       let bestScore = -Infinity, bestI, iCount = 1, bestCount = null;
       for (const index of finalIndices) {
         if (index !== null) {
-          const tempSumEP = await calcEP(index);
           const tempSum = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, index);
           const tempSumArray = response2array(tempSum, start, end);
-          const currScore = calculateLinearityScore(tempSumArray) / tempSumEP;
+          const currScore = calculateLinearityScore(tempSumArray);
           if (bestScore < currScore) { bestScore = currScore; bestI = index; bestCount = iCount; }
           console.info(`Configuration #${iCount} linearity score: ${currScore.toFixed(2)}`);
           iCount++;
@@ -10565,7 +10564,10 @@ zip.file("_micCal.txt", micCal);
             (arr.length)
         );
       }
-      let magSum = rpArray.reduce((a, b) => a + b, 0);
+      let magSum = 0;
+      for (let i = 0; i < rpArray.length; i++) {
+        magSum += rpArray[i] / Math.sqrt(i + 1); // emphasize lows
+      }
       return magSum / calculateSTD(rpArray);
     }
     async function getTargetArray(start, end, ppo=96) {
@@ -10640,7 +10642,7 @@ zip.file("_micCal.txt", micCal);
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", -hiDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", -loDelay, "Maximum positive delay set to");
       console.info("Commencing 'iterative' impulse alignment frequency vs expected SPL analysis. Please sit tight...")
-      for (let checkFreq = 20; checkFreq <= 250; checkFreq++) {
+      for (let checkFreq = start; checkFreq <= end; checkFreq++) {
         const postAlignResult = await postAlign('Align IRs', checkFreq);
         if (postAlignResult.message === 'Delay too large') { continue; }
         
@@ -10684,7 +10686,7 @@ zip.file("_micCal.txt", micCal);
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Commencing in-depth frequency and SPL analysis...")
-      for (let checkFreq = 20; checkFreq <= 250; checkFreq++) {
+      for (let checkFreq = start; checkFreq <= end; checkFreq++) {
         const postAlignResult = await postAlign('Align IRs', checkFreq);
         if (postAlignResult.message === 'Delay too large' && previousDelay != postAlignResult.delay) {
           previousDelay = postAlignResult.delay;
@@ -10720,24 +10722,6 @@ zip.file("_micCal.txt", micCal);
         sumIndex = parseInt(key);
       }
       return [isPossible, requiredDelay, isInverted, sumIndex];
-    }
-    async function calcEP(mNo, start=30, end=80) {
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
-      await postNext('Excess phase version', mNo, {
-        "include cal": false,
-        "append lf tail": false,
-        "append hf tail": false,
-        "frequency warping": false,
-        "replicate data": false
-      });
-      await postNext('Smooth', mCount + 1, { smoothing: "1/48" });
-      const epResponse = await fetchSafe('frequency-response', mCount + 1);
-      const phaseArray = response2array(epResponse, start, end, true);
-      let sum = phaseArray.reduce((acc, val) => acc + Math.abs(val), 0);
-      sum /= phaseArray.length;
-      await postDelete(mCount + 1);
-      return sum;
     }
     async function genSub(i, freq) {
       await postSafe(`${baseUrl}/${i}/filters`, {
