@@ -10610,6 +10610,18 @@ zip.file("_micCal.txt", micCal);
       }
       return bestOffset;
     }
+    async function getMaxSumArray(ind1, ind2, start=20, end=100, ppo=96) {
+      let maxSumArray = [];
+      const ind1FreqResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, ind1);
+      const ind1Array = response2array(ind1FreqResponse, start, end);
+      const ind2FreqResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, ind2);
+      const ind2Array = response2array(ind2FreqResponse, start, end);
+      if (ind1Array.length != ind2Array.length) { throw new Error("Unexpected error!"); }
+      for (let i = 0; i < ind1Array.length; i++) {
+        maxSumArray.push(ind1Array[i] + ind2Array[i]);
+      }
+      return maxSumArray;
+    }
     async function alignVol2MLP(indices, mlp_volume) {
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
@@ -10678,7 +10690,8 @@ zip.file("_micCal.txt", micCal);
       return [isPossible, requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, loDelay, hiDelay, start=20, end=100, ppo=96) {
-      let isInverted = false, isPossible = false, requiredDelay = NaN, sumIndex = null, bestFreq = NaN, bestScore = -Infinity;
+      const maxSumArray = await getMaxSumArray(ind1, ind2, start, end, ppo);
+      let isInverted = false, isPossible = false, requiredDelay = NaN, sumIndex = null, bestFreq = NaN, minRmsError = Infinity;
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
@@ -10698,9 +10711,9 @@ zip.file("_micCal.txt", micCal);
 
         const tempSum = await fetchAlign(`aligned-frequency-response?smoothing=1%2F48&ppo=${ppo}`);
         const tempSumArray = response2array(tempSum, start, end);
-        const currScore = calculateLinearityScore(tempSumArray);
-        if (bestScore < currScore) {
-          bestScore = currScore;
+        const rmsError = calculateRMSError(tempSumArray, maxSumArray);
+        if (rmsError < minRmsError) {
+          minRmsError = rmsError;
           bestFreq = checkFreq;
           isPossible = true;
           requiredDelay = delayB;
