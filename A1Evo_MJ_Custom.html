@@ -301,7 +301,7 @@
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
-    let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay;
+    let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = {}, delayAdjustment = {}, freqIndex = [], freqLength;
     let maxNegative, maxPositive, targetCurvePath, targetArray = [];
     let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "_";
@@ -9806,8 +9806,9 @@ zip.file("_micCal.txt", micCal);
       console.info(`*****************************************************************************************************************************************`);
       console.info("When prompted, the .ady file to your PC and transfer them to your MultEQ Editor app.");
       console.info("Next, transfer your preferred ady file 'as is' from MultEQ Editor app to your AV receiver as you normally would after a calibration.");
-      console.log("***You may freely change crossovers if they seem unusual.***")
-      console.info("The Editor app graphs will no longer represent before/after speaker responses due to the special filtering technique implemented.");
+      console.log("***You may freely change crossovers in the MultEQ app or AVR if desired.***");
+      console.log("***You may freely adjust the correction range in the MultEQ app if desired.***");
+      console.info("The Editor app 'after' graphs will now represent the filters being applied for each channel.");
       console.info(`*****************************************************************************************************************************************`);
       console.info("Enjoy your EVO'lved sound!");
     }
@@ -9886,6 +9887,13 @@ zip.file("_micCal.txt", micCal);
         targetCurvePath = String(target);
         if (target && targetCurvePath) {
           console.info(`Active target curve: ${targetCurvePath.split(/[/\\]/).pop()}`);
+          const measurements = await fetch_mREW();
+          const mCount = Object.keys(measurements).length;
+          await fetchSafe('target-level', 1, 75.0);
+          await postNext('Generate target measurement', 1);
+          targetResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, mCount + 1);
+          Object.freeze(targetResponse); // ensure it doesn't change once optimization starts
+          await postDelete(mCount + 1);
         } else {
           console.warn("Target curve not found! Browse to and select 'TC_Custom.txt' (or any other) in 'REW / EQ window / House curve'!");
           console.log("Click 'Optimize calibration' button again when ready.");
@@ -9926,6 +9934,7 @@ zip.file("_micCal.txt", micCal);
     async function groundWorks() {
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
+      // move sub measurements to the bottom of the list in REW
       for (let i = 1; i <= mCount; i++) {
         const name = measurements[i].title;
         if (name.startsWith("SW")) {
@@ -9964,11 +9973,9 @@ zip.file("_micCal.txt", micCal);
         if (title[oIndex].startsWith("SW")) { title[oIndex] = title[oIndex].slice(0, -6) + "o"; }
         const indicesAgain = Array.from({ length: micPositions }, (_, j) => i + j);
         // determine volume from mlp measurement
-        await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed");
-        customLevel[count] = title[oIndex].startsWith("SW") ? await getSubwooferTrim(mCount + oIndex) : await getSpeakerTrim(mCount + oIndex);
-        await postDelete(mCount + oIndex)
+        customLevel[count] = title[oIndex].startsWith("SW") ? await getSubwooferTrim(i) : await getSpeakerTrim(i);
         // avg
-        await alignVol2MLP(indicesAgain, customLevel[count]);
+        await alignVol2MLP(indicesAgain, customLevel[count]); // level match all other positions with MLP
         micPositions === 1 ? await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed") : await postNext('Magn plus phase average', indicesAgain);
         await fetch_mREW(mCount + oIndex, 'PUT', { title: title[oIndex] });
         // align avg to target curve
@@ -10213,7 +10220,7 @@ zip.file("_micCal.txt", micCal);
       for (i = nSpeakers * 3 + 3; i > nSpeakers * 3; i--) {await postDelete(i);}
     }
     async function rmsOfXO(noM, start=20, end=250, ppo=96) {
-      const targetArray = await getTargetArray(start, end, ppo);
+      const targetArray = response2array(targetResponse, start, end);
       const freqResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, noM);
       const aSumArray = response2array(freqResponse, start, end);
       return calculateRMSError(aSumArray, targetArray);
@@ -10242,22 +10249,23 @@ zip.file("_micCal.txt", micCal);
           let checkXo = freqIndex[j];
           if (checkXo < rolloff || checkXo > 2 * rolloff) { continue; }
           if (singleChannel) {
-            await postNext('Magn plus phase average', [i, i]);
+            await genSpeaker(i, checkXo);
           }
           else {
-            await postNext('Magn plus phase average', [i, i + 2]);
+            await postNext('Vector average', [i, i + 2]);
+            await genSpeaker(mCount + 1, checkXo);
+            await postDelete(mCount + 1);
           }
-          await genSpeaker(mCount + 1, checkXo);
           await genSub(mCount, checkXo);
-          await postNext('Smooth', mCount + 3, { smoothing: "1/48" });
-          await postNext('Smooth', mCount + 2, { smoothing: "1/48" });
-          await postNext('Arithmetic', [mCount + 3, mCount + 2], { function: "A + B" });
-          const rmsError = await rmsOfXO(mCount + 4);
+          await postNext('Smooth', mCount + 1, { smoothing: "1/48" }); // speaker
+          await postNext('Smooth', mCount + 2, { smoothing: "1/48" }); // sub
+          await postNext('Arithmetic', [mCount + 1, mCount + 2], { function: "A + B" });
+          const rmsError = await rmsOfXO(mCount + 3);
           if (rmsError < minRmsError) {
             minRmsError = rmsError;
             bestXo = checkXo;
           }
-          for (let k = mCount + 4; k > mCount; k--) {
+          for (let k = mCount + 3; k > mCount; k--) {
             await postDelete(k);
           }
         }
@@ -10537,23 +10545,15 @@ zip.file("_micCal.txt", micCal);
       }
       return responseArray;
     }
-    function calculateRMSError(rpArray, targetArray, offset=0.0) {
+    function calculateRMSError(rpArray, targetArray) {
       if (rpArray.length === 0 || rpArray.length != targetArray.length) { return Infinity; }
       let sumOfSquares = 0;
       for (let i = 0; i < rpArray.length; i++) {
-        const diff = (rpArray[i] + offset) - targetArray[i];
+        const diff = rpArray[i] - targetArray[i];
         sumOfSquares += diff * diff;
       }
       const meanOfSquares = sumOfSquares / rpArray.length;
       return Math.sqrt(meanOfSquares);
-    }
-    function calculateMAError(rpArray, targetArray, offset=0.0) {
-      if (rpArray.length === 0 || rpArray.length != targetArray.length) { return Infinity; }
-      let sumOfAbsoluteErrors = 0;
-      for (let i = 0; i < rpArray.length; i++) {
-        sumOfAbsoluteErrors += Math.abs((rpArray[i] + offset) - targetArray[i]);
-      }
-      return sumOfAbsoluteErrors / rpArray.length;
     }
     function calculateLinearityScore(rpArray) {
       if (rpArray.length === 0) { return -Infinity; }
@@ -10570,45 +10570,23 @@ zip.file("_micCal.txt", micCal);
       }
       return magSum / calculateSTD(rpArray);
     }
-    async function getTargetArray(start, end, ppo=96) {
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
-      await fetchSafe('target-level', 1, 75.0);
-      await postNext('Generate target measurement', 1);
-      const targetResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, mCount + 1);
-      const targetArray = response2array(targetResponse, start, end);
-      await postDelete(mCount + 1);
-      return targetArray;
-    }
     async function getSubwooferTrim(noM, start=20, end=100, ppo=96) {
-      const targetArray = await getTargetArray(start, end, ppo);
+      const targetArray = response2array(targetResponse, start, end);
+      const targetSPL = targetArray.reduce((a, b) => a + b, 0) / targetArray.length;
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
       const subArray = response2array(freqResponse, start, end);
-      let bestOffset = null;
-      let lowestMAError = Infinity;
-      for (let offset = -20; offset <= 20; offset += 0.5) { // extra room for combining multi-sub
-        const MAError = calculateMAError(subArray, targetArray, offset);
-        if (MAError < lowestMAError) {
-          lowestMAError = MAError;
-          bestOffset = offset;
-        }
-      }
-      return bestOffset;
+      const subArraySPL = subArray.reduce((a, b) => a + b, 0) / subArray.length;
+      const offset = targetSPL - subArraySPL;
+      return Math.round(offset * 2) / 2;
     }
     async function getSpeakerTrim(noM, start=250, end=(movieMode ? 10000 : 4000), ppo=96) {
-      const targetArray = await getTargetArray(start, end, ppo);
+      const targetArray = response2array(targetResponse, start, end);
+      const targetSPL = targetArray.reduce((a, b) => a + b, 0) / targetArray.length;
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
       const spArray = response2array(freqResponse, start, end);
-      let bestOffset = null;
-      let lowestMAError = Infinity;
-      for (let offset = -12.5; offset <= 12.5; offset += 0.5) { // extra 0.5 helps identify if a speaker is out of limits
-        const MAError = calculateMAError(spArray, targetArray, offset);
-        if (MAError < lowestMAError) {
-          lowestMAError = MAError;
-          bestOffset = offset;
-        }
-      }
-      return bestOffset;
+      const spArraySPL = spArray.reduce((a, b) => a + b, 0) / spArray.length;
+      const offset = targetSPL - spArraySPL;
+      return Math.round(offset * 2) / 2;
     }
     async function getMaxSumArray(ind1, ind2, start=20, end=100, ppo=96) {
       let maxSumArray = [];
