@@ -10147,12 +10147,12 @@ zip.file("_micCal.txt", micCal);
         }
       }
       if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
-      await postNext('Magn plus phase average', Array.from(eqResults));
+      await postNext('Vector average', Array.from(eqResults));
       console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS using average roll-off: ${avgRolloff.toFixed(2)}hz`); 
       await genSpeaker(mCount + 1, avgRolloff);
       await genSub(mCount, avgRolloff);
-      await postNext('Smooth', mCount + 2, { smoothing: "1/48" });
-      await postNext('Smooth', mCount + 3, { smoothing: "1/48" });
+      await postNext('Smooth', mCount + 2, { smoothing: "1/48" }); // speakers
+      await postNext('Smooth', mCount + 3, { smoothing: "1/48" }); // sub
       [isPossibleI, requiredDelayI, isInverted] = await align4system(mCount + 2, mCount + 3);
       if (isPossibleI) {
         subMoves = requiredDelayI;
