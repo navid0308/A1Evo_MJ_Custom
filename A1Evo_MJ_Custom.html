@@ -9885,7 +9885,7 @@ zip.file("_micCal.txt", micCal);
         const target = await tcResponse.json();
         targetCurvePath = String(target);
         if (target && targetCurvePath) {
-          console.info(`Active custom target curve: ${targetCurvePath}`);
+          console.info(`Active target curve: ${targetCurvePath.split(/[/\\]/).pop()}`);
         } else {
           console.warn("Target curve not found! Browse to and select 'TC_Custom.txt' (or any other) in 'REW / EQ window / House curve'!");
           console.log("Click 'Optimize calibration' button again when ready.");
@@ -9899,7 +9899,7 @@ zip.file("_micCal.txt", micCal);
       const rewVersion = await fetch(`http://localhost:4735/version`);
       if (rewVersion.ok) {
         const rew = await rewVersion.json();
-        console.infoUpdate(`Integrity checks completed successfully. Running Room EQ Wizard version ${rew.message}`);
+        console.info(`Integrity checks completed successfully. Running Room EQ Wizard version ${rew.message}`);
       } else {
           console.error('There seems to be a problem with REW installation!');
           throw new Error();
