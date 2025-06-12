@@ -10147,7 +10147,7 @@ zip.file("_micCal.txt", micCal);
         }
       }
       if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
-      await postNext('Vector average', Array.from(eqResults));
+      await postNext('Magn plus phase average', Array.from(eqResults)); // same results with VA since goal is max output
       console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS using average roll-off: ${avgRolloff.toFixed(2)}hz`); 
       await genSpeaker(mCount + 1, avgRolloff);
       await genSub(mCount, avgRolloff);
@@ -10252,7 +10252,7 @@ zip.file("_micCal.txt", micCal);
             await genSpeaker(i, checkXo);
           }
           else {
-            await postNext('Vector average', [i, i + 2]);
+            await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
             await genSpeaker(mCount + 1, checkXo);
             await postDelete(mCount + 1);
           }
