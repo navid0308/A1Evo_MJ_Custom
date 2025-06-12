@@ -303,7 +303,7 @@
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
     let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = {}, delayAdjustment = {}, freqIndex = [], freqLength;
-    let maxNegative, maxPositive, targetCurvePath, targetArray = [];
+    let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [];
     let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "_";
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
 
@@ -9837,9 +9837,10 @@ zip.file("_micCal.txt", micCal);
       let mCount = Object.keys(measurements).length;
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
       if (isCirrusLogic) {mCount--;};
-      let baseMessage = "Resetting IR windows, EQ target shape and room curve settings for all measurements..."
+      let baseMessage = "Resetting IR windows, EQ type, target shape and room curve settings for all measurements..."
       for (let q = 1; q <= mCount; q++) {
         await postSafe(`http://localhost:4735/measurements/${q}/ir-windows`, { leftWindowType: "Rectangular", rightWindowType: "Rectangular" }, "Update processed");
+        await postSafe(`http://localhost:4735/measurements/${q}/equaliser`, {manufacturer: "Generic", model: "Generic"}, "Equaliser selected");
         await postSafe(`http://localhost:4735/measurements/${q}/target-settings`, { shape: "None" }, "Update processed");
         await postSafe(`http://localhost:4735/measurements/${q}/room-curve-settings`, { addRoomCurve: false }, "Update processed");
         console.infoUpdate(`${baseMessage} (${q}/${mCount})`);
@@ -9875,18 +9876,29 @@ zip.file("_micCal.txt", micCal);
       }
       for (const titleKey in titleIndices) {
         const indices = titleIndices[titleKey];
-        const sortedIndices = [...indices].sort((a, b) => a - b);
-        if (JSON.stringify(indices) !== JSON.stringify(sortedIndices)) {
-          console.error(`Indices of ${titleKey} are not in order.`);
+        if (indices[0] != Math.min(...indices)) {
+          console.error(`MLP measurement needs to be the first measurement for ${titleKey} channel!`);
           throw new Error;
         }
+      }
+      const rewVersion = await fetch(`http://localhost:4735/version`);
+      if (rewVersion.ok) {
+        const rew = await rewVersion.json();
+        console.infoUpdate(`Integrity checks completed successfully. Running Room EQ Wizard version ${rew.message}`);
+      }
+      else {
+        console.error('There seems to be a problem with REW installation!');
+        throw new Error();
       }
       const tcResponse = await fetch('http://localhost:4735/eq/house-curve');
       if (tcResponse.ok) {
         const target = await tcResponse.json();
         targetCurvePath = String(target);
+        Object.freeze(targetCurvePath);
         if (target && targetCurvePath) {
-          console.info(`Active target curve: ${targetCurvePath.split(/[/\\]/).pop()}`);
+          targetCurveName = targetCurvePath.split('\\').pop().split('.').slice(0, -1).join('.');
+          Object.freeze(targetCurveName);
+          console.info(`Active target curve: ${targetCurveName}`);
           const measurements = await fetch_mREW();
           const mCount = Object.keys(measurements).length;
           await fetchSafe('target-level', 1, 75.0);
@@ -9904,14 +9916,6 @@ zip.file("_micCal.txt", micCal);
         console.error(`Failed to fetch target curve, please make sure to have started REW API server! HTTP status code: ${tcResponse.status}.`);
         throw new Error;
       }
-      const rewVersion = await fetch(`http://localhost:4735/version`);
-      if (rewVersion.ok) {
-        const rew = await rewVersion.json();
-        console.info(`Integrity checks completed successfully. Running Room EQ Wizard version ${rew.message}`);
-      } else {
-          console.error('There seems to be a problem with REW installation!');
-          throw new Error();
-        }
       nSpeakers = Object.keys(titles).length;
       const indicesCounts = Object.values(titleIndices).map(indices => indices.length);
       const isIndicesEqual = indicesCounts.every(count => count === indicesCounts[0]);
@@ -10312,8 +10316,7 @@ zip.file("_micCal.txt", micCal);
       await fetch_mREW(mCount, 'PUT', { title: "LFEfinal-120hz-LPF" });
       await fetchSafe('target-level', 1, 75.0);
       await postNext('Generate target measurement', 1);
-      let targetName = targetCurvePath.split('\\').pop().split('.').slice(0, -1).join('.');
-      targetName += " @ 75dB";
+      let targetName = targetCurveName + " @ 75dB";
       await fetch_mREW(mCount + 1, 'PUT', { title: targetName });
       for (i = mCount; i > nSpeakers * 3; i--) {
         titleM = await fetch_mREW(i);
@@ -29483,7 +29486,7 @@ zip.file("_micCal.txt", micCal);
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}-${day}_${hours}-${minutes}`;
-      downloadLink.download = getadyName(fileName, (movieMode ? "_MovieMode" : "") + swInvMsg + `A1EvoMJCustom_${timestamp}.ady`);
+      downloadLink.download = getadyName(fileName, (movieMode ? "_MovieMode" : "") + swInvMsg + `${targetCurveName}_` + `A1EvoMJCustom_${timestamp}.ady`);
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
       downloadLink.click();
