@@ -10567,27 +10567,24 @@ zip.file("_micCal.txt", micCal);
             (arr.length)
         );
       }
-      let magSum = 0;
-      for (let i = 0; i < rpArray.length; i++) {
-        magSum += rpArray[i] / Math.sqrt(i + 1); // emphasize lows
-      }
+      let magSum = rpArray.reduce((acc, val) => acc + val - 75.0, 0);
       return magSum / calculateSTD(rpArray);
     }
     async function getSubwooferTrim(noM, start=20, end=100, ppo=96) {
       const targetArray = response2array(targetResponse, start, end);
-      const targetSPL = targetArray.reduce((a, b) => a + b, 0) / targetArray.length;
+      const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
       const subArray = response2array(freqResponse, start, end);
-      const subArraySPL = subArray.reduce((a, b) => a + b, 0) / subArray.length;
+      const subArraySPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
       const offset = targetSPL - subArraySPL;
       return Math.round(offset * 2) / 2;
     }
     async function getSpeakerTrim(noM, start=250, end=(movieMode ? 10000 : 4000), ppo=96) {
       const targetArray = response2array(targetResponse, start, end);
-      const targetSPL = targetArray.reduce((a, b) => a + b, 0) / targetArray.length;
+      const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
       const spArray = response2array(freqResponse, start, end);
-      const spArraySPL = spArray.reduce((a, b) => a + b, 0) / spArray.length;
+      const spArraySPL = spArray.reduce((acc, val) => acc + val, 0) / spArray.length;
       const offset = targetSPL - spArraySPL;
       return Math.round(offset * 2) / 2;
     }
