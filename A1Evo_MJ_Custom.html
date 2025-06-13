@@ -304,7 +304,7 @@
     let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = {}, delayAdjustment = {}, freqIndex = [], freqLength;
     let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [];
-    let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "_";
+    let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "";
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
 
     function extractAdy(event) {
@@ -10204,7 +10204,7 @@ zip.file("_micCal.txt", micCal);
         customDistance[i] = Math.round(parseFloat(customDistance[i]) * 100) / 100;
         if (i >= nSpeakers) {
           console.warn(`${commandId[i]} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
-          swInvMsg += invertSub[i] ? `Invert${commandId[i]}_` : "";
+          swInvMsg += invertSub[i] ? `inv${commandId[i]}_` : "";
         } else {
           console.info(`${commandId[i]} - distance: ${customDistance[i].toFixed(2)}m`);
         }
@@ -29485,8 +29485,8 @@ zip.file("_micCal.txt", micCal);
       const day = String(now.getDate()).padStart(2, '0');
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
-      const timestamp = `${year}-${month}-${day}_${hours}-${minutes}`;
-      downloadLink.download = getadyName(fileName, (movieMode ? "_MovieMode" : "") + swInvMsg + `${targetCurveName}_` + `A1EvoMJCustom_${timestamp}.ady`);
+      const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
+      downloadLink.download = getadyName(fileName, (movieMode ? "_Movie_" : "_") + swInvMsg + `${targetCurveName}_` + `A1Evo_${timestamp}.ady`);
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
       downloadLink.click();
