@@ -357,7 +357,8 @@
         subHI = highestTrimAdjustment >= 0 ? 12 - highestTrimAdjustment : highestTrimAdjustment;
         maxDelayAdjustment != 0.00 ? multisubDelay = maxDelayAdjustment : multisubDelay = 0.00;
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
-        flDist = getDistance(jsonData.detectedChannels);
+        flDist = getFLDistance(jsonData.detectedChannels);
+        Object.freeze(flDist);
         let totalMeasurements = 0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
@@ -9702,12 +9703,19 @@ zip.file("_micCal.txt", micCal);
       const modifiedName = fileName.substring(0, dotIndex) + suffix;
       return modifiedName;
     }
-    function getDistance(channels) {
-      let dist = parseFloat(channels[0].channelReport.distance);
+    function getFLDistance(channels) {
+      let flIndex = 0;
+      for (let i = 0; i < channels.length; i++) {
+        if (channels[i].commandId === "FL") {
+          flIndex = i;
+          break;
+        }
+      }
+      let dist = parseFloat(channels[flIndex].channelReport.distance);
       if (isNaN(dist) || dist === 0) {
-        dist = parseFloat(channels[0].customDistance);
+        dist = parseFloat(channels[flIndex].customDistance);
         if (isNaN(dist) || dist === 0 || dist === null) {
-          console.warn(`No distance found for ${channels[0].commandId}! Defaulting to 3m.`)
+          console.warn(`No distance found for ${channels[flIndex].commandId}! Defaulting to 3m.`)
           console.warn(`To fix: Open ady in MultEQ phone app then -\nSpeaker Detection Results > Change distance of any channel by 1cm > Save and then retry.`);
           dist = 3.00;
         }
@@ -9849,11 +9857,6 @@ zip.file("_micCal.txt", micCal);
       await console.infoUpdate("Resetting default equalizer to 'Generic/Generic'...");
       await postSafe(`http://localhost:4735/eq/default-equaliser`, {manufacturer: "Generic", model: "Generic"}, "Default equaliser changed");
       const firstTitle = measurements[1].title;
-      if (firstTitle.startsWith("BD")) {
-        console.warn("'Back Dolby' speakers detected! They are not suitable for use as a distance reference for other speakers.")
-        console.error("Please move all 'Center' speaker measurements to the top in REW and then run the script again!");
-        throw new Error;
-      }
       console.infoUpdate(`Checking measurement names, indices and sorting...`);
       for (let i = 1; i <= mCount; i++) {
         const title = measurements[i].title;
