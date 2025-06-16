@@ -10525,7 +10525,7 @@ zip.file("_micCal.txt", micCal);
       bassMode = "Standard";
       let volAdjust = parseFloat(await getSubwooferTrim(nSpeakers));
       await postNext('Add SPL offset', nSpeakers, { offset: volAdjust });
-      console.log(`Adjusted combined sub level by ${volAdjust}dB`);
+      console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
       for (i = nSpeakers; i < (nSpeakers + numSub); i++) {
         customLevel[i] += volAdjust;
         console.info(`${commandId[i]} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
@@ -10755,7 +10755,7 @@ zip.file("_micCal.txt", micCal);
       await postNext('Generate predicted measurement', i);
     }
     async function updateAdy() {
-      console.log(`Running Audyssey auto-leveling compensation...`);
+      console.log(`Applying Audyssey auto-leveling compensation...`);
       const antiMicCal = [1.44388E-06,
                           9.98023E-07,
                           1.02551E-07,
@@ -29427,7 +29427,7 @@ zip.file("_micCal.txt", micCal);
         customLevel[i] += spSum;
         if (customLevel[i] < -12) { customLevel[i] = -12; overLimit = true; }
         if (overLimit) { console.warn(`${commandId[i]} could not be fully compensated by ${spSum}dB for auto-leveling! Trim maxed out at -12dB. Decrease gain of this speaker before next Audyssey measurement.`); }
-        if (!overLimit && spSum != 0.0) { console.info(`${commandId[i]} trim - compensated by: ${spSum}dB: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB`); }
+        if (!overLimit && spSum != 0.0) { console.info(`${commandId[i]} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
         const customTargetCurvePoints = fltArray.map(point => `{${point[0]}, ${point[1]}}`);
         const thisChannel = jsonData.detectedChannels.find(channel => channel.commandId === commandId[i]);
         thisChannel.customTargetCurvePoints = customTargetCurvePoints;
@@ -29470,7 +29470,7 @@ zip.file("_micCal.txt", micCal);
           customLevelValue += spSum;
           if (customLevelValue < -12) { customLevelValue = -12; overLimit = true; }
           if (overLimit) {console.warn(`${channel.commandId} could not be fully compensated by ${spSum}dB for auto-leveling! Trim maxed out at -12dB. Decrease gain of this subwoofer before next Audyssey measurement.`);}
-          if (!overLimit && spSum != 0.0) { console.info(`${channel.commandId} trim - compensated by: ${spSum}dB: ${customLevelValue - spSum}dB → ${customLevelValue}dB`); }
+          if (!overLimit && spSum != 0.0) { console.info(`${channel.commandId} - shifted: ${customLevelValue - spSum}dB → ${customLevelValue}dB (${spSum}dB)`); }
           channel.customLevel = customLevelValue.toFixed(1);
           channel.frequencyRangeRolloff = 250;
           if (numSub > 1) { k++ };
