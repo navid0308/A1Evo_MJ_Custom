@@ -10519,6 +10519,7 @@ zip.file("_micCal.txt", micCal);
         const title = measurements[i].title;
         if (title != "SW1o") { await postDelete(i); }
       }
+      bassMode = "Standard";
       let volAdjust = parseFloat(await getSubwooferTrim(nSpeakers));
       await postNext('Add SPL offset', nSpeakers, { offset: volAdjust });
       console.log(`Adjusted combined sub level by ${volAdjust}dB`);
@@ -10574,6 +10575,7 @@ zip.file("_micCal.txt", micCal);
       return magSum / calculateSTD(rpArray);
     }
     async function getSubwooferTrim(noM, start=20, end=100, ppo=96) {
+      if (bassMode === "Directional") { start=30, end=80; } // helps if different subs have varying bandwidths
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
@@ -10582,7 +10584,8 @@ zip.file("_micCal.txt", micCal);
       const offset = targetSPL - subArraySPL;
       return Math.round(offset * 2) / 2;
     }
-    async function getSpeakerTrim(noM, start=250, end=(movieMode ? 10000 : 4000), ppo=96) {
+    async function getSpeakerTrim(noM, start=250, end=4000, ppo=96) {
+      if (movieMode) { end=10000; } // use more of the high frequencies for leveling in movie mode
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
