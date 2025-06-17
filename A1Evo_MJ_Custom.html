@@ -9777,8 +9777,9 @@ zip.file("_micCal.txt", micCal);
       console.info("Optimization started...");
       console.warn("Please keep REW on 'SPL & Phase' tab, close any child windows and stay on this web page until optimization is completed!");
       await groundWorks();
-      await printTrims();
       await generateFilters();
+      await audyALCompensation();
+      await finalizeTrims();
       await calculateRolloffs();
       await optimizeSubDelay();
       await finalizeXO();
@@ -10033,20 +10034,6 @@ zip.file("_micCal.txt", micCal);
         throw new Error;
       }
     }
-    async function printTrims() {
-      console.log("Final speaker trims:")
-      for (i = 1; i < nSpeakers; i++) {
-        if (customLevel[i] > 12) { customLevel[i] = 12; console.warn(`${commandId[i]} required volume adjustment above hardware limits and is maxed out!`) }
-        if (customLevel[i] < -12) { customLevel[i] = -12; console.warn(`${commandId[i]} required volume adjustment below hardware limits and is set as low as possible!`) }
-        console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`);
-      }
-      console.log("Final subwoofer trim(s):")
-      for (i = nSpeakers; i < (nSpeakers + numSub); i++) {
-        if (customLevel[i] > 12) { customLevel[i] = 12; console.warn(`${commandId[i]} required volume adjustment above hardware limits and is maxed out!`) }
-        if (customLevel[i] < -12) { customLevel[i] = -12; console.warn(`${commandId[i]} required volume adjustment below hardware limits and is set as low as possible!`) }
-        console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`);
-      }
-    }
     async function generateFilters() {
       console.log(`Generating EQ filters based on FDW + Min. Phase responses...`);
       console.info("Starting...");
@@ -10102,6 +10089,41 @@ zip.file("_micCal.txt", micCal);
         await fetch_mREW(i, 'PUT', { title: `${commandId[id]}-filters` });
       }
       console.infoUpdate("Completed equalizing all channels!");
+    }
+    async function audyALCompensation() {
+      console.log(`Applying Audyssey auto-leveling compensation...`);
+      let spSum = 0.0;
+      for (i = 1; i < nSpeakers; i++) {
+        const filterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nSpeakers - 1));
+        const filterArray = await response2array(filterResponse, 500, 2000);
+        spSum = filterArray.reduce((acc, val) => acc + val, 0) / filterArray.length;
+        spSum = Math.round(spSum * 2) / 2;
+        customLevel[i] += spSum;
+        if (spSum != 0) { console.info(`${commandId[i]} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
+      }
+      spSum = 0.0;
+      const subFilterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nSpeakers * 3 - 1);
+      const subFilterArray = await response2array(subFilterResponse, 30, 80);
+      spSum = subFilterArray.reduce((acc, val) => acc + val, 0) / subFilterArray.length;
+      spSum = Math.round(spSum * 2) / 2;
+      for (i = nSpeakers; i < (nSpeakers + numSub); i++) {
+        customLevel[i] += spSum;
+        if (spSum != 0) { console.info(`${commandId[i]} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
+      }
+    }
+    async function finalizeTrims() {
+      console.log("Final speaker trims:")
+      for (i = 1; i < nSpeakers; i++) {
+        if (customLevel[i] > 12) { customLevel[i] = 12; console.warn(`${commandId[i]} required volume adjustment above hardware limits, trim set to 12dB!`); }
+        else if (customLevel[i] < -12) { customLevel[i] = -12; console.warn(`${commandId[i]} required volume adjustment below hardware limits, trim set to -12dB!`); }
+        else { console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`); }
+      }
+      console.log("Final subwoofer trim(s):")
+      for (i = nSpeakers; i < (nSpeakers + numSub); i++) {
+        if (customLevel[i] > 12) { customLevel[i] = 12; console.warn(`${commandId[i]} required volume adjustment above hardware limits, trim set to 12dB!`); }
+        else if (customLevel[i] < -12) { customLevel[i] = -12; console.warn(`${commandId[i]} required volume adjustment below hardware limits, trim set to -12dB!`); }
+        else { console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`); }
+      }
     }
     async function calculateRolloffs() {
       await fetchSafe('target-level', 1, 75.0);
@@ -10749,7 +10771,6 @@ zip.file("_micCal.txt", micCal);
       await postNext('Generate predicted measurement', i);
     }
     async function updateAdy() {
-      console.log(`Applying Audyssey auto-leveling compensation...`);
       const antiMicCal = [1.44388E-06,
                           9.98023E-07,
                           1.02551E-07,
@@ -28726,18 +28747,10 @@ zip.file("_micCal.txt", micCal);
         const bytes = Uint8Array.from(atob(fltResponse.magnitude), c => c.charCodeAt(0));
         const buffer = bytes.buffer;
         const data = new DataView(buffer);
-        let spSum = 0, overLimit = false;
         for (k = 0; k <= 1531; k++) {
           const fltMagnitude = data.getFloat32(k * 4);
           fltArray.push([freqArray[k], fltMagnitude + antiHFRolloff[k]]);
-          if (k >= 1000 && k <= 1191) { spSum += (fltMagnitude + antiHFRolloff[k]) };
         }
-        spSum /= 192;
-        spSum = Math.round(spSum * 2) / 2;
-        customLevel[i] += spSum;
-        if (customLevel[i] < -12) { customLevel[i] = -12; overLimit = true; }
-        if (overLimit) { console.warn(`${commandId[i]} could not be fully compensated by ${spSum}dB for auto-leveling! Trim maxed out at -12dB. Decrease gain of this speaker before next Audyssey measurement.`); }
-        if (!overLimit && spSum != 0.0) { console.info(`${commandId[i]} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
         const customTargetCurvePoints = fltArray.map(point => `{${point[0]}, ${point[1]}}`);
         const thisChannel = jsonData.detectedChannels.find(channel => channel.commandId === commandId[i]);
         thisChannel.customTargetCurvePoints = customTargetCurvePoints;
@@ -28759,28 +28772,19 @@ zip.file("_micCal.txt", micCal);
       const bytesSub = Uint8Array.from(atob(subResponse.magnitude), c => c.charCodeAt(0));
       const bufferSub = bytesSub.buffer;
       const dataSub = new DataView(bufferSub);
-      spSum = 0;
       for (k = 0; k <= 681; k++) {
         const subMagnitude = dataSub.getFloat32(k * 4);
         subArray.push([sfreqArray[k], subMagnitude]);
-        if (k >= 81 && k <= 217) { spSum += subMagnitude };
       }
-      spSum /= 137;
-      spSum = Math.round(spSum * 2) / 2;
       const customTargetCurvePointsSub = subArray.map(point => `{${point[0]}, ${point[1]}}`);
       const subChannel = jsonData.detectedChannels[nSpeakers - 1];
       subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
       k = 0;
       for (let channel of jsonData.detectedChannels) {
-        overLimit = false;
         if (channel.commandId.startsWith("SW")) {
           const customDistanceValue = parseFloat(customDistance[nSpeakers]) + parseFloat(delayAdjustment[nSpeakers]) - parseFloat(channel.delayAdjustment);
           let customLevelValue = parseFloat(customLevel[nSpeakers + k]) + parseFloat(channel.trimAdjustment);
           channel.customDistance = Math.round(parseFloat(customDistanceValue) * 100) / 100;
-          customLevelValue += spSum;
-          if (customLevelValue < -12) { customLevelValue = -12; overLimit = true; }
-          if (overLimit) {console.warn(`${channel.commandId} could not be fully compensated by ${spSum}dB for auto-leveling! Trim maxed out at -12dB. Decrease gain of this subwoofer before next Audyssey measurement.`);}
-          if (!overLimit && spSum != 0.0) { console.info(`${channel.commandId} - shifted: ${customLevelValue - spSum}dB → ${customLevelValue}dB (${spSum}dB)`); }
           channel.customLevel = customLevelValue.toFixed(1);
           channel.frequencyRangeRolloff = 250;
           if (numSub > 1) { k++ };
