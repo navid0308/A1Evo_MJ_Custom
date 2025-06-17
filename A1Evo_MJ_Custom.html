@@ -10106,15 +10106,6 @@ zip.file("_micCal.txt", micCal);
     async function calculateRolloffs() {
       await fetchSafe('target-level', 1, 75.0);
       await postNext('Generate target measurement', 1);
-      await postNext('Minimum phase version', nSpeakers * 3 + 1, {
-        "include cal": false,
-        "append lf tail": false,
-        "append hf tail": false,
-        "frequency warping": false,
-        "replicate data": true
-      });
-      await postNext('Smooth', nSpeakers * 3 + 2, { smoothing: "1/48" });
-      await postDelete(nSpeakers * 3 + 1);
       console.log("Calculating roll-off frequencies based on target curve...");
       for (let j = 0; j < freqLength; j++) {
         await genSpeaker(nSpeakers * 3 + 1, freqIndex[j]);
@@ -10556,7 +10547,10 @@ zip.file("_micCal.txt", micCal);
       return responseArray;
     }
     function calculateRMSError(rpArray, targetArray) {
-      if (rpArray.length === 0 || rpArray.length != targetArray.length) { return Infinity; }
+      if (rpArray.length === 0 || rpArray.length != targetArray.length) {
+        console.warn("Failed to calculate RMS error!");
+        return Infinity;
+      }
       let sumOfSquares = 0;
       for (let i = 0; i < rpArray.length; i++) {
         const diff = rpArray[i] - targetArray[i];
