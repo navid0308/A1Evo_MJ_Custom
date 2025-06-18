@@ -355,6 +355,8 @@
         });
         subLO = lowestTrimAdjustment <= 0 ? -12 - lowestTrimAdjustment : lowestTrimAdjustment;
         subHI = highestTrimAdjustment >= 0 ? 12 - highestTrimAdjustment : highestTrimAdjustment;
+        Object.freeze(subLO);
+        Object.freeze(subHI);
         maxDelayAdjustment != 0.00 ? multisubDelay = maxDelayAdjustment : multisubDelay = 0.00;
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
         flDist = getFLDistance(jsonData.detectedChannels);
@@ -9835,7 +9837,7 @@ zip.file("_micCal.txt", micCal);
         const name = measurements[i].title;
         await fetch_mREW(mCount + i, 'PUT', { title: name });
       }
-      for (i = mCount; i >= 1; i--) {
+      for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
       }
     }
@@ -9949,7 +9951,7 @@ zip.file("_micCal.txt", micCal);
           await postSafe(`http://localhost:4735/measurements/${i}/command`, { command: "Response copy" }, "Completed");
         }
       }
-      for (i = mCount; i >= 1; i--) {
+      for (let i = mCount; i >= 1; i--) {
         const name = measurements[i].title;
         if (name.startsWith("SW")) {await postDelete(i);}
       }
@@ -9962,7 +9964,7 @@ zip.file("_micCal.txt", micCal);
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length
       let title = {};
-      for (i = 1; i <= mCount; i += micPositions) {
+      for (let i = 1; i <= mCount; i += micPositions) {
         console.infoUpdate(`Computing optimal spatial averaging configuration for speaker #${(i - 1) / micPositions + 1}`)
         const indices = Array.from({length: micPositions }, (_, j) => i + j);
         try {
@@ -9994,17 +9996,17 @@ zip.file("_micCal.txt", micCal);
       }
       await fetch_mREW(mCount + nSpeakers + numSub - 1, 'PUT', {title: title[nSpeakers + numSub - 1]});
       console.infoUpdate("Deleting processed measurements...");
-      for (i = mCount; i >= 1; i--) {
+      for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
       }
-      for (i = 1; i <= nSpeakers + numSub - 1; i++) {
+      for (let i = 1; i < nSpeakers + numSub; i++) {
         commandId[i] = title[i].slice(0, -1); // unnecessary coupling
       }
       console.infoUpdate("Executing precision temporal alignment across the speaker array for optimal coherence...");
       const oIndices = Array.from({ length: nSpeakers + numSub - 1 }, (_, j) => j + 1);
       await postNext('Time align', oIndices);
       measurements = await fetch_mREW();
-      for (i = 1; i <= nSpeakers + numSub - 1; i++) {
+      for (let i = 1; i < nSpeakers + numSub; i++) {
         mSec[i] += parseFloat(measurements[i].cumulativeIRShiftSeconds);
       }
       const minM = Math.min(...mSec.slice(1, nSpeakers));
@@ -10012,7 +10014,7 @@ zip.file("_micCal.txt", micCal);
       const limInsec = 6.00049999 / sOs;
       msecMin = maxM - limInsec;
       msecMax = minM + limInsec;
-      for (i = nSpeakers; i <= nSpeakers + numSub - 1; i++) {
+      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
         const overDelay = mSec[i] - msecMax;
         mSec[i] -= overDelay;
         await postNext2('Offset t=0', i, {offset: -overDelay, unit: "seconds"});
@@ -10062,7 +10064,7 @@ zip.file("_micCal.txt", micCal);
         allowLowShelf: false,
         allowHighShelf: false
       }, "Update processed");
-      for (i = nSpeakers + 1; i <= nSpeakers * 2; i++) {
+      for (let i = nSpeakers + 1; i <= nSpeakers * 2; i++) {
         console.infoUpdate(`Equalizing channel - ${commandId[i - nSpeakers]}`);
         await fetchSafe('target-level', i, 75.0);
         await postNext('Smooth', i, { smoothing: "Var" });
@@ -10081,10 +10083,10 @@ zip.file("_micCal.txt", micCal);
         await postNext('Arithmetic', [fIndex1, fIndex2], { function: "A * B" });
         await fetch_mREW(fIndex2 + 1, 'PUT', { title: fName });
       }
-      for (i = nSpeakers * 2; i > nSpeakers; i--) {
+      for (let i = nSpeakers * 2; i > nSpeakers; i--) {
         await postDelete(i);
       }
-      for (i = nSpeakers + 1; i < nSpeakers * 3; i += 2) {
+      for (let i = nSpeakers + 1; i < nSpeakers * 3; i += 2) {
         const id = (i - nSpeakers) / 2 + 0.5;
         await fetch_mREW(i, 'PUT', { title: `${commandId[id]}-filters` });
       }
@@ -10093,7 +10095,7 @@ zip.file("_micCal.txt", micCal);
     async function audyALCompensation() {
       console.log(`Applying Audyssey auto-leveling compensation...`);
       let spSum = 0.0;
-      for (i = 1; i < nSpeakers; i++) {
+      for (let i = 1; i < nSpeakers; i++) {
         const filterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nSpeakers - 1));
         const filterArray = await response2array(filterResponse, 500, 2000);
         spSum = filterArray.reduce((acc, val) => acc + val, 0) / filterArray.length;
@@ -10106,23 +10108,34 @@ zip.file("_micCal.txt", micCal);
       const subFilterArray = await response2array(subFilterResponse, 30, 80);
       spSum = subFilterArray.reduce((acc, val) => acc + val, 0) / subFilterArray.length;
       spSum = Math.round(spSum * 2) / 2;
-      for (i = nSpeakers; i < (nSpeakers + numSub); i++) {
+      for (let i = nSpeakers; i < (nSpeakers + numSub); i++) {
         customLevel[i] += spSum;
         if (spSum != 0) { console.info(`${commandId[i]} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
       }
     }
     async function finalizeTrims() {
-      console.log("Final speaker trims:")
-      for (i = 1; i < nSpeakers; i++) {
-        if (customLevel[i] > 12) { customLevel[i] = 12; console.warn(`${commandId[i]} required volume adjustment above hardware limits, trim set to 12dB!`); }
-        else if (customLevel[i] < -12) { customLevel[i] = -12; console.warn(`${commandId[i]} required volume adjustment below hardware limits, trim set to -12dB!`); }
-        else { console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`); }
+      console.log("Final speaker & subwoofer trims:")
+      for (let i = 1; i < nSpeakers; i++) {
+        const customLevelOriginal = customLevel[i];
+        customLevel[i] = Math.max(-12, customLevel[i]);
+        customLevel[i] = Math.min(customLevel[i], 12);
+        if (customLevelOriginal != customLevel[i]) {
+          console.warn(`${commandId[i]} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal}dB → ${customLevel[i]}dB`);
+        }
+        else {
+          console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`);
+        }
       }
-      console.log("Final subwoofer trim(s):")
-      for (i = nSpeakers; i < (nSpeakers + numSub); i++) {
-        if (customLevel[i] > 12) { customLevel[i] = 12; console.warn(`${commandId[i]} required volume adjustment above hardware limits, trim set to 12dB!`); }
-        else if (customLevel[i] < -12) { customLevel[i] = -12; console.warn(`${commandId[i]} required volume adjustment below hardware limits, trim set to -12dB!`); }
-        else { console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`); }
+      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
+        const customLevelOriginal = customLevel[i];
+        customLevel[i] = Math.max(subLO, customLevel[i]);
+        customLevel[i] = Math.min(customLevel[i], subHI);
+        if (customLevelOriginal != customLevel[i]) {
+          console.warn(`${commandId[i]} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal}dB → ${customLevel[i]}dB`);
+        }
+        else {
+          console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`);
+        }
       }
     }
     async function calculateRolloffs() {
@@ -10147,7 +10160,7 @@ zip.file("_micCal.txt", micCal);
         }
         j++;
       }
-      for (i = mCount; i > nSpeakers * 3; i--) {
+      for (let i = mCount; i > nSpeakers * 3; i--) {
         await postDelete(i);
       }
     }
@@ -10157,7 +10170,7 @@ zip.file("_micCal.txt", micCal);
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       let eqResults = [], rolloff = 0, avgRolloff = 80;
-      for (i = nSpeakers; i < mCount; i++) {
+      for (let i = nSpeakers; i < mCount; i++) {
         const mData = await fetch_mREW(i);
         const title = mData.title;
         if (title.endsWith("-equalized"))
@@ -10186,7 +10199,7 @@ zip.file("_micCal.txt", micCal);
       subMoves /= 1000;
       await postNext('Offset t=0', nSpeakers * 3, {offset: subMoves, unit: "seconds"});
       if (numSub > 1) {
-        for (i = nSpeakers; i <= nSpeakers + numSub - 1; i++) {
+        for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
           mSec[i] += subMoves;
           invertSub[i] = isInverted ? !invertSub[i] : invertSub[i];
         }
@@ -10195,14 +10208,14 @@ zip.file("_micCal.txt", micCal);
         invertSub[nSpeakers] = isInverted;
       }
       let flIndex = 1;
-      for (i = 1; i <= nSpeakers; i++) {
+      for (let i = 1; i <= nSpeakers; i++) {
         if (commandId[i].startsWith("FL")) {
           flIndex = i;
           break;
         }
       }
       let distMinSub = Infinity;
-      for (i = nSpeakers; i <= nSpeakers + numSub - 1; i++) {
+      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
         customDistance[i] = flDist + (mSec[i] - mSec[flIndex]) * sOs;
         if (customDistance[i] < distMinSub) {distMinSub = customDistance[i];}
       }
@@ -10211,8 +10224,8 @@ zip.file("_micCal.txt", micCal);
         console.info("This adjustment will ONLY improve overall sound quality.");
         console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
       }
-      console.log("Final speaker distances:");
-      for (i = 1; i <= nSpeakers + numSub - 1; i++) {
+      console.log("Final speaker & subwoofer distances:");
+      for (let i = 1; i < nSpeakers + numSub; i++) {
         customDistance[i] = flDist + (mSec[i] - mSec[flIndex]) * sOs;
         if (distMinSub < 0) {
           customDistance[i] += Math.abs(distMinSub) + multisubDelay;
@@ -10229,18 +10242,18 @@ zip.file("_micCal.txt", micCal);
         console.warn(`You will need to switch polarity of EACH of your ${swChannelCount} subwoofers!`);
       }
       let delay0 = -Infinity;
-      for (i = nSpeakers; i <= nSpeakers + numSub - 1; i++) {
+      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
         if (customDistance[i] > delay0) {
           delay0 = customDistance[i];
         }
       }
-      for (i = nSpeakers; i <= nSpeakers + numSub - 1; i++) {
+      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
         delayAdjustment[i] = (delay0 - customDistance[i]).toFixed(2);
       }
-      for (i = 1; i <= nSpeakers; i++) {
+      for (let i = 1; i <= nSpeakers; i++) {
         customCrossover[i] === 15.75 ? customCrossover[i] = "L" : customCrossover[i] = String(customCrossover[i]).slice(0, 2);
       }
-      for (i = nSpeakers * 3 + 3; i > nSpeakers * 3; i--) {await postDelete(i);}
+      for (let i = nSpeakers * 3 + 3; i > nSpeakers * 3; i--) {await postDelete(i);}
     }
     async function rmsOfXO(noM, start=20, end=250, ppo=96) {
       const targetArray = response2array(targetResponse, start, end);
@@ -10312,7 +10325,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = measCount; i > nSpeakers * 3; i--) {
         await postDelete(i);
       }
-      for (i = 1; i < nSpeakers; i++) {
+      for (let i = 1; i < nSpeakers; i++) {
         let xo;
         customCrossover[i] < 40 ? xo = customCrossover[i] * 10 : xo = customCrossover[i]
         const j = nSpeakers + 2 * i;
@@ -10320,7 +10333,7 @@ zip.file("_micCal.txt", micCal);
         await genSub(nSpeakers * 3, xo);
       }
       let kOrg = 1;
-      for (i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
+      for (let i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
         console.infoUpdate(`Generating final output for channel - ${commandId[kOrg]}`);
         const addition = await postNext('Arithmetic', [i + 1, i], { function: "A + B" });
         let key = Object.keys(addition.results)[0]
@@ -10337,14 +10350,14 @@ zip.file("_micCal.txt", micCal);
       await postNext('Generate target measurement', 1);
       let targetName = targetCurveName + " @ 75dB";
       await fetch_mREW(mCount + 1, 'PUT', { title: targetName });
-      for (i = mCount; i > nSpeakers * 3; i--) {
+      for (let i = mCount; i > nSpeakers * 3; i--) {
         titleM = await fetch_mREW(i);
         const title = titleM.title;
         if (title.includes("EQ")) { await postDelete(i); }
       }
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length
-      for (i = 1; i <= mCount; i++) {
+      for (let i = 1; i <= mCount; i++) {
         titleM = await fetch_mREW(i);
         const title = titleM.title;
         if (title.endsWith("-filters") || title.endsWith(" @ 75dB")) { continue; }
@@ -10394,7 +10407,7 @@ zip.file("_micCal.txt", micCal);
           k2 = Math.round(Math.log2(k2 / startFreq) * xoResponsePpo);
         }
         let t = 0;
-        for (k = k1; k <= k2; k++) {
+        for (let k = k1; k <= k2; k++) {
           const xoMagnitude = dataXo.getFloat32(k * 4);
           if (magnitudeArray[t] > 75.0) { break; }
           const dif = magnitudeArray[t] - xoMagnitude;
@@ -10458,19 +10471,6 @@ zip.file("_micCal.txt", micCal);
     }
     async function tectonic(start=20, end=120, ppo=96) {
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false;
-      let maxSubVolume = 0, minSubVolume = 0;
-      for (let i = nSpeakers; i <= (nSpeakers + numSub - 1); i++) {
-        await genSub(i, 250);
-      }
-      for (let i = nSpeakers; i <= (nSpeakers + numSub - 1); i++) {
-        if (customLevel[i] > maxSubVolume) {maxSubVolume = customLevel[i]};
-        if (customLevel[i] < minSubVolume) {minSubVolume = customLevel[i]}
-      }
-      subLO -= minSubVolume;
-      subHI -= maxSubVolume;
-      for (i = nSpeakers + 2 * numSub - 1; i > nSpeakers + numSub - 1; i--){
-        await postDelete(i);
-      }
       let finalIndex;
       console.info("Aligning multiple subs between each other for best bass performance...")
       const subOrders = {
@@ -10531,7 +10531,7 @@ zip.file("_micCal.txt", micCal);
       await fetch_mREW(nSpeakers, 'PUT', { title: "tempSub" });
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      for (i = mCount; i >= nSpeakers; i--) {
+      for (let i = mCount; i >= nSpeakers; i--) {
         const title = measurements[i].title;
         if (title != "SW1o") { await postDelete(i); }
       }
@@ -10539,7 +10539,7 @@ zip.file("_micCal.txt", micCal);
       let volAdjust = parseFloat(await getSubwooferTrim(nSpeakers));
       await postNext('Add SPL offset', nSpeakers, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
-      for (i = nSpeakers; i < (nSpeakers + numSub); i++) {
+      for (let i = nSpeakers; i < (nSpeakers + numSub); i++) {
         customLevel[i] += volAdjust;
         console.info(`${commandId[i]} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
       }
@@ -28741,13 +28741,13 @@ zip.file("_micCal.txt", micCal);
         freqArray.push(iFreq);
         iFreq *= octX;
       }
-      for (i = 1; i < nSpeakers; i++) {
+      for (let i = 1; i < nSpeakers; i++) {
         const fltArray = [];
         const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nSpeakers - 1));
         const bytes = Uint8Array.from(atob(fltResponse.magnitude), c => c.charCodeAt(0));
         const buffer = bytes.buffer;
         const data = new DataView(buffer);
-        for (k = 0; k <= 1531; k++) {
+        for (let k = 0; k <= 1531; k++) {
           const fltMagnitude = data.getFloat32(k * 4);
           fltArray.push([freqArray[k], fltMagnitude + antiHFRolloff[k]]);
         }
@@ -28763,7 +28763,7 @@ zip.file("_micCal.txt", micCal);
         thisChannel.channelReport.customEnSpeakerConnect = customCrossover[i] === "L" ? 2 : 1;
       }
       iFreq = 0.3662109375;
-      for (k = 0; k <= 681; k++) {
+      for (let k = 0; k <= 681; k++) {
         sfreqArray.push(iFreq);
         iFreq += 0.3662109076976776;
       }
@@ -28772,7 +28772,7 @@ zip.file("_micCal.txt", micCal);
       const bytesSub = Uint8Array.from(atob(subResponse.magnitude), c => c.charCodeAt(0));
       const bufferSub = bytesSub.buffer;
       const dataSub = new DataView(bufferSub);
-      for (k = 0; k <= 681; k++) {
+      for (let k = 0; k <= 681; k++) {
         const subMagnitude = dataSub.getFloat32(k * 4);
         subArray.push([sfreqArray[k], subMagnitude]);
       }
