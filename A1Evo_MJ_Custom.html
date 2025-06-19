@@ -9981,12 +9981,11 @@ zip.file("_micCal.txt", micCal);
         mSec[oIndex] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
         title[oIndex] = measurements[i].title.slice(0, -1) + "o";
         if (title[oIndex].startsWith("SW")) { title[oIndex] = title[oIndex].slice(0, -6) + "o"; }
-        const indicesAgain = Array.from({ length: micPositions }, (_, j) => i + j);
         // determine volume from mlp measurement
         customLevel[count] = title[oIndex].startsWith("SW") ? await getSubwooferTrim(i) : await getSpeakerTrim(i);
         // avg
-        await alignVol2MLP(indicesAgain, customLevel[count]); // level match all other positions with MLP
-        micPositions === 1 ? await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed") : await postNext('Magn plus phase average', indicesAgain);
+        await alignVol2MLP(indices, customLevel[count]); // level match all other positions with MLP
+        micPositions === 1 ? await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed") : await postNext('Magn plus phase average', indices);
         await fetch_mREW(mCount + oIndex, 'PUT', { title: title[oIndex] });
         // align avg to target curve
         let volAdjust = parseFloat(customLevel[count]);
