@@ -10320,10 +10320,9 @@ zip.file("_micCal.txt", micCal);
         await postDelete(i);
       }
       for (let i = 1; i < nSpeakers; i++) {
-        let xo;
         const j = nSpeakers + 2 * i;
-        await genSpeaker(j, xo);
-        await genSub(nSpeakers * 3, xo);
+        await genSpeaker(j, customCrossover[i]);
+        await genSub(nSpeakers * 3, customCrossover[i]);
       }
       let kOrg = 1;
       for (let i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
