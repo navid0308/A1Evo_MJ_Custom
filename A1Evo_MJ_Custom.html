@@ -302,7 +302,7 @@
     
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
     let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
-    let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = {}, delayAdjustment = {}, freqIndex = [], freqLength;
+    let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [], delayAdjustment = {}, freqIndex = [];
     let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [];
     let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "";
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
@@ -323,7 +323,6 @@
         isCirrusLogic = micCalProb.includes(model) ? true : false;
         hasxo180 = noxo180.includes(model) ? false : true;
         hasxo180 ? freqIndex = [15.75, 40, 60, 80, 90, 100, 110, 120, 150, 180, 200, 250] : freqIndex = [15.75, 40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
-        freqLength = freqIndex.length;
         console.log(`Speed of sound setting has been automatically adjusted for your ${modelName} at ${sOs} m/s.`);
         const hasSWChannels = jsonData.detectedChannels.some(channel => channel.commandId && channel.commandId.startsWith("SW"));
         if (!hasSWChannels) {
@@ -10141,23 +10140,35 @@ zip.file("_micCal.txt", micCal);
       await fetchSafe('target-level', 1, 75.0);
       await postNext('Generate target measurement', 1);
       console.log("Calculating roll-off frequencies based on target curve...");
-      for (let j = 0; j < freqLength; j++) {
+      for (let j = 0; j < freqIndex.length; j++) {
         await genSpeaker(nSpeakers * 3 + 1, freqIndex[j]);
       }
       const snap = await fetch_mREW();
       const mCount = Object.keys(snap).length;
-      let j = 1;
       for (let i = nSpeakers + 2; i <= nSpeakers * 3 - 2; i += 2) {
-        const iXO = await findXO(i, mCount);
-        customCrossover[j] = freqIndex[iXO - nSpeakers * 3 - 2];
-        if (customCrossover[j] === 15.75) {
-          console.info(`${commandId[j]} - detected roll-off: 'Large/Full range' shifted to 40hz`);
-          customCrossover[j] = 40;
+        // check if single channel or speaker pair
+        const singleChannel = ["C", "CH", "SB", "TS"].includes(commandId[(i - nSpeakers) / 2]) || (commandId[(i - nSpeakers) / 2] === "SBL" && !commandId.includes("SBR"));
+        let cmdIds = singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`;
+        // rolloff determination logic
+        let iXO = 80;
+        let idx = i;
+        if (!singleChannel) {
+          await postNext('Magn plus phase average', [i, i + 2]);
+          idx = mCount + 1;
         }
-        else {
-          console.info(`${commandId[j]} - detected roll-off: ${customCrossover[j]}Hz`);
+        iXO = await findXO(idx, mCount);
+        let rolloff = freqIndex[iXO - nSpeakers * 3 - 2];
+        if (rolloff === 15.75) {
+          console.info(`${cmdIds} - detected roll-off: 'Large/Full range' shifted to 40hz`);
+          rolloff = 40;
         }
-        j++;
+        else { console.info(`${cmdIds} - detected roll-off: ${rolloff}Hz`); }
+        customCrossover[(i - nSpeakers) / 2] = rolloff;
+        if (!singleChannel) {
+          customCrossover[1 + (i - nSpeakers) / 2] = rolloff;
+          await postDelete(idx);
+          i += 2;
+        }
       }
       for (let i = mCount; i > nSpeakers * 3; i--) {
         await postDelete(i);
@@ -10175,7 +10186,7 @@ zip.file("_micCal.txt", micCal);
         if (title.endsWith("-equalized"))
         {
           eqResults.push(i);
-          rolloff += customCrossover[(i - nSpeakers) / 2];
+          rolloff += parseFloat(customCrossover[(i - nSpeakers) / 2]);
         }
       }
       if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
@@ -10249,9 +10260,6 @@ zip.file("_micCal.txt", micCal);
       for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
         delayAdjustment[i] = (delay0 - customDistance[i]).toFixed(2);
       }
-      for (let i = 1; i <= nSpeakers; i++) {
-        customCrossover[i] === 15.75 ? customCrossover[i] = "L" : customCrossover[i] = String(customCrossover[i]).slice(0, 2);
-      }
       for (let i = nSpeakers * 3 + 3; i > nSpeakers * 3; i--) {await postDelete(i);}
     }
     async function rmsOfXO(noM, start=20, end=250, ppo=96) {
@@ -10264,21 +10272,12 @@ zip.file("_micCal.txt", micCal);
       console.log("Finalizing crossover frequencies to best follow the target curve...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      let freqIndex = [];
-      hasxo180 ? freqIndex = [15.75, 40, 60, 80, 90, 100, 110, 120, 150, 180, 200, 250] : freqIndex = [15.75, 40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
       for (let i = nSpeakers + 2; i < mCount; i += 2) {
-        let singleChannel = false;
-        const title = commandId[(i - nSpeakers) / 2];
-        if (title === "C" || title === "CH" || title === "TS") {
-          singleChannel = true;
-        }
-        let rolloff = parseFloat(customCrossover[(i - nSpeakers) / 2]);
-        if (rolloff < 40) { rolloff *= 10; }
-        if (!singleChannel) {
-          let rolloffR = parseFloat(customCrossover[1 + (i - nSpeakers) / 2]);
-          if (rolloffR < 40) { rolloffR *= 10; }
-          rolloff = Math.min(rolloff, rolloffR);
-        }
+        // check if single channel or speaker pair
+        const singleChannel = ["C", "CH", "SB", "TS"].includes(commandId[(i - nSpeakers) / 2]) || (commandId[(i - nSpeakers) / 2] === "SBL" && !commandId.includes("SBR"));
+        let cmdIds = singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`;
+        // finalize xo that is closest match to target curve
+        const rolloff = parseFloat(customCrossover[(i - nSpeakers) / 2]);
         let bestXo = rolloff, minRmsError= Infinity;
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXo = freqIndex[j];
@@ -10304,13 +10303,9 @@ zip.file("_micCal.txt", micCal);
             await postDelete(k);
           }
         }
-        if (singleChannel) {
-          console.info(`${commandId[(i - nSpeakers) / 2]} - best XO: ${bestXo}hz. Detected roll-off: ${rolloff}`);
-          customCrossover[(i - nSpeakers) / 2] = bestXo;
-        }
-        else {
-          console.info(`${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]} - best XO: ${bestXo}hz. Detected roll-off: ${rolloff}`);
-          customCrossover[(i - nSpeakers) / 2] = bestXo;
+        console.info(`${cmdIds} - best XO: ${bestXo}hz. Detected roll-off: ${rolloff}`);
+        customCrossover[(i - nSpeakers) / 2] = bestXo;
+        if (!singleChannel) {
           customCrossover[1 + (i - nSpeakers) / 2] = bestXo;
           i += 2;
         }
@@ -10326,7 +10321,6 @@ zip.file("_micCal.txt", micCal);
       }
       for (let i = 1; i < nSpeakers; i++) {
         let xo;
-        customCrossover[i] < 40 ? xo = customCrossover[i] * 10 : xo = customCrossover[i]
         const j = nSpeakers + 2 * i;
         await genSpeaker(j, xo);
         await genSub(nSpeakers * 3, xo);
@@ -10624,18 +10618,18 @@ zip.file("_micCal.txt", micCal);
       }
       return maxSumArray;
     }
-    async function alignVol2MLP(indices, mlp_volume) {
+    async function alignVol2MLP(indices, mlpVolume) {
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
       for (let i = 0; i < indices.length; i++) {
-        idx_volume = 0.0;
+        idxVolume = 0.0;
         if (measurements[indices[i]].title.startsWith("SW")) {
-          idx_volume = await getSubwooferTrim(indices[i]);
+          idxVolume = await getSubwooferTrim(indices[i]);
         }
         else {
-          idx_volume = await getSpeakerTrim(indices[i]);
+          idxVolume = await getSpeakerTrim(indices[i]);
         }
-        const volAdjust = parseFloat(idx_volume - mlp_volume);
+        const volAdjust = parseFloat(idxVolume - mlpVolume);
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
     }
