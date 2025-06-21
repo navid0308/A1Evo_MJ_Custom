@@ -10561,16 +10561,17 @@ zip.file("_micCal.txt", micCal);
       return responseArray;
     }
     function calculateRMSError(rpArray, targetArray) {
-      if (rpArray.length === 0 || rpArray.length != targetArray.length) {
+      if (rpArray.length === 0 || targetArray.length === 0) {
         console.warn("Failed to calculate RMS error!");
         return Infinity;
       }
+      const arrayLength = Math.min(rpArray.length, targetArray.length);
       let sumOfSquares = 0;
-      for (let i = 0; i < rpArray.length; i++) {
+      for (let i = 0; i < arrayLength; i++) {
         const diff = rpArray[i] - targetArray[i];
         sumOfSquares += diff * diff;
       }
-      const meanOfSquares = sumOfSquares / rpArray.length;
+      const meanOfSquares = sumOfSquares / arrayLength;
       return Math.sqrt(meanOfSquares);
     }
     function calculateLinearityScore(rpArray) {
