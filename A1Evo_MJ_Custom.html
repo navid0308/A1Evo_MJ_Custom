@@ -9980,15 +9980,23 @@ zip.file("_micCal.txt", micCal);
         mSec[oIndex] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
         title[oIndex] = measurements[i].title.slice(0, -1) + "o";
         if (title[oIndex].startsWith("SW")) { title[oIndex] = title[oIndex].slice(0, -6) + "o"; }
-        // determine volume from mlp measurement
-        customLevel[count] = title[oIndex].startsWith("SW") ? await getSubwooferTrim(i) : await getSpeakerTrim(i);
-        // avg
-        await alignVol2MLP(indices, customLevel[count]); // level match all other positions with MLP
-        micPositions === 1 ? await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed") : await postNext('Magn plus phase average', indices);
-        await fetch_mREW(mCount + oIndex, 'PUT', { title: title[oIndex] });
+        // level match all other positions to MLP & average
+        await alignVol2MLP(indices, i);
+        micPositions === 1 ? await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed") :
+                             await postNext('Magn plus phase average', indices);
+        // the "o" measurement
+        const idx = mCount + oIndex;
+        await fetch_mREW(idx, 'PUT', { title: title[oIndex] });
+        // final trim determination using avg
+        if (title[oIndex].startsWith("SW")) {
+          customLevel[count] = bassMode === "Directional" ? await getSubwooferTrim(idx) : await getSubwooferTrim(idx, 20, 120);
+        }
+        else {
+          customLevel[count] = movieMode ? await getSpeakerTrim(idx, 250, 10000) : await getSpeakerTrim(idx, 250, 4000);
+        }
         // align avg to target curve
         let volAdjust = parseFloat(customLevel[count]);
-        await postNext('Add SPL offset', mCount + oIndex, { offset: volAdjust });
+        await postNext('Add SPL offset', idx, { offset: volAdjust });
         // go to next channel
         count++;
       }
@@ -10020,7 +10028,7 @@ zip.file("_micCal.txt", micCal);
       console.infoUpdate("Completed speaker volume and time alignment!");
       if (numSub > 1) {
         console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
-        await tectonic();
+        await directional2standard();
         console.warn("Conversion from 'directional bass' mode to 'standard bass' mode completed.")
       } else {
         maxNegative = (msecMin - mSec[nSpeakers]) * 1000;
@@ -10461,7 +10469,7 @@ zip.file("_micCal.txt", micCal);
       }
       return { alignmentResults, finalIndex: sumIndex };
     }
-    async function tectonic(start=20, end=120, ppo=96) {
+    async function directional2standard(start=20, end=120, ppo=96) {
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false;
       let finalIndex;
       console.info("Aligning multiple subs between each other for best bass performance...")
@@ -10527,8 +10535,7 @@ zip.file("_micCal.txt", micCal);
         const title = measurements[i].title;
         if (title != "SW1o") { await postDelete(i); }
       }
-      bassMode = "Standard";
-      let volAdjust = parseFloat(await getSubwooferTrim(nSpeakers));
+      const volAdjust = parseFloat(await getSubwooferTrim(nSpeakers, start, end));
       await postNext('Add SPL offset', nSpeakers, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
       for (let i = nSpeakers; i < (nSpeakers + numSub); i++) {
@@ -10586,8 +10593,7 @@ zip.file("_micCal.txt", micCal);
       let magSum = rpArray.reduce((acc, val) => acc + val - 75.0, 0);
       return magSum / calculateSTD(rpArray);
     }
-    async function getSubwooferTrim(noM, start=20, end=120, ppo=96) {
-      if (bassMode === "Directional") { start=30, end=80; } // more accurate for level matching subs
+    async function getSubwooferTrim(noM, start=30, end=80, ppo=96) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
@@ -10596,8 +10602,7 @@ zip.file("_micCal.txt", micCal);
       const offset = targetSPL - subArraySPL;
       return Math.round(offset * 2) / 2;
     }
-    async function getSpeakerTrim(noM, start=250, end=4000, ppo=96) {
-      if (movieMode) { end=10000; } // use more of the high frequencies for leveling in movie mode
+    async function getSpeakerTrim(noM, start=500, end=2000, ppo=96) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
@@ -10618,17 +10623,13 @@ zip.file("_micCal.txt", micCal);
       }
       return maxSumArray;
     }
-    async function alignVol2MLP(indices, mlpVolume) {
+    async function alignVol2MLP(indices, mlpIndex) {
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
+      const mlpVolume = measurements[mlpIndex].title.startsWith("SW") ? await getSubwooferTrim(mlpIndex) : await getSpeakerTrim(mlpIndex);
       for (let i = 0; i < indices.length; i++) {
-        idxVolume = 0.0;
-        if (measurements[indices[i]].title.startsWith("SW")) {
-          idxVolume = await getSubwooferTrim(indices[i]);
-        }
-        else {
-          idxVolume = await getSpeakerTrim(indices[i]);
-        }
+        if (indices[i] === mlpIndex) { continue; }
+        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubwooferTrim(indices[i]) : await getSpeakerTrim(indices[i]);
         const volAdjust = parseFloat(idxVolume - mlpVolume);
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
