@@ -8981,7 +8981,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = nSpeakers + 1; i <= nSpeakers * 2; i++) {
         console.infoUpdate(`Equalizing channel - ${commandId[i - nSpeakers]}`);
         const isSub = commandId[i - nSpeakers].startsWith("SW");
-        const fdwShift = isSub ? await getSubwooferTrim(i, 20, 120) : await getSpeakerTrim(i, 250, 4000);
+        const fdwShift = isSub ? await getSubwooferTrim(i, 20, 120) : await getSpeakerTrim(i, 250, movieMode ? 10000 : 4000);
         await fetchSafe('target-level', i, 75.0 - fdwShift);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
