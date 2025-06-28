@@ -8965,7 +8965,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = 1; i <= nSpeakers; i++) {
         await postSafe(`http://localhost:4735/measurements/${i}/target-settings`, { shape: "None" }, "Update processed");
         await postSafe(`http://localhost:4735/measurements/${i}/room-curve-settings`, { addRoomCurve: false }, "Update processed");
-        await postSafe(`http://localhost:4735/measurements/${i}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
+        await postSafe(`http://localhost:4735/measurements/${i}/ir-windows`, { addFDW: "true", fdwWidthCycles: "35" }, "Update processed");
         await postNext('Minimum phase version', i, {
           "include cal": false,
           "append lf tail": false,
@@ -9085,7 +9085,7 @@ zip.file("_micCal.txt", micCal);
         let iXO = 80;
         let idx = i;
         if (!singleChannel) {
-          await postNext('Magn plus phase average', [i, i + 2]);
+          await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
           idx = mCount + 1;
         }
         iXO = await findXO(idx, mCount);
@@ -9122,7 +9122,7 @@ zip.file("_micCal.txt", micCal);
         }
       }
       if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
-      await postNext('Magn plus phase average', Array.from(eqResults)); // same results with VA since goal is max output
+      await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
       console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS using average roll-off: ${avgRolloff.toFixed(2)}hz`); 
       await genSpeaker(mCount + 1, avgRolloff);
       await genSub(mCount, avgRolloff);
