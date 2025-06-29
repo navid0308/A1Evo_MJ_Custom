@@ -8963,8 +8963,6 @@ zip.file("_micCal.txt", micCal);
       console.log(`Generating EQ filters based on FDW + Min. Phase responses...`);
       console.info("Starting...");
       for (let i = 1; i <= nSpeakers; i++) {
-        await postSafe(`http://localhost:4735/measurements/${i}/target-settings`, { shape: "None" }, "Update processed");
-        await postSafe(`http://localhost:4735/measurements/${i}/room-curve-settings`, { addRoomCurve: false }, "Update processed");
         await postSafe(`http://localhost:4735/measurements/${i}/ir-windows`, { addFDW: "true", fdwWidthCycles: "35" }, "Update processed");
         await postNext('Minimum phase version', i, {
           "include cal": false,
