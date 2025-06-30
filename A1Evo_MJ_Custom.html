@@ -8816,10 +8816,10 @@ zip.file("_micCal.txt", micCal);
       if (tcResponse.ok) {
         const target = await tcResponse.json();
         targetCurvePath = String(target);
-        Object.freeze(targetCurvePath);
         if (target && targetCurvePath) {
-          targetCurveName = targetCurvePath.split('\\').pop().split('.').slice(0, -1).join('.');
+          targetCurveName = targetCurvePath.replace(/^.*[\\/]/, '').split(".")[0];
           Object.freeze(targetCurveName);
+          Object.freeze(targetCurvePath);
           console.info(`Active target curve: ${targetCurveName}`);
         }
         else {
