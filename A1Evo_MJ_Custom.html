@@ -296,7 +296,7 @@
 
     /////////////////////////// Customization parameters for enthusiasts //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     let noInversion = false;// If true, avoids subwoofer polarity inversion. This may limit alignment options and could negatively impact sound quality
-    let movieMode = false;// If true, speakers are leveled using 250-20k instead of 250-4k. This results in slightly more aggresive EQ but better channel to channel consistency
+    let movieMode = false;// If true, high shelf is enabbled and speakers are leveled using 250-10k instead of 250-4k. This results in extra EQ but better channel to channel consistency
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
@@ -8682,7 +8682,7 @@ zip.file("_micCal.txt", micCal);
       await new Promise((resolve) => setTimeout(resolve, speedDelay));
       enableBlock();
       enableGraph();
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, speedDelay));
       disableGraph();
       const startTime = performance.now();
       document.getElementById('noInversion').disabled = true;
@@ -27811,7 +27811,7 @@ zip.file("_micCal.txt", micCal);
         const result = await checkResponse(data);
         return result;
       } catch (error) {
-        throw new Error;
+        throw new Error('Error fetching result:', error);
       }
     }
     async function postNext2(processName, indices, parameters = null) {
@@ -27853,7 +27853,7 @@ zip.file("_micCal.txt", micCal);
         const result = await checkResponse(data);
         return result;
       } catch (error) {
-        throw new Error;
+        throw new Error('Error fetching result:', error);
       }
     }
     async function postSafe(requestUrl, parameters, message) {
@@ -27884,7 +27884,7 @@ zip.file("_micCal.txt", micCal);
         const result = await checkResponse(data);
         return result;
       } catch (error) {
-        throw new Error;
+        throw new Error('Error fetching result:', error);
       }
     }
     async function postDelete(indice) {
