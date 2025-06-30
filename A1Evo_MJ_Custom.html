@@ -27,7 +27,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>A1 Evo - OCA 2024</title>
+  <title>A1Evo MJ Custom</title>
   <style>
     body {
       font-family: Open Sans, sans-serif;
@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1 Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -255,7 +255,6 @@
   </ol>
   <div class="button-container">
     <button id="button2" onclick="startButton_clicked()" disabled>Optimize calibration</button>
-    <h1 class="logo">OCA 2024</h1>
   </div>
   <div class="customization-options">
     <small>    
@@ -9160,7 +9159,7 @@ zip.file("_micCal.txt", micCal);
         if (customDistance[i] < distMinSub) {distMinSub = customDistance[i];}
       }
       if (distMinSub < 0) {
-        console.warn("Speaker distances are being shifted to accommodate the required subwoofer delay and will no longer reflect actual physical distances!");
+        console.warn("Speaker distances need to be shifted to accommodate the required subwoofer delay!");
         console.info("This adjustment will ONLY improve overall sound quality.");
         console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
       }
