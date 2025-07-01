@@ -8959,10 +8959,9 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function generateFilters() {
-      console.log(`Generating EQ filters based on FDW + Min. Phase responses...`);
+      console.log(`Generating EQ filters based on Min. Phase responses...`);
       console.info("Starting...");
       for (let i = 1; i <= nSpeakers; i++) {
-        await postSafe(`http://localhost:4735/measurements/${i}/ir-windows`, { addFDW: "true", fdwWidthCycles: "35" }, "Update processed");
         await postNext('Minimum phase version', i, {
           "include cal": false,
           "append lf tail": false,
@@ -8970,7 +8969,6 @@ zip.file("_micCal.txt", micCal);
           "frequency warping": false,
           "replicate data": true
         });
-        await postSafe(`http://localhost:4735/measurements/${i}/ir-windows`, { addFDW: "false" }, "Update processed");
       }
       if (targetCurveName != "Flat") {
         await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, "House curve set");
@@ -8978,8 +8976,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = nSpeakers + 1; i <= nSpeakers * 2; i++) {
         console.infoUpdate(`Equalizing channel - ${commandId[i - nSpeakers]}`);
         const isSub = commandId[i - nSpeakers].startsWith("SW");
-        const fdwShift = isSub ? await getSubwooferTrim(i, 20, 120) : await getSpeakerTrim(i, 250, movieMode ? 10000 : 4000);
-        await fetchSafe('target-level', i, 75.0 - fdwShift);
+        await fetchSafe('target-level', i, 75.0);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: 10, endFrequency: 10000,
@@ -8994,14 +8991,12 @@ zip.file("_micCal.txt", micCal);
         catch (error) {
           console.warn(`${commandId[i - nSpeakers]} could not be equalized!`);
         }
-        const mFilter = await postNext('Generate filters measurement', i);
-        let fIndex2 = Object.keys(mFilter.results);
-        const fIndex1 = (parseInt(fIndex2) - nSpeakers * 2) / 2 + 0.5;
-        let { "New measurement": fName } = mFilter.results[fIndex2];
-        fName = fName.slice(8, -4) + "-equalized";
-        fIndex2 = parseInt(fIndex2);
-        await postNext('Arithmetic', [fIndex1, fIndex2], { function: "A * B" });
-        await fetch_mREW(fIndex2 + 1, 'PUT', { title: fName });
+        const filter = await postNext('Generate filters measurement', i);
+        let filterIdx = parseInt(Object.keys(filter.results));
+        const spIdx = (filterIdx - nSpeakers * 2) / 2 + 0.5;
+        await postNext('Arithmetic', [spIdx, filterIdx], { function: "A * B" });
+        const spEQIdx = `${commandId[i - nSpeakers]}-equalized`;
+        await fetch_mREW(filterIdx + 1, 'PUT', { title: spEQIdx });
       }
       for (let i = nSpeakers * 2; i > nSpeakers; i--) {
         await postDelete(i);
