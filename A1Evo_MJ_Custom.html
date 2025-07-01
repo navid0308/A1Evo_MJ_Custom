@@ -8980,8 +8980,8 @@ zip.file("_micCal.txt", micCal);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: 10, endFrequency: 10000,
-          individualMaxBoostdB: 3, overallMaxBoostdB: isSub ? 3 : 0,
-          flatnessTargetdB: 1, allowNarrowFiltersBelow200Hz: true, varyQAbove200Hz: true,
+          individualMaxBoostdB: 3, overallMaxBoostdB: 0,
+          flatnessTargetdB: 1, allowNarrowFiltersBelow200Hz: false, varyQAbove200Hz: false,
           allowLowShelf: false, allowHighShelf: movieMode && !isSub,
           highShelfMin: -3, highShelfMax: 3
         }, "Update processed");
