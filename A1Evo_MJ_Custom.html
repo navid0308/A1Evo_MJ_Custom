@@ -8724,9 +8724,9 @@ zip.file("_micCal.txt", micCal);
               hour12: true
           });
       }
+      console.info(`****************************************************************************************************`);
       console.log(`'A1 EVO' optimization completed successfully in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
       console.warn("'Allow' download(s) when prompted to save the final optimized .ady file.");
-      console.info(`********************************************************************************************`);
       console.info("When prompted, save the .ady file to your PC and transfer it to your phone/tablet.");
       console.info("Next, import the calibration into the MultEQ Editor App & transfer it to your AV receiver.");
       console.log("***You may freely change crossovers in the MultEQ app or AVR if desired.***");
@@ -8735,7 +8735,7 @@ zip.file("_micCal.txt", micCal);
         console.log("***Dynamic EQ is enabled! You may freely adjust DEQ Reference Level Offset on the AVR if desired.***")
       }
       console.info("The Editor app 'after' graphs will now represent the filters being applied for each channel.");
-      console.info(`********************************************************************************************`);
+      console.info(`****************************************************************************************************`);
       console.info("Enjoy your EVO'lved sound!");
     }
     async function addmicCal() {
@@ -8823,7 +8823,7 @@ zip.file("_micCal.txt", micCal);
         }
         else {
           targetCurveName = "Flat";
-          console.log("No target curve chosen - A1Evo will EQ to a flat target curve and enable dynamic EQ!");
+          console.log("No target curve chosen - A1Evo will EQ to Flat and enable Dynamic EQ!");
         }
         const measurements = await fetch_mREW();
         const mCount = Object.keys(measurements).length;
