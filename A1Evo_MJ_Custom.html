@@ -8576,7 +8576,7 @@ const micCal = `* Impulse Response data saved by REW
 zip.file("_micCal.txt", micCal);
         }
         console.log(`Please save ${fileName.substring(0, fileName.lastIndexOf('.'))}_extractedMeasurements.zip file when prompted.`);
-        console.log("Save prompt can be cancelled if the original Audyssey measurements and a target curve are already loaded in REW!");
+        console.log("Save prompt can be cancelled if the original Audyssey measurements are already loaded in REW!");
         await Promise.all(filePromises.flat());
         try {
           const content = await zip.generateAsync({ type: 'blob' });
@@ -8688,7 +8688,7 @@ zip.file("_micCal.txt", micCal);
       document.getElementById('movieMode').disabled = true;
       await bootUp();
       console.info("Optimization started...");
-      console.warn("Please keep REW on 'SPL & Phase' tab, close any child windows and stay on this web page until optimization is completed!");
+      console.warn("Please keep REW on 'SPL & Phase' tab and stay on this web page until optimization is completed!");
       await groundWorks();
       await generateFilters();
       await audyALCompensation();
@@ -8724,9 +8724,9 @@ zip.file("_micCal.txt", micCal);
               hour12: true
           });
       }
-      console.log(`Congratulations! 'A1 EVO' optimization completed successfully in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
+      console.log(`'A1 EVO' optimization completed successfully in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
       console.warn("'Allow' download(s) when prompted to save the final optimized .ady file.");
-      console.info(`*****************************************************************************************************************************************`);
+      console.info(`********************************************************************************************`);
       console.info("When prompted, save the .ady file to your PC and transfer it to your phone/tablet.");
       console.info("Next, import the calibration into the MultEQ Editor App & transfer it to your AV receiver.");
       console.log("***You may freely change crossovers in the MultEQ app or AVR if desired.***");
@@ -8735,7 +8735,7 @@ zip.file("_micCal.txt", micCal);
         console.log("***Dynamic EQ is enabled! You may freely adjust DEQ Reference Level Offset on the AVR if desired.***")
       }
       console.info("The Editor app 'after' graphs will now represent the filters being applied for each channel.");
-      console.info(`*****************************************************************************************************************************************`);
+      console.info(`********************************************************************************************`);
       console.info("Enjoy your EVO'lved sound!");
     }
     async function addmicCal() {
@@ -8980,7 +8980,7 @@ zip.file("_micCal.txt", micCal);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: 10, endFrequency: 10000,
-          individualMaxBoostdB: 3, overallMaxBoostdB: 0,
+          individualMaxBoostdB: 3, overallMaxBoostdB: movieMode ? 1 : 0,
           flatnessTargetdB: 1, allowNarrowFiltersBelow200Hz: false, varyQAbove200Hz: false,
           allowLowShelf: false, allowHighShelf: movieMode && !isSub,
           highShelfMin: -3, highShelfMax: 3
@@ -9115,7 +9115,7 @@ zip.file("_micCal.txt", micCal);
       }
       if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
       await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
-      console.log(`Calculating subwoofer system delay for optimal match with ALL SPEAKERS using average roll-off: ${avgRolloff.toFixed(2)}hz`); 
+      console.log(`Calculating subwoofer system delay for optimal match with ALL speakers using average roll-off: ${avgRolloff.toFixed(2)}hz`); 
       await genSpeaker(mCount + 1, avgRolloff);
       await genSub(mCount, avgRolloff);
       await postNext('Smooth', mCount + 2, { smoothing: "1/48" }); // speakers
