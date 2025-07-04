@@ -9080,7 +9080,7 @@ zip.file("_micCal.txt", micCal);
           await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
           idx = mCount + 1;
         }
-        iXO = await findXO(idx, mCount);
+        iXO = await findRolloff(idx, mCount);
         let rolloff = freqIndex[iXO - nSpeakers * 3 - 2];
         if (rolloff === 15.75) {
           console.info(`${cmdIds} - detected roll-off: 'Large/Full range' shifted to 40hz`);
@@ -9154,7 +9154,7 @@ zip.file("_micCal.txt", micCal);
         if (customDistance[i] < distMinSub) {distMinSub = customDistance[i];}
       }
       if (distMinSub < 0) {
-        console.warn("Speaker distances need to be shifted to accommodate the required subwoofer delay!");
+        console.warn("Speaker distances will be shifted to accommodate the required subwoofer delay!");
         console.info("This adjustment will ONLY improve overall sound quality.");
         console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
       }
@@ -9186,9 +9186,9 @@ zip.file("_micCal.txt", micCal);
       }
       for (let i = nSpeakers * 3 + 3; i > nSpeakers * 3; i--) {await postDelete(i);}
     }
-    async function rmsOfXO(noM, start=20, end=250, ppo=96) {
+    async function rmsOfXO(noM, start=20, end=250) {
       const targetArray = response2array(targetResponse, start, end);
-      const freqResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, noM);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', noM);
       const aSumArray = response2array(freqResponse, start, end);
       return calculateRMSError(aSumArray, targetArray);
     }
@@ -9281,11 +9281,11 @@ zip.file("_micCal.txt", micCal);
       }
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
-    async function findXO(indX, mCount) {
+    async function findRolloff(indX, mCount) {
       let iXO, sum, minSum = Infinity, k;
       await postNext('Smooth', indX, { smoothing: "1/48" });
       const magnitudeArray = [];
-      const spResponse = await fetchSafe('frequency-response', indX);
+      const spResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', indX);
       let startFreq = spResponse.startFreq;
       let k1 = 15.75, k2 = 250;
       if ('freqStep' in spResponse) {
@@ -9307,7 +9307,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = nSpeakers * 3 + 2; i <= mCount; i++) {
         sum = 0;
         const magArray = [];
-        const xoResponse = await fetchSafe('frequency-response', i);
+        const xoResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', i);
         const bytesXo = Uint8Array.from(atob(xoResponse.magnitude), c => c.charCodeAt(0));
         const bufferXo = bytesXo.buffer;
         const dataXo = new DataView(bufferXo);
@@ -9385,7 +9385,7 @@ zip.file("_micCal.txt", micCal);
       }
       return { alignmentResults, finalIndex: sumIndex };
     }
-    async function directional2standard(start=20, end=120, ppo=96) {
+    async function directional2standard(start=20, end=120) {
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false;
       let finalIndex;
       console.info("Aligning multiple subs between each other for best bass performance...")
@@ -9421,7 +9421,7 @@ zip.file("_micCal.txt", micCal);
       let bestScore = -Infinity, bestI, iCount = 1, bestCount = null;
       for (const index of finalIndices) {
         if (index !== null) {
-          const tempSum = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, index);
+          const tempSum = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', index);
           const tempSumArray = response2array(tempSum, start, end);
           const currScore = calculateLinearityScore(tempSumArray);
           if (bestScore < currScore) { bestScore = currScore; bestI = index; bestCount = iCount; }
@@ -9509,29 +9509,29 @@ zip.file("_micCal.txt", micCal);
       let magSum = rpArray.reduce((acc, val) => acc + val - 75.0, 0);
       return magSum / calculateSTD(rpArray);
     }
-    async function getSubwooferTrim(noM, start=30, end=80, ppo=96) {
+    async function getSubwooferTrim(noM, start=30, end=80) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', noM);
       const subArray = response2array(freqResponse, start, end);
       const subArraySPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
       const offset = targetSPL - subArraySPL;
       return Math.round(offset * 2) / 2;
     }
-    async function getSpeakerTrim(noM, start=500, end=2000, ppo=96) {
+    async function getSpeakerTrim(noM, start=500, end=2000) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe(`frequency-response?smoothing=Var&ppo=${ppo}`, noM);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', noM);
       const spArray = response2array(freqResponse, start, end);
       const spArraySPL = spArray.reduce((acc, val) => acc + val, 0) / spArray.length;
       const offset = targetSPL - spArraySPL;
       return Math.round(offset * 2) / 2;
     }
-    async function getMaxSumArray(ind1, ind2, start=20, end=120, ppo=96) {
+    async function getMaxSumArray(ind1, ind2, start=20, end=120) {
       let maxSumArray = [];
-      const ind1FreqResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, ind1);
+      const ind1FreqResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', ind1);
       const ind1Array = response2array(ind1FreqResponse, start, end);
-      const ind2FreqResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=${ppo}`, ind2);
+      const ind2FreqResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', ind2);
       const ind2Array = response2array(ind2FreqResponse, start, end);
       if (ind1Array.length != ind2Array.length) { throw new Error("Unexpected error!"); }
       for (let i = 0; i < ind1Array.length; i++) {
@@ -9550,8 +9550,8 @@ zip.file("_micCal.txt", micCal);
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
     }
-    async function align4system(ind1, ind2, start=20, end=250, ppo=96) {
-      const maxSumArray = await getMaxSumArray(ind1, ind2, start, end, ppo);
+    async function align4system(ind1, ind2, start=20, end=250) {
+      const maxSumArray = await getMaxSumArray(ind1, ind2, start, end);
       let isInverted = false, isPossible = false, requiredDelay = Infinity, bestFreq = NaN, minRmsError = Infinity;
       let loDelay = maxNegative;
       let hiDelay = maxPositive;
@@ -9577,7 +9577,7 @@ zip.file("_micCal.txt", micCal);
         if (noInversion && invertB) { continue; };
         if ((tempLo > 0 && delayB < tempLo) || (tempHi < 0 && delayB > tempHi)) { continue; };
 
-        const tempSum = await fetchAlign(`aligned-frequency-response?smoothing=1%2F48&ppo=${ppo}`);
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F48&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const rmsError = calculateRMSError(tempSumArray, maxSumArray);
         if (rmsError < minRmsError) {
@@ -9603,8 +9603,8 @@ zip.file("_micCal.txt", micCal);
       }
       return [isPossible, requiredDelay, isInverted];
     }
-    async function alignMsub(ind1, ind2, loDelay, hiDelay, start=20, end=120, ppo=96) {
-      const maxSumArray = await getMaxSumArray(ind1, ind2, start, end, ppo);
+    async function alignMsub(ind1, ind2, loDelay, hiDelay, start=20, end=120) {
+      const maxSumArray = await getMaxSumArray(ind1, ind2, start, end);
       let isInverted = false, isPossible = false, requiredDelay = NaN, sumIndex = null, bestFreq = NaN, minRmsError = Infinity;
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
@@ -9623,7 +9623,7 @@ zip.file("_micCal.txt", micCal);
         const delayB = -parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign(`aligned-frequency-response?smoothing=1%2F48&ppo=${ppo}`);
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F48&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const rmsError = calculateRMSError(tempSumArray, maxSumArray);
         if (rmsError < minRmsError) {
@@ -27643,23 +27643,18 @@ zip.file("_micCal.txt", micCal);
           channel.responseData = {};
         }
       });
-      const freqArray = [];
-      const sfreqArray = [];
-      let iFreq = 0.3662109375;
-      const octX = Math.pow(2, 1 / 96);
-      for (let k = 0; k <= 1531; k++) {
-        freqArray.push(iFreq);
-        iFreq *= octX;
-      }
+      const octave = Math.pow(2, 1 / 96);
       for (let i = 1; i < nSpeakers; i++) {
         const fltArray = [];
         const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nSpeakers - 1));
         const bytes = Uint8Array.from(atob(fltResponse.magnitude), c => c.charCodeAt(0));
         const buffer = bytes.buffer;
         const data = new DataView(buffer);
+        let freq = fltResponse.startFreq;
         for (let k = 0; k <= 1531; k++) {
           const fltMagnitude = data.getFloat32(k * 4);
-          fltArray.push([freqArray[k], fltMagnitude + antiHFRolloff[k]]);
+          fltArray.push([freq, fltMagnitude + antiHFRolloff[k]]);
+          freq *= octave;
         }
         const customTargetCurvePoints = fltArray.map(point => `{${point[0]}, ${point[1]}}`);
         const thisChannel = jsonData.detectedChannels.find(channel => channel.commandId === commandId[i]);
@@ -27672,19 +27667,16 @@ zip.file("_micCal.txt", micCal);
         thisChannel.customSpeakerType = customCrossover[i] === "L" ? "L" : "S";
         thisChannel.channelReport.customEnSpeakerConnect = customCrossover[i] === "L" ? 2 : 1;
       }
-      iFreq = 0.3662109375;
-      for (let k = 0; k <= 681; k++) {
-        sfreqArray.push(iFreq);
-        iFreq += 0.3662109076976776;
-      }
       const subArray = [];
-      const subResponse = await fetchSafe('frequency-response', nSpeakers * 3 - 1);
+      const subResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nSpeakers * 3 - 1);
       const bytesSub = Uint8Array.from(atob(subResponse.magnitude), c => c.charCodeAt(0));
       const bufferSub = bytesSub.buffer;
       const dataSub = new DataView(bufferSub);
-      for (let k = 0; k <= 681; k++) {
+      let freq = subResponse.startFreq;
+      for (let k = 0; k <= 1531; k++) {
         const subMagnitude = dataSub.getFloat32(k * 4);
-        subArray.push([sfreqArray[k], subMagnitude]);
+        subArray.push([freq, subMagnitude]);
+        freq *= octave;
       }
       const customTargetCurvePointsSub = subArray.map(point => `{${point[0]}, ${point[1]}}`);
       const subChannel = jsonData.detectedChannels[nSpeakers - 1];
