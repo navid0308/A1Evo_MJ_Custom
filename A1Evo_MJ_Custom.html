@@ -9061,45 +9061,69 @@ zip.file("_micCal.txt", micCal);
       if (channelCmdId.includes("R") && commandId.includes(channelCmdId.replace("R", "L"))) { return false; } // where L/R is in the middle
       return true;
     }
-    async function calculateRolloffs() {
-      await fetchSafe('target-level', 1, 75.0);
-      await postNext('Generate target measurement', 1);
-      console.log("Calculating roll-off frequencies based on target curve...");
-      for (let j = 0; j < freqIndex.length; j++) {
-        await genSpeaker(nSpeakers * 3 + 1, freqIndex[j]);
+    function findNearestXO(freq) {
+      let xo = Infinity;
+      let minDelta = Infinity;
+      for (let i=0; i < freqIndex.length; i++) {
+        const delta = Math.abs(freqIndex[i] - freq);
+        if (delta < minDelta) {
+          minDelta = delta;
+          xo = freqIndex[i];
+        }
       }
-      const snap = await fetch_mREW();
-      const mCount = Object.keys(snap).length;
+      return xo;
+    }
+    async function calculateRolloffs() {
+      console.log("Calculating roll-off frequencies based on target curve...");
+      await fetchSafe('target-level', 1, 75.0);
+      const tcData = await postNext('Generate target measurement', 1);
+      const tcIdx = parseInt(Object.keys(tcData.results));
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length;
       for (let i = nSpeakers + 2; i <= nSpeakers * 3 - 2; i += 2) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
         const cmdIds = singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`;
         // rolloff determination logic
-        let iXO = 80;
         let idx = i;
         if (!singleChannel) {
           await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
           idx = mCount + 1;
         }
-        iXO = await findRolloff(idx, mCount);
-        let rolloff = freqIndex[iXO - nSpeakers * 3 - 2];
+        await postNext('Smooth', idx, { smoothing: "Psy" }); // Psy is useful for rolloff detection, less noise
+        const rpData = await postNext('Arithmetic', [idx, tcIdx], {function: "|A| / |B|"});
+        const rpIdx = parseInt(Object.keys(rpData.results));
+        const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', rpIdx);
+        const bytes = Uint8Array.from(atob(response.magnitude), c => c.charCodeAt(0));
+        const buffer = bytes.buffer;
+        const data = new DataView(buffer);
+        const octave = Math.pow(2, 1/96);
+        let freq = response.startFreq, k = 0;
+        while (freq < 10) { freq *= octave, k++; } // ignore noise below 10hz
+        // find -3dB point
+        let magnitude = data.getFloat32(k * 4);
+        while (magnitude < -3) {
+          magnitude = data.getFloat32(++k * 4);
+          freq *= octave;
+        }
+        let rolloff = findNearestXO(freq);
         if (rolloff === 15.75) {
           console.info(`${cmdIds} - detected roll-off: 'Large/Full range' shifted to 40hz`);
           rolloff = 40;
         }
         else { console.info(`${cmdIds} - detected roll-off: ${rolloff}Hz`); }
         customCrossover[(i - nSpeakers) / 2] = rolloff;
+        await postDelete(rpIdx);
         if (!singleChannel) {
           customCrossover[1 + (i - nSpeakers) / 2] = rolloff;
           await postDelete(idx);
           i += 2;
         }
       }
-      for (let i = mCount; i > nSpeakers * 3; i--) {
-        await postDelete(i);
-      }
+      await postDelete(tcIdx);
     }
     async function calculateSubBandwidth() {
+      console.log("Calculating subwoofer bandwidth based on target curve...")
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       await postNext('Smooth', mCount, { smoothing: "Psy" }); // Psy is useful for rolloff detection, less noise
@@ -9135,7 +9159,7 @@ zip.file("_micCal.txt", micCal);
       await postDelete(rpIdx);
       await postDelete(tcIdx);
       await postNext('Smooth', mCount, { smoothing: "1/48" }); // revert sub smoothing for next calculation
-      console.log(`Subwoofer bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz (-3dB points)`);
+      console.info(`Subwoofer bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz`);
     }
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
@@ -9158,15 +9182,7 @@ zip.file("_micCal.txt", micCal);
         console.info(`A1Evo will use 2x subwoofer's lowest frequency <${(2 * subLowFreq).toFixed(2)}hz> for alignment.`);
         avgRolloff = 2 * subLowFreq;
         Object.freeze(avgRolloff);
-        let minCrossover = Infinity;
-        let minDelta = Infinity;
-        for (let i=0; i < freqIndex.length; i++) {
-          const delta = Math.abs(freqIndex[i] - avgRolloff);
-          if (delta < minDelta) {
-            minDelta = delta;
-            minCrossover = freqIndex[i];
-          }
-        }
+        const minCrossover = findNearestXO(avgRolloff);
         console.info(`Enforcing minimum crossover based on subwoofer low frequency extension: ${minCrossover.toFixed(2)}hz`);
         for (let i=1; i <= nSpeakers; i++) {
           customCrossover[i] = Math.max(minCrossover, customCrossover[i]);
@@ -9341,62 +9357,6 @@ zip.file("_micCal.txt", micCal);
         await postNext('Smooth', i, { smoothing: "1/6" });
       }
       console.infoUpdate("Completed generating final outputs for all channels!");
-    }
-    async function findRolloff(indX, mCount) {
-      let iXO, sum, minSum = Infinity, k;
-      await postNext('Smooth', indX, { smoothing: "1/48" });
-      const magnitudeArray = [];
-      const spResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', indX);
-      let startFreq = spResponse.startFreq;
-      let k1 = 15.75, k2 = 250;
-      if ('freqStep' in spResponse) {
-        let freqStep = spResponse.freqStep;
-        k1 = Math.round((k1 - startFreq) / freqStep);
-        k2 = Math.round((k2 - startFreq) / freqStep);
-      } else if ('ppo' in spResponse) {
-        const spResponsePpo = spResponse.ppo;
-        k1 = Math.round(Math.log2(k1 / startFreq) * spResponsePpo);
-        k2 = Math.round(Math.log2(k2 / startFreq) * spResponsePpo);
-      }
-      const bytes = Uint8Array.from(atob(spResponse.magnitude), c => c.charCodeAt(0));
-      const buffer = bytes.buffer;
-      const data = new DataView(buffer);
-      for (let k = k1; k <= k2; k++) {
-        const spMagnitude = data.getFloat32(k * 4);
-        magnitudeArray.push(spMagnitude);
-      }
-      for (let i = nSpeakers * 3 + 2; i <= mCount; i++) {
-        sum = 0;
-        const magArray = [];
-        const xoResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', i);
-        const bytesXo = Uint8Array.from(atob(xoResponse.magnitude), c => c.charCodeAt(0));
-        const bufferXo = bytesXo.buffer;
-        const dataXo = new DataView(bufferXo);
-        startFreq = xoResponse.startFreq;
-        k1 = 15.75; k2 = 250;
-        if ('freqStep' in xoResponse) {
-          freqStep = xoResponse.freqStep;
-          k1 = Math.round((k1 - startFreq) / freqStep);
-          k2 = Math.round((k2 - startFreq) / freqStep);
-        } else if ('ppo' in xoResponse) {
-          const xoResponsePpo = xoResponse.ppo;
-          k1 = Math.round(Math.log2(k1 / startFreq) * xoResponsePpo);
-          k2 = Math.round(Math.log2(k2 / startFreq) * xoResponsePpo);
-        }
-        let t = 0;
-        for (let k = k1; k <= k2; k++) {
-          const xoMagnitude = dataXo.getFloat32(k * 4);
-          if (magnitudeArray[t] > 72.0) { break; }
-          const dif = magnitudeArray[t] - xoMagnitude;
-          sum += Math.abs(dif);
-          t++;
-        }
-        if (sum < minSum) {
-          minSum = sum;
-          iXO = i;
-        }
-      }
-      return iXO;
     }
     async function multipleSubs(configSub) {
       let sumIndex, loDelay, hiDelay;
