@@ -302,7 +302,7 @@
     let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [], delayAdjustment = {}, freqIndex = [];
     let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [];
-    let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "";
+    let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "", subLowFreq = Infinity, subHighFreq = -Infinity;
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
 
     function extractAdy(event) {
@@ -8694,6 +8694,7 @@ zip.file("_micCal.txt", micCal);
       await audyALCompensation();
       await finalizeTrims();
       await calculateRolloffs();
+      await calculateSubBandwidth();
       await optimizeSubDelay();
       await finalizeXO();
       await drawResults();
@@ -9098,6 +9099,44 @@ zip.file("_micCal.txt", micCal);
         await postDelete(i);
       }
     }
+    async function calculateSubBandwidth() {
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length;
+      await postNext('Smooth', mCount, { smoothing: "Psy" }); // Psy is useful for rolloff detection, less noise
+      await fetchSafe('target-level', 1, 75.0);
+      const tcData = await postNext('Generate target measurement', 1);
+      const tcIdx = parseInt(Object.keys(tcData.results));
+      const rpData = await postNext('Arithmetic', [mCount, tcIdx], {function: "|A| / |B|"});
+      const rpIdx = parseInt(Object.keys(rpData.results));
+      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', rpIdx);
+      const bytes = Uint8Array.from(atob(response.magnitude), c => c.charCodeAt(0));
+      const buffer = bytes.buffer;
+      const data = new DataView(buffer);
+      const octave = Math.pow(2, 1/96);
+      let freq = response.startFreq, k = 0;
+      while (freq < 10) { freq *= octave, k++; } // ignore noise below 10hz
+      // find low freq -3dB point
+      let magnitude = data.getFloat32(k * 4);
+      while (magnitude < -3) {
+        magnitude = data.getFloat32(++k * 4);
+        freq *= octave;
+      }
+      subLowFreq = Math.max(10, freq);
+      Object.freeze(subLowFreq);
+      // find high freq -3dB point
+      while (k * 4 < data.byteLength && freq <= 250) {
+        magnitude = data.getFloat32(k++ * 4);
+        freq *= octave;
+        if (magnitude >= -3) {
+          subHighFreq = Math.min(freq, 250);
+        }
+      }
+      Object.freeze(subHighFreq);
+      await postDelete(rpIdx);
+      await postDelete(tcIdx);
+      await postNext('Smooth', mCount, { smoothing: "1/48" }); // revert sub smoothing for next calculation
+      console.log(`Subwoofer bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz (-3dB points)`);
+    }
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false;
@@ -9114,8 +9153,27 @@ zip.file("_micCal.txt", micCal);
         }
       }
       if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
+      if (avgRolloff < 2 * subLowFreq) {
+        console.warn(`Subwoofer does not go low enough to use average speaker roll-off for optimizing delay!`);
+        console.info(`A1Evo will use 2x subwoofer's lowest frequency <${(2 * subLowFreq).toFixed(2)}hz> for alignment.`);
+        avgRolloff = 2 * subLowFreq;
+        Object.freeze(avgRolloff);
+        let minCrossover = Infinity;
+        let minDelta = Infinity;
+        for (let i=0; i < freqIndex.length; i++) {
+          const delta = Math.abs(freqIndex[i] - avgRolloff);
+          if (delta < minDelta) {
+            minDelta = delta;
+            minCrossover = freqIndex[i];
+          }
+        }
+        console.info(`Enforcing minimum crossover based on subwoofer low frequency extension: ${minCrossover.toFixed(2)}hz`);
+        for (let i=1; i <= nSpeakers; i++) {
+          customCrossover[i] = Math.max(minCrossover, customCrossover[i]);
+        }
+      }
       await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
-      console.log(`Calculating subwoofer system delay for optimal match with ALL speakers using average roll-off: ${avgRolloff.toFixed(2)}hz`); 
+      console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgRolloff.toFixed(2)}hz as average XO...`); 
       await genSpeaker(mCount + 1, avgRolloff);
       await genSub(mCount, avgRolloff);
       await postNext('Smooth', mCount + 2, { smoothing: "1/48" }); // speakers
@@ -9202,35 +9260,38 @@ zip.file("_micCal.txt", micCal);
         const cmdIds = singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`;
         // finalize xo that is closest match to target curve
         const rolloff = parseFloat(customCrossover[(i - nSpeakers) / 2]);
-        let bestXo = rolloff, minRmsError= Infinity;
+        let bestXO = rolloff, minRmsError= Infinity;
         for (let j = 0; j < freqIndex.length; j++) {
-          let checkXo = freqIndex[j];
-          if (checkXo < rolloff || checkXo > 2 * rolloff) { continue; }
+          let checkXO = freqIndex[j];
+          // don't look at XO below speaker or sub low end ext
+          if (checkXO < Math.max(rolloff, 2 * subLowFreq)) { continue; }
+          // don't look at XO above 2x  speaker roll-off or sub high freq
+          if (checkXO > Math.min(2 * rolloff, subHighFreq)) { continue; }
           if (singleChannel) {
-            await genSpeaker(i, checkXo);
+            await genSpeaker(i, checkXO);
           }
           else {
             await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
-            await genSpeaker(mCount + 1, checkXo);
+            await genSpeaker(mCount + 1, checkXO);
             await postDelete(mCount + 1);
           }
-          await genSub(mCount, checkXo);
+          await genSub(mCount, checkXO);
           await postNext('Smooth', mCount + 1, { smoothing: "1/48" }); // speaker
           await postNext('Smooth', mCount + 2, { smoothing: "1/48" }); // sub
           await postNext('Arithmetic', [mCount + 1, mCount + 2], { function: "A + B" });
           const rmsError = await rmsOfXO(mCount + 3);
           if (rmsError < minRmsError) {
             minRmsError = rmsError;
-            bestXo = checkXo;
+            bestXO = checkXO;
           }
           for (let k = mCount + 3; k > mCount; k--) {
             await postDelete(k);
           }
         }
-        console.info(`${cmdIds} - best XO: ${bestXo}hz. Detected roll-off: ${rolloff}`);
-        customCrossover[(i - nSpeakers) / 2] = bestXo;
+        console.info(`${cmdIds} - best XO: ${bestXO}hz. Detected roll-off: ${rolloff}`);
+        customCrossover[(i - nSpeakers) / 2] = bestXO;
         if (!singleChannel) {
-          customCrossover[1 + (i - nSpeakers) / 2] = bestXo;
+          customCrossover[1 + (i - nSpeakers) / 2] = bestXO;
           i += 2;
         }
       }
@@ -9325,7 +9386,7 @@ zip.file("_micCal.txt", micCal);
         let t = 0;
         for (let k = k1; k <= k2; k++) {
           const xoMagnitude = dataXo.getFloat32(k * 4);
-          if (magnitudeArray[t] > 75.0) { break; }
+          if (magnitudeArray[t] > 72.0) { break; }
           const dif = magnitudeArray[t] - xoMagnitude;
           sum += Math.abs(dif);
           t++;
