@@ -8839,6 +8839,7 @@ zip.file("_micCal.txt", micCal);
         throw new Error;
       }
       nSpeakers = Object.keys(titles).length;
+      Object.freeze(nSpeakers);
       const indicesCounts = Object.values(titleIndices).map(indices => indices.length);
       const isIndicesEqual = indicesCounts.every(count => count === indicesCounts[0]);
       if (!isIndicesEqual) {
@@ -9159,13 +9160,13 @@ zip.file("_micCal.txt", micCal);
       await postDelete(rpIdx);
       await postDelete(tcIdx);
       await postNext('Smooth', mCount, { smoothing: "1/48" }); // revert sub smoothing for next calculation
-      console.info(`Subwoofer bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz (-3dB points)`);
+      console.info(`${commandId[nSpeakers]} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz (-3dB points)`);
       minCrossover = Math.max(findNearestXO(2 * subLowFreq), minCrossover);
       Object.freeze(minCrossover);
       maxCrossover = Math.min(findNearestXO(subHighFreq), maxCrossover);
       Object.freeze(maxCrossover);
       if (minCrossover > maxCrossover) { throw new Error("Unexpected error!"); }
-      console.info(`Usable crossover range: ${minCrossover.toFixed(2)}hz - ${maxCrossover.toFixed(2)}hz`);
+      console.info(`Usable crossover range: ${minCrossover}hz - ${maxCrossover}hz`);
     }
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
@@ -9187,7 +9188,7 @@ zip.file("_micCal.txt", micCal);
         console.info(`A1Evo will use 2x subwoofer's lowest frequency <${(2 * subLowFreq).toFixed(2)}hz> for alignment.`);
         avgRolloff = 2 * subLowFreq;
         Object.freeze(avgRolloff);
-        console.log(`Enforcing ${minCrossover.toFixed(2)}hz minimum roll-off...`);
+        console.log(`Enforcing ${minCrossover}hz minimum roll-off...`);
         for (let i=1; i < nSpeakers; i++) {
           const singleChannel = isSingleChannel(commandId[i]);
           const cmdIds = singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[1 + i]}`;
