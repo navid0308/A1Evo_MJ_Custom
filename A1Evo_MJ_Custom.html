@@ -351,8 +351,8 @@
             }
           }
         });
-        subLO = lowestTrimAdjustment <= 0 ? -12 - lowestTrimAdjustment : lowestTrimAdjustment;
-        subHI = highestTrimAdjustment >= 0 ? 12 - highestTrimAdjustment : highestTrimAdjustment;
+        subLO = -12 + Math.abs(lowestTrimAdjustment);
+        subHI = 12 - Math.abs(highestTrimAdjustment);
         Object.freeze(subLO);
         Object.freeze(subHI);
         maxDelayAdjustment != 0.00 ? multisubDelay = maxDelayAdjustment : multisubDelay = 0.00;
