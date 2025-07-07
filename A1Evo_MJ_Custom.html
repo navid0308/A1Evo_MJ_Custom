@@ -244,7 +244,7 @@
   <ol start="5">
     <li class="smaller-font">When prompted, download and 'save' the .zip (measurements) on your computer. Make sure the zip file is unblocked: right-click > properties > unblock</li>
     <li class="smaller-font">Start REW, go to the 'EQ' / 'House Curve', and select a target curve of your choice</li>
-    <li class="smaller-font">***If you do not select a target curve, A1Evo will EQ to a flat target curve and enable dynamic EQ***</li>
+    <li class="smaller-font">***If you do not select a target curve, A1Evo will EQ to a gentle downward slope & enable Dynamic EQ***</li>
     <li class="smaller-font">Open the zip file and select ALL (keyboard shortcut: "CTRL+A" for Windows / "Command+A" for Mac) the files in that folder</li>
     <li class="smaller-font">Left click on the selection and drag & drop them onto REW. Wait until all measurements are imported and 'Optimize calibration' button is enabled</li>
     <li class="smaller-font">In REW left column you should be seeing your Audyssey speaker measurements with increasing index numbers sorted in alphabetical order</li>
@@ -8732,7 +8732,7 @@ zip.file("_micCal.txt", micCal);
       console.info("Next, import the calibration into the MultEQ Editor App & transfer it to your AV receiver.");
       console.log("***You may freely change crossovers in the MultEQ app or AVR if desired.***");
       console.log("***You may freely adjust the correction range in the MultEQ app if desired.***");
-      if (targetCurveName === "Flat") {
+      if (targetCurveName === "") {
         console.log("***Dynamic EQ is enabled! You may freely adjust DEQ Reference Level Offset on the AVR if desired.***")
       }
       console.info("The Editor app 'after' graphs will now represent the filters being applied for each channel.");
@@ -8757,8 +8757,30 @@ zip.file("_micCal.txt", micCal);
         await postDelete(i);
       }
     }
+    async function enableRoomCurve() {
+      await postSafe(`http://localhost:4735/eq/default-room-curve-settings`, {
+        addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.5,
+        highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.5
+      }, "Update processed");
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length;
+      for (let i=1; i <= mCount; i++) {
+        await postSafe(`http://localhost:4735/measurements/${i}/room-curve-settings`, {
+          addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.5,
+          highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.5
+        }, "Update processed");
+      }
+    }
+    async function disableRoomCurve() {
+      await postSafe(`http://localhost:4735/eq/default-room-curve-settings`, { addRoomCurve: false }, "Update processed");
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length;
+      for (let i=1; i <= mCount; i++) {
+        await postSafe(`http://localhost:4735/measurements/${i}/room-curve-settings`, { addRoomCurve: false }, "Update processed");
+      }
+    }
     async function bootUp() {
-      console.info("Resetting IR windows, EQ target shape and room curve settings for all measurements");
+      console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
       const titles = {}; let titleIndices = {};
       let mCount = Object.keys(measurements).length;
@@ -8767,14 +8789,13 @@ zip.file("_micCal.txt", micCal);
       let baseMessage = "Resetting IR windows, EQ type, target shape and room curve settings for all measurements..."
       for (let q = 1; q <= mCount; q++) {
         await postSafe(`http://localhost:4735/measurements/${q}/ir-windows`, { leftWindowType: "Rectangular", rightWindowType: "Rectangular" }, "Update processed");
-        await postSafe(`http://localhost:4735/measurements/${q}/equaliser`, {manufacturer: "Generic", model: "Generic"}, "Equaliser selected");
+        await postSafe(`http://localhost:4735/measurements/${q}/equaliser`, { manufacturer: "Generic", model: "Generic" }, "Equaliser selected");
         await postSafe(`http://localhost:4735/measurements/${q}/target-settings`, { shape: "None" }, "Update processed");
-        await postSafe(`http://localhost:4735/measurements/${q}/room-curve-settings`, { addRoomCurve: false }, "Update processed");
         console.infoUpdate(`${baseMessage} (${q}/${mCount})`);
       }
       if (isCirrusLogic) {await addmicCal();}
       await console.infoUpdate("Resetting default equalizer to 'Generic/Generic'...");
-      await postSafe(`http://localhost:4735/eq/default-equaliser`, {manufacturer: "Generic", model: "Generic"}, "Default equaliser changed");
+      await postSafe(`http://localhost:4735/eq/default-equaliser`, { manufacturer: "Generic", model: "Generic" }, "Default equaliser changed");
       const firstTitle = measurements[1].title;
       console.infoUpdate(`Checking measurement names, indices and sorting...`);
       for (let i = 1; i <= mCount; i++) {
@@ -8821,10 +8842,13 @@ zip.file("_micCal.txt", micCal);
           Object.freeze(targetCurveName);
           Object.freeze(targetCurvePath);
           console.info(`Active target curve: ${targetCurveName}`);
+          await disableRoomCurve();
+          await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, "House curve set");
         }
         else {
-          targetCurveName = "Flat";
-          console.log("No target curve chosen - A1Evo will EQ to Flat and enable Dynamic EQ!");
+          targetCurveName = "";
+          console.log("No target curve chosen - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ!");
+          await enableRoomCurve();
         }
         const measurements = await fetch_mREW();
         const mCount = Object.keys(measurements).length;
@@ -8971,9 +8995,6 @@ zip.file("_micCal.txt", micCal);
           "frequency warping": false,
           "replicate data": true
         });
-      }
-      if (targetCurveName != "Flat") {
-        await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, "House curve set");
       }
       for (let i = nSpeakers + 1; i <= nSpeakers * 2; i++) {
         console.infoUpdate(`Equalizing channel - ${commandId[i - nSpeakers]}`);
@@ -9356,8 +9377,10 @@ zip.file("_micCal.txt", micCal);
       await fetch_mREW(mCount, 'PUT', { title: "LFEfinal-120hz-LPF" });
       await fetchSafe('target-level', 1, 75.0);
       await postNext('Generate target measurement', 1);
-      let targetName = targetCurveName + " @ 75dB";
+      let targetName = (targetCurveName === "" ? "Reference" : targetCurveName) + " @ 75dB";
       await fetch_mREW(mCount + 1, 'PUT', { title: targetName });
+      // room curve no longer needed. keeping it enabled will only confuse on next run
+      if (targetCurveName === "") { await disableRoomCurve(); }
       for (let i = mCount; i > nSpeakers * 3; i--) {
         titleM = await fetch_mREW(i);
         const title = titleM.title;
@@ -27655,7 +27678,7 @@ zip.file("_micCal.txt", micCal);
       }
       jsonData.dynamicVolume = false;
       jsonData.lfc = false;
-      jsonData.dynamicEq = targetCurveName === "Flat";
+      jsonData.dynamicEq = targetCurveName === "";
       jsonData.enTargetCurveType = 1;
       jsonData.detectedChannels.forEach((channel, index) => {
         const responseData = channel.responseData;
@@ -27744,7 +27767,7 @@ zip.file("_micCal.txt", micCal);
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
-      const tcName = targetCurveName === "Flat" ? "DEQ" : targetCurveName;
+      const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
       downloadLink.download = getadyName(fileName, (movieMode ? "_Movie_" : "_") + swInvMsg + `${tcName}_` + `A1Evo_${timestamp}.ady`);
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
