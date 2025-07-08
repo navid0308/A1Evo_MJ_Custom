@@ -9039,7 +9039,7 @@ zip.file("_micCal.txt", micCal);
         spSum = filterArray.reduce((acc, val) => acc + val, 0) / filterArray.length;
         spSum = Math.round(spSum * 2) / 2;
         customLevel[i] += spSum;
-        if (spSum != 0) { console.info(`${commandId[i]} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
+        if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
       }
       spSum = 0.0;
       const subFilterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nSpeakers * 3 - 1);
@@ -9048,7 +9048,7 @@ zip.file("_micCal.txt", micCal);
       spSum = Math.round(spSum * 2) / 2;
       for (let i = nSpeakers; i < (nSpeakers + numSub); i++) {
         customLevel[i] += spSum;
-        if (spSum != 0) { console.info(`${commandId[i]} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
+        if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
       }
     }
     async function finalizeTrims() {
@@ -9058,10 +9058,10 @@ zip.file("_micCal.txt", micCal);
         customLevel[i] = Math.max(-12, customLevel[i]);
         customLevel[i] = Math.min(customLevel[i], 12);
         if (customLevelOriginal != customLevel[i]) {
-          console.warn(`${commandId[i]} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal}dB → ${customLevel[i]}dB`);
+          console.warn(`${commandId[i].padStart(3, ".")} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal}dB → ${customLevel[i]}dB`);
         }
         else {
-          console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`);
+          console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i]}dB`);
         }
       }
       for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
@@ -9069,10 +9069,10 @@ zip.file("_micCal.txt", micCal);
         customLevel[i] = Math.max(subLO, customLevel[i]);
         customLevel[i] = Math.min(customLevel[i], subHI);
         if (customLevelOriginal != customLevel[i]) {
-          console.warn(`${commandId[i]} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal}dB → ${customLevel[i]}dB`);
+          console.warn(`${commandId[i].padStart(3, ".")} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal}dB → ${customLevel[i]}dB`);
         }
         else {
-          console.info(`${commandId[i]} - applied adjustment: ${customLevel[i]}dB`);
+          console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i]}dB`);
         }
       }
     }
@@ -9096,7 +9096,7 @@ zip.file("_micCal.txt", micCal);
       return xo;
     }
     async function calculateRolloffs() {
-      console.log("Calculating roll-off frequencies based on target curve...");
+      console.log("Calculating speaker -3dB points from target curve...");
       await fetchSafe('target-level', 1, 75.0);
       const tcData = await postNext('Generate target measurement', 1);
       const tcIdx = parseInt(Object.keys(tcData.results));
@@ -9105,7 +9105,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = nSpeakers + 2; i <= nSpeakers * 3 - 2; i += 2) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
-        const cmdIds = singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`;
+        const cmdIds = (singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`).padStart(9, ".");
         // rolloff determination logic
         let idx = i;
         if (!singleChannel) {
@@ -9128,12 +9128,8 @@ zip.file("_micCal.txt", micCal);
           magnitude = data.getFloat32(++k * 4);
           freq *= octave;
         }
-        let rolloff = findNearestXO(freq);
-        if (rolloff === 15.75) {
-          console.info(`${cmdIds} - detected roll-off: 'Large/Full range' shifted to 40hz`);
-          rolloff = 40;
-        }
-        else { console.info(`${cmdIds} - detected roll-off: ${rolloff}Hz`); }
+        const rolloff = Math.max(findNearestXO(freq), 40);
+        console.info(`${cmdIds} - roll-off: ${freq.toFixed(2)}Hz → Initial XO: ${rolloff}hz`);
         customCrossover[(i - nSpeakers) / 2] = rolloff;
         await postDelete(rpIdx);
         if (!singleChannel) {
@@ -9145,7 +9141,7 @@ zip.file("_micCal.txt", micCal);
       await postDelete(tcIdx);
     }
     async function calculateSubBandwidth() {
-      console.log("Calculating subwoofer bandwidth based on target curve...")
+      console.log("Calculating subwoofer -3dB points from target curve...")
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       await postNext('Smooth', mCount, { smoothing: "Psy" }); // Psy is useful for rolloff detection, less noise
@@ -9180,7 +9176,9 @@ zip.file("_micCal.txt", micCal);
       Object.freeze(subHighFreq);
       await postDelete(rpIdx);
       await postDelete(tcIdx);
-      console.info(`${commandId[nSpeakers]} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz (-3dB points)`);
+      const minXO = Math.max(findNearestXO(2 * subLowFreq), 40);
+      const maxXO = Math.min(findNearestXO(subHighFreq), 250);
+      console.info(`${commandId[nSpeakers].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO: ${minXO}hz - ${maxXO}hz`);
     }
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
@@ -9253,10 +9251,10 @@ zip.file("_micCal.txt", micCal);
         }
         customDistance[i] = Math.round(parseFloat(customDistance[i]) * 100) / 100;
         if (i >= nSpeakers) {
-          console.warn(`${commandId[i]} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
+          console.warn(`${commandId[i].padStart(3, ".")} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
           swInvMsg += invertSub[i] ? `inv${commandId[i]}_` : "";
         } else {
-          console.info(`${commandId[i]} - distance: ${customDistance[i].toFixed(2)}m`);
+          console.info(`${commandId[i].padStart(3, ".")} - distance: ${customDistance[i].toFixed(2)}m`);
         }
       }
       if (swChannelCount > 1 && invertSub.every(isInv => isInv === true)) {
@@ -9278,20 +9276,20 @@ zip.file("_micCal.txt", micCal);
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       const targetArray = response2array(targetResponse, start, end);
-      const minCrossover = Math.max(findNearestXO(2 * subLowFreq), 40);
-      const maxCrossover = Math.min(findNearestXO(subHighFreq), 250);
-      console.info(`Usable XO range: ${minCrossover}hz - ${maxCrossover}hz (based on subwoofer bandwidth)`);
+      const minXO = Math.max(findNearestXO(2 * subLowFreq), 40);
+      const maxXO = Math.min(findNearestXO(subHighFreq), 250);
+      console.info(`Usable XO: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       for (let i = nSpeakers + 2; i < mCount; i += 2) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
-        const cmdIds = singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`;
+        const cmdIds = (singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`).padStart(9, ".");
         // finalize xo that is closest match to target curve
         const rolloff = parseFloat(customCrossover[(i - nSpeakers) / 2]);
         let bestXO = rolloff, minRmsError = Infinity;
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXO = freqIndex[j];
-          // don't look at XO below speaker rolloff or outside sub bandwidth
-          if (checkXO < Math.max(rolloff, minCrossover) || checkXO > maxCrossover) { continue; }
+          // don't look at XO below speaker rolloff, above 2x rolloff or outside sub bandwidth
+          if (checkXO < Math.max(rolloff, minXO) || checkXO > Math.min(2 * rolloff, maxXO)) { continue; }
           if (singleChannel) {
             await genSpeaker(i, checkXO);
           }
@@ -9316,7 +9314,7 @@ zip.file("_micCal.txt", micCal);
             await postDelete(k);
           }
         }
-        console.info(`${cmdIds} - best XO: ${bestXO}hz. Detected roll-off: ${rolloff}`);
+        console.info(`${cmdIds} - Initial XO: ${rolloff}hz → Best XO: ${bestXO}hz`);
         customCrossover[(i - nSpeakers) / 2] = bestXO;
         if (!singleChannel) {
           customCrossover[1 + (i - nSpeakers) / 2] = bestXO;
@@ -9489,7 +9487,7 @@ zip.file("_micCal.txt", micCal);
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
       for (let i = nSpeakers; i < (nSpeakers + numSub); i++) {
         customLevel[i] += volAdjust;
-        console.info(`${commandId[i]} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
+        console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
       }
       maxNegative = (msecMin - msecMinSub) * 1000;
       maxPositive = (msecMax - msecMaxSub) * 1000;
