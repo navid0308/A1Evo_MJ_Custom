@@ -301,7 +301,7 @@
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
     let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [], delayAdjustment = {}, freqIndex = [];
-    let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [], minCrossover = 40, maxCrossover = 250;
+    let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [];
     let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "", subLowFreq = 10, subHighFreq = 250;
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
 
@@ -9004,7 +9004,7 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: 10, endFrequency: 10000,
           individualMaxBoostdB: 3, overallMaxBoostdB: movieMode ? 1 : 0,
-          flatnessTargetdB: 1, allowNarrowFiltersBelow200Hz: false, varyQAbove200Hz: false,
+          flatnessTargetdB: 1, allowNarrowFiltersBelow200Hz: true, varyQAbove200Hz: false,
           allowLowShelf: false, allowHighShelf: movieMode && !isSub,
           highShelfMin: -3, highShelfMax: 3
         }, "Update processed");
@@ -9181,12 +9181,6 @@ zip.file("_micCal.txt", micCal);
       await postDelete(rpIdx);
       await postDelete(tcIdx);
       console.info(`${commandId[nSpeakers]} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz (-3dB points)`);
-      minCrossover = Math.max(findNearestXO(2 * subLowFreq), minCrossover);
-      Object.freeze(minCrossover);
-      maxCrossover = Math.min(findNearestXO(subHighFreq), maxCrossover);
-      Object.freeze(maxCrossover);
-      if (minCrossover > maxCrossover) { throw new Error("Unexpected error!"); }
-      console.info(`Usable crossover range: ${minCrossover}hz - ${maxCrossover}hz`);
     }
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
@@ -9208,20 +9202,6 @@ zip.file("_micCal.txt", micCal);
         console.info(`A1Evo will use 2x subwoofer's lowest frequency <${(2 * subLowFreq).toFixed(2)}hz> for alignment.`);
         avgRolloff = 2 * subLowFreq;
         Object.freeze(avgRolloff);
-        console.log(`Enforcing ${minCrossover}hz minimum roll-off...`);
-        for (let i=1; i < nSpeakers; i++) {
-          const singleChannel = isSingleChannel(commandId[i]);
-          const cmdIds = singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[1 + i]}`;
-          const rolloff = customCrossover[i];
-          customCrossover[i] = Math.max(minCrossover, customCrossover[i]);
-          if (!singleChannel) {
-            customCrossover[i + 1] = customCrossover[i];
-            i++;
-          }
-          if (rolloff != customCrossover[i]) {
-            console.info(`${cmdIds} roll-off - shifted: ${rolloff}hz → ${customCrossover[i]}hz`)
-          }
-        }
       }
       await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
       console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgRolloff.toFixed(2)}hz as average XO...`); 
@@ -9299,10 +9279,18 @@ zip.file("_micCal.txt", micCal);
       const aSumArray = response2array(freqResponse, start, end);
       return calculateRMSError(aSumArray, targetArray);
     }
+    function calculateUsableXORange() {
+      const minCrossover = Math.max(findNearestXO(2 * subLowFreq), 40);
+      const maxCrossover = Math.min(findNearestXO(subHighFreq), 250);
+      return [minCrossover, maxCrossover];
+    }
     async function finalizeXO() {
       console.log("Finalizing crossover frequencies to best follow the target curve...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
+      let minCrossover, maxCrossover;
+      [minCrossover, maxCrossover] = calculateUsableXORange();
+      console.info(`Usable crossover range based on subwoofer bandwidth: ${minCrossover}hz - ${maxCrossover}hz`);
       for (let i = nSpeakers + 2; i < mCount; i += 2) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
@@ -9312,10 +9300,8 @@ zip.file("_micCal.txt", micCal);
         let bestXO = rolloff, minRmsError = Infinity;
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXO = freqIndex[j];
-          // don't look at XO below speaker or sub low end ext
-          if (checkXO < Math.max(rolloff, minCrossover)) { continue; }
-          // don't look at XO above 2x  speaker roll-off or sub high freq
-          if (checkXO > Math.min(2 * rolloff, maxCrossover)) { continue; }
+          // don't look at XO below speaker rolloff or outside sub bandwidth
+          if (checkXO < Math.max(rolloff, minCrossover) || checkXO > maxCrossover) { continue; }
           if (singleChannel) {
             await genSpeaker(i, checkXO);
           }
@@ -9560,7 +9546,7 @@ zip.file("_micCal.txt", micCal);
             (arr.length)
         );
       }
-      let magSum = rpArray.reduce((acc, val) => acc + val - tcLevel, 0);
+      const magSum = rpArray.reduce((acc, val) => acc + val - tcLevel, 0);
       return magSum / calculateSTD(rpArray);
     }
     async function getSubwooferTrim(noM, start=30, end=80) {
