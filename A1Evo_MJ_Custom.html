@@ -9203,8 +9203,8 @@ zip.file("_micCal.txt", micCal);
         avgRolloff = 2 * subLowFreq;
         Object.freeze(avgRolloff);
       }
-      await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
       console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgRolloff.toFixed(2)}hz as average XO...`); 
+      await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
       await genSpeaker(mCount + 1, avgRolloff);
       await genSub(mCount, avgRolloff);
       [isPossibleI, requiredDelayI, isInverted] = await align4system(mCount + 2, mCount + 3);
@@ -9273,24 +9273,14 @@ zip.file("_micCal.txt", micCal);
       }
       for (let i = nSpeakers * 3 + 3; i > nSpeakers * 3; i--) {await postDelete(i);}
     }
-    async function rmsOfXO(noM, start=20, end=250) {
-      const targetArray = response2array(targetResponse, start, end);
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', noM);
-      const aSumArray = response2array(freqResponse, start, end);
-      return calculateRMSError(aSumArray, targetArray);
-    }
-    function calculateUsableXORange() {
-      const minCrossover = Math.max(findNearestXO(2 * subLowFreq), 40);
-      const maxCrossover = Math.min(findNearestXO(subHighFreq), 250);
-      return [minCrossover, maxCrossover];
-    }
-    async function finalizeXO() {
+    async function finalizeXO(start=20, end=250) {
       console.log("Finalizing crossover frequencies to best follow the target curve...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      let minCrossover, maxCrossover;
-      [minCrossover, maxCrossover] = calculateUsableXORange();
-      console.info(`Usable crossover range based on subwoofer bandwidth: ${minCrossover}hz - ${maxCrossover}hz`);
+      const targetArray = response2array(targetResponse, start, end);
+      const minCrossover = Math.max(findNearestXO(2 * subLowFreq), 40);
+      const maxCrossover = Math.min(findNearestXO(subHighFreq), 250);
+      console.info(`Usable XO range: ${minCrossover}hz - ${maxCrossover}hz (based on subwoofer bandwidth)`);
       for (let i = nSpeakers + 2; i < mCount; i += 2) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
@@ -9313,8 +9303,11 @@ zip.file("_micCal.txt", micCal);
           await genSub(mCount, checkXO);
           await postNext('Smooth', mCount + 1, { smoothing: "Psy" });
           await postNext('Smooth', mCount + 2, { smoothing: "Psy" });
-          await postNext('Arithmetic', [mCount + 1, mCount + 2], { function: "A + B" });
-          const rmsError = await rmsOfXO(mCount + 3);
+          await postNext('Arithmetic', [mCount + 1, mCount + 2], { function: "A + B" }); // response using checkXO
+          // check RMS error against target curve
+          const checkXOResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', mCount + 3);
+          const checkXOArray = response2array(checkXOResponse, start, end);
+          const rmsError = calculateRMSError(checkXOArray, targetArray);
           if (rmsError < minRmsError) {
             minRmsError = rmsError;
             bestXO = checkXO;
@@ -9375,7 +9368,7 @@ zip.file("_micCal.txt", micCal);
         titleM = await fetch_mREW(i);
         const title = titleM.title;
         if (title.endsWith("-filters") || title.endsWith(" @ 75dB")) { continue; }
-        await postNext('Smooth', i, { smoothing: "Psy" });
+        await postNext('Smooth', i, { smoothing: "1/6" });
       }
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
@@ -9461,7 +9454,7 @@ zip.file("_micCal.txt", micCal);
       const tcLevel = tcArray.reduce((acc, val) => acc + val, 0) / tcArray.length
       for (const index of finalIndices) {
         if (index !== null) {
-          const tempSum = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', index);
+          const tempSum = await fetchSafe('frequency-response?smoothing=Var&ppo=96', index);
           const tempSumArray = response2array(tempSum, start, end);
           const currScore = calculateLinearityScore(tempSumArray, tcLevel);
           if (bestScore < currScore) { bestScore = currScore; bestI = index; bestCount = iCount; }
@@ -9569,9 +9562,9 @@ zip.file("_micCal.txt", micCal);
     }
     async function getMaxSumArray(ind1, ind2, start=20, end=120) {
       let maxSumArray = [];
-      const ind1FreqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', ind1);
+      const ind1FreqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', ind1);
       const ind1Array = response2array(ind1FreqResponse, start, end);
-      const ind2FreqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', ind2);
+      const ind2FreqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', ind2);
       const ind2Array = response2array(ind2FreqResponse, start, end);
       if (ind1Array.length != ind2Array.length) { throw new Error("Unexpected error!"); }
       for (let i = 0; i < ind1Array.length; i++) {
@@ -9591,8 +9584,8 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function align4system(ind1, ind2, start=20, end=250) {
-      await postNext('Smooth', ind1, { smoothing: "Psy" });
-      await postNext('Smooth', ind2, { smoothing: "Psy" });
+      await postNext('Smooth', ind1, { smoothing: "Var" });
+      await postNext('Smooth', ind2, { smoothing: "Var" });
       const maxSumArray = await getMaxSumArray(ind1, ind2, start, end);
       let isInverted = false, isPossible = false, requiredDelay = Infinity, bestFreq = NaN, minRmsError = Infinity;
       let loDelay = maxNegative;
@@ -9619,7 +9612,7 @@ zip.file("_micCal.txt", micCal);
         if (noInversion && invertB) { continue; };
         if ((tempLo > 0 && delayB < tempLo) || (tempHi < 0 && delayB > tempHi)) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const rmsError = calculateRMSError(tempSumArray, maxSumArray);
         if (rmsError < minRmsError) {
@@ -9646,8 +9639,8 @@ zip.file("_micCal.txt", micCal);
       return [isPossible, requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, loDelay, hiDelay, start=20, end=120) {
-      await postNext('Smooth', ind1, { smoothing: "Psy" });
-      await postNext('Smooth', ind2, { smoothing: "Psy" });
+      await postNext('Smooth', ind1, { smoothing: "Var" });
+      await postNext('Smooth', ind2, { smoothing: "Var" });
       const maxSumArray = await getMaxSumArray(ind1, ind2, start, end);
       let isInverted = false, isPossible = false, requiredDelay = NaN, sumIndex = null, bestFreq = NaN, minRmsError = Infinity;
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
@@ -9667,7 +9660,7 @@ zip.file("_micCal.txt", micCal);
         const delayB = -parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const rmsError = calculateRMSError(tempSumArray, maxSumArray);
         if (rmsError < minRmsError) {
