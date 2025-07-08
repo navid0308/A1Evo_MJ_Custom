@@ -9375,7 +9375,7 @@ zip.file("_micCal.txt", micCal);
         titleM = await fetch_mREW(i);
         const title = titleM.title;
         if (title.endsWith("-filters") || title.endsWith(" @ 75dB")) { continue; }
-        await postNext('Smooth', i, { smoothing: "1/6" });
+        await postNext('Smooth', i, { smoothing: "Psy" });
       }
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
