@@ -8576,7 +8576,7 @@ const micCal = `* Impulse Response data saved by REW
 zip.file("_micCal.txt", micCal);
         }
         console.log(`Please save ${fileName.substring(0, fileName.lastIndexOf('.'))}_extractedMeasurements.zip file when prompted.`);
-        console.log("Save prompt can be cancelled if the original Audyssey measurements are already loaded in REW!");
+        console.info("Save prompt can be cancelled if the original Audyssey measurements are already loaded in REW.");
         await Promise.all(filePromises.flat());
         try {
           const content = await zip.generateAsync({ type: 'blob' });
@@ -8695,6 +8695,7 @@ zip.file("_micCal.txt", micCal);
       await finalizeTrims();
       await calculateRolloffs();
       await calculateSubBandwidth();
+      finalizeInitialXO();
       await optimizeSubDelay();
       await finalizeXO();
       await drawResults();
@@ -8967,7 +8968,7 @@ zip.file("_micCal.txt", micCal);
         mSec[i] -= overDelay;
         await postNext2('Offset t=0', i, {offset: -overDelay, unit: "seconds"});
       }
-      console.infoUpdate("Completed speaker volume and time alignment!");
+      console.infoUpdate("Completed speaker volume & time alignment!");
       if (numSub > 1) {
         console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
         await directional2standard();
@@ -9178,7 +9179,25 @@ zip.file("_micCal.txt", micCal);
       await postDelete(tcIdx);
       const minXO = Math.max(findNearestXO(2 * subLowFreq), 40);
       const maxXO = Math.min(findNearestXO(subHighFreq), 250);
-      console.info(`${commandId[nSpeakers].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO: ${minXO}hz - ${maxXO}hz`);
+      console.info(`${commandId[nSpeakers].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
+    }
+    function finalizeInitialXO() {
+      console.log("Sanity checking initial XOs based on usable XO range...")
+      const minXO = findNearestXO(2 * subLowFreq);
+      for (let i = 1; i < nSpeakers; i++) {
+        const singleChannel = isSingleChannel(commandId[i]);
+        const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[1 + i]}`).padStart(9, ".");
+        const rolloff = customCrossover[i];
+        customCrossover[i] = Math.max(minXO, customCrossover[i]);
+        if (!singleChannel) {
+          customCrossover[i + 1] = customCrossover[i];
+          i++;
+        }
+        if (rolloff != customCrossover[i]) {
+          console.warn(`${cmdIds} initial XO below usable XO range - shifted: ${rolloff}hz → ${customCrossover[i]}hz`)
+        }
+      }
+      console.info("Completed sanity checks on initial XOs!");
     }
     async function optimizeSubDelay() {
       let minSum = Infinity, subMoves = NaN;
@@ -9195,12 +9214,7 @@ zip.file("_micCal.txt", micCal);
         }
       }
       if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
-      if (avgRolloff < 2 * subLowFreq) {
-        console.warn(`Subwoofer does not go low enough to use average speaker roll-off for optimizing delay!`);
-        console.info(`A1Evo will use 2x subwoofer's lowest frequency <${(2 * subLowFreq).toFixed(2)}hz> for alignment.`);
-        avgRolloff = 2 * subLowFreq;
-        Object.freeze(avgRolloff);
-      }
+      Object.freeze(avgRolloff);
       console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgRolloff.toFixed(2)}hz as average XO...`); 
       await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
       await genSpeaker(mCount + 1, avgRolloff);
@@ -9278,7 +9292,7 @@ zip.file("_micCal.txt", micCal);
       const targetArray = response2array(targetResponse, start, end);
       const minXO = Math.max(findNearestXO(2 * subLowFreq), 40);
       const maxXO = Math.min(findNearestXO(subHighFreq), 250);
-      console.info(`Usable XO: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
+      console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       for (let i = nSpeakers + 2; i < mCount; i += 2) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
