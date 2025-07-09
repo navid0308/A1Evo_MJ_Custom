@@ -8926,16 +8926,16 @@ zip.file("_micCal.txt", micCal);
         await alignVol2MLP(indices, i);
         micPositions === 1 ? await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed") :
                              await postNext('Magn plus phase average', indices);
+        // trim determination using MLP
+        if (title[oIndex].startsWith("SW")) {
+          customLevel[count] = bassMode === "Directional" ? await getSubwooferTrim(i) : await getSubwooferTrim(i, 20, 120);
+        }
+        else {
+          customLevel[count] = movieMode ? await getSpeakerTrim(i, 250, 10000) : await getSpeakerTrim(i, 250, 4000);
+        }
         // the "o" measurement
         const idx = mCount + oIndex;
         await fetch_mREW(idx, 'PUT', { title: title[oIndex] });
-        // final trim determination using avg
-        if (title[oIndex].startsWith("SW")) {
-          customLevel[count] = bassMode === "Directional" ? await getSubwooferTrim(idx) : await getSubwooferTrim(idx, 20, 120);
-        }
-        else {
-          customLevel[count] = movieMode ? await getSpeakerTrim(idx, 250, 10000) : await getSpeakerTrim(idx, 250, 4000);
-        }
         // align avg to target curve
         let volAdjust = parseFloat(customLevel[count]);
         await postNext('Add SPL offset', idx, { offset: volAdjust });
