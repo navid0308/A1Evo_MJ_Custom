@@ -8923,21 +8923,21 @@ zip.file("_micCal.txt", micCal);
         mSec[oIndex] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
         title[oIndex] = measurements[i].title.slice(0, -1) + "o";
         if (title[oIndex].startsWith("SW")) { title[oIndex] = title[oIndex].slice(0, -6) + "o"; }
+        // trim determination using MLP
+        if (title[oIndex].startsWith("SW")) {
+          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getTrim(i, 20, 120);
+        }
+        else {
+          customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
+        }
         // level match all other positions to MLP & average
         await alignVol2MLP(indices, i);
         micPositions === 1 ? await postSafe(`http://localhost:4735/measurements/${i}/command`, {command: "Response copy" }, "Completed") :
                              await postNext('Magn plus phase average', indices);
-        // trim determination using MLP
-        if (title[oIndex].startsWith("SW")) {
-          customLevel[count] = bassMode === "Directional" ? await getSubwooferTrim(i) : await getSubwooferTrim(i, 20, 120);
-        }
-        else {
-          customLevel[count] = movieMode ? await getSpeakerTrim(i, 250, 10000) : await getSpeakerTrim(i, 250, 4000);
-        }
         // the "o" measurement
         const idx = mCount + oIndex;
         await fetch_mREW(idx, 'PUT', { title: title[oIndex] });
-        // align avg to target curve
+        // align "o" measurement to target curve
         let volAdjust = parseFloat(customLevel[count]);
         await postNext('Add SPL offset', idx, { offset: volAdjust });
         // go to next channel
@@ -9496,7 +9496,7 @@ zip.file("_micCal.txt", micCal);
         const title = measurements[i].title;
         if (title != "SW1o") { await postDelete(i); }
       }
-      const volAdjust = parseFloat(await getSubwooferTrim(nSpeakers, start, end));
+      const volAdjust = parseFloat(await getTrim(nSpeakers, start, end));
       await postNext('Add SPL offset', nSpeakers, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
       for (let i = nSpeakers; i < (nSpeakers + numSub); i++) {
@@ -9554,25 +9554,16 @@ zip.file("_micCal.txt", micCal);
       const magSum = rpArray.reduce((acc, val) => acc + val - tcLevel, 0);
       return magSum / calculateSTD(rpArray);
     }
-    async function getSubwooferTrim(noM, start=30, end=80) {
+    async function getTrim(idx, start, end) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', noM);
-      const subArray = response2array(freqResponse, start, end);
-      const subArraySPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
-      const offset = targetSPL - subArraySPL;
-      return Math.round(offset * 2) / 2;
+      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const freqArray = response2array(freqResponse, start, end);
+      const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
+      const offset = targetSPL - freqSPL;
+      return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
-    async function getSpeakerTrim(noM, start=500, end=2000) {
-      const targetArray = response2array(targetResponse, start, end);
-      const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', noM);
-      const spArray = response2array(freqResponse, start, end);
-      const spArraySPL = spArray.reduce((acc, val) => acc + val, 0) / spArray.length;
-      const offset = targetSPL - spArraySPL;
-      return Math.round(offset * 2) / 2;
-    }
-    async function getMaxSumArray(ind1, ind2, start=20, end=120) {
+    async function getMaxSumArray(ind1, ind2, start, end) {
       let maxSumArray = [];
       const ind1FreqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', ind1);
       const ind1Array = response2array(ind1FreqResponse, start, end);
@@ -9584,13 +9575,13 @@ zip.file("_micCal.txt", micCal);
       }
       return maxSumArray;
     }
-    async function alignVol2MLP(indices, mlpIndex) {
+    async function alignVol2MLP(indices, mlpIdx) {
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
-      const mlpVolume = measurements[mlpIndex].title.startsWith("SW") ? await getSubwooferTrim(mlpIndex) : await getSpeakerTrim(mlpIndex);
+      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getTrim(mlpIdx, 30, 80) : await getTrim(mlpIdx, 500, 2000);
       for (let i = 0; i < indices.length; i++) {
-        if (indices[i] === mlpIndex) { continue; }
-        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubwooferTrim(indices[i]) : await getSpeakerTrim(indices[i]);
+        if (indices[i] === mlpIdx) { continue; }
+        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getTrim(indices[i], 30, 80) : await getTrim(indices[i], 500, 2000);
         const volAdjust = parseFloat(idxVolume - mlpVolume);
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
