@@ -106,11 +106,11 @@
       overflow-y: auto;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
       margin-bottom: 1px;
-      font-size: 12px !important;
+      font-size: 13px !important;
     }
     h2.log-heading {
       font-family: Open Sans, sans-serif;
-      font-size: 12px;
+      font-size: 13px;
       font-style: italic;
       text-indent: 1px;
       margin-bottom: 0px;
@@ -159,10 +159,10 @@
     }
     .version-number {
       float: right;
-      font-size: 12px;
+      font-size: 13px;
       margin-top: 25px;
     }
-    .small-bullet {font-size: 12px;}
+    .small-bullet {font-size: 13px;}
     .warning {color:rgba(204, 102, 0, 1);
     }
     .error {color: red;
@@ -174,7 +174,7 @@
       margin-top: 10px;
       border-top: 1px solid #ccc;
       padding-top: 10px;
-      font-size: 0.8em;
+      font-size: 0.9em;
       display: flex;
       flex-direction: column;
       transition: all 0.3s ease;
@@ -8760,15 +8760,15 @@ zip.file("_micCal.txt", micCal);
     }
     async function enableRoomCurve() {
       await postSafe(`http://localhost:4735/eq/default-room-curve-settings`, {
-        addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.5,
-        highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.5
+        addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.6,
+        highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.6
       }, "Update processed");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       for (let i=1; i <= mCount; i++) {
         await postSafe(`http://localhost:4735/measurements/${i}/room-curve-settings`, {
-          addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.5,
-          highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.5
+          addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.6,
+          highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.6
         }, "Update processed");
       }
     }
