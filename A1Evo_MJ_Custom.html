@@ -8760,15 +8760,15 @@ zip.file("_micCal.txt", micCal);
     }
     async function enableRoomCurve() {
       await postSafe(`http://localhost:4735/eq/default-room-curve-settings`, {
-        addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.6,
-        highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.6
+        addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.8,
+        highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.8
       }, "Update processed");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       for (let i=1; i <= mCount; i++) {
         await postSafe(`http://localhost:4735/measurements/${i}/room-curve-settings`, {
-          addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.6,
-          highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.6
+          addRoomCurve: true, lowFreqRiseStartHz: 630, lowFreqRiseEndHz: 10, lowFreqRiseSlopedBPerOctave: 0.8,
+          highFreqFallStartHz: 630, highFreqFallSlopedBPerOctave: 0.8
         }, "Update processed");
       }
     }
