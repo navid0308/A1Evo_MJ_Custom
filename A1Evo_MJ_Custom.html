@@ -301,7 +301,7 @@
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
     let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [], delayAdjustment = {}, freqIndex = [];
-    let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [];
+    let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [], minXO = 40, maxXO = 250;
     let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "", subLowFreq = 10, subHighFreq = 250;
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
 
@@ -9163,6 +9163,8 @@ zip.file("_micCal.txt", micCal);
       }
       subLowFreq = Math.max(10, rolloffLow);
       Object.freeze(subLowFreq);
+      minXO = Math.max(findNearestXO(2 * subLowFreq), 40);
+      Object.freeze(minXO);
       // find high freq -3dB point
       let rolloffHigh = 250;
       for (let i = rpArray.length - 1; i >= 0; i--) {
@@ -9171,25 +9173,23 @@ zip.file("_micCal.txt", micCal);
       }
       subHighFreq = Math.min(250, rolloffHigh);
       Object.freeze(subHighFreq);
-      // log bandwidth and usable XO range
-      const minXO = Math.max(findNearestXO(2 * subLowFreq), 40);
-      const maxXO = Math.min(findNearestXO(subHighFreq), 250);
+      maxXO = Math.min(findNearestXO(subHighFreq), 250);
+      Object.freeze(maxXO);
       console.info(`${commandId[nSpeakers].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
     }
     function finalizeInitialXO() {
       console.log("Sanity checking initial XOs based on usable XO range...")
-      const minXO = findNearestXO(2 * subLowFreq);
       for (let i = 1; i < nSpeakers; i++) {
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[1 + i]}`).padStart(9, ".");
-        const rolloff = customCrossover[i];
+        const initialXO = customCrossover[i];
         customCrossover[i] = Math.max(minXO, customCrossover[i]);
         if (!singleChannel) {
           customCrossover[i + 1] = customCrossover[i];
           i++;
         }
-        if (rolloff != customCrossover[i]) {
-          console.warn(`${cmdIds} initial XO below usable XO range - shifted: ${rolloff}hz → ${customCrossover[i]}hz`)
+        if (initialXO != customCrossover[i]) {
+          console.warn(`${cmdIds} initial XO below usable XO range - shifted: ${initialXO}hz → ${customCrossover[i]}hz`)
         }
       }
       console.info("Completed sanity checks on initial XOs!");
@@ -9199,21 +9199,21 @@ zip.file("_micCal.txt", micCal);
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false;
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      let eqResults = [], rolloff = 0, avgRolloff = 80;
+      let eqResults = [], initialXOs = 0, avgInitialXO = 80;
       for (let i = nSpeakers; i < mCount; i++) {
         const mData = await fetch_mREW(i);
         const title = mData.title;
         if (title.endsWith("-equalized")) {
           eqResults.push(i);
-          rolloff += parseFloat(customCrossover[(i - nSpeakers) / 2]);
+          initialXOs += parseFloat(customCrossover[(i - nSpeakers) / 2]);
         }
       }
-      if (rolloff > 0) { avgRolloff = rolloff / eqResults.length; }
-      Object.freeze(avgRolloff);
-      console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgRolloff.toFixed(2)}hz as average XO...`); 
+      if (initialXOs > 0) { avgInitialXO = initialXOs / eqResults.length; }
+      Object.freeze(avgInitialXO);
+      console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgInitialXO.toFixed(2)}hz as average XO...`); 
       await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
-      await genSpeaker(mCount + 1, avgRolloff);
-      await genSub(mCount, avgRolloff);
+      await genSpeaker(mCount + 1, avgInitialXO);
+      await genSub(mCount, avgInitialXO);
       [isPossibleI, requiredDelayI, isInverted] = await align4system(mCount + 2, mCount + 3);
       if (isPossibleI) {
         subMoves = requiredDelayI;
@@ -9285,23 +9285,21 @@ zip.file("_micCal.txt", micCal);
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       const targetArray = response2array(targetResponse, start, end);
-      const minXO = Math.max(findNearestXO(2 * subLowFreq), 40);
-      const maxXO = Math.min(findNearestXO(subHighFreq), 250);
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       for (let i = nSpeakers + 2; i < mCount; i += 2) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
         const cmdIds = (singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`).padStart(9, ".");
         // finalize xo that is closest match to target curve
-        const rolloff = parseFloat(customCrossover[(i - nSpeakers) / 2]);
-        let bestXO = rolloff, minRmsError = Infinity;
+        const initialXO = parseFloat(customCrossover[(i - nSpeakers) / 2]);
+        let bestXO = initialXO, minRmsError = Infinity;
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXO = freqIndex[j];
-          // don't look at XO below speaker rolloff, above 2x rolloff or outside sub bandwidth
-          if (checkXO < Math.max(rolloff, minXO) || checkXO > Math.min(2 * rolloff, maxXO)) { continue; }
+          // don't look at XO below speaker initialXO, above 2x initialXO or outside sub bandwidth
+          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(2 * initialXO, maxXO)) { continue; }
           // final XO determination logic
-          console.infoUpdate(`${cmdIds} - Initial XO: ${rolloff}hz → Checking XO: ${checkXO}hz, Best XO: ${bestXO}hz`);
+          console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz, Best XO: ${bestXO}hz`);
           if (singleChannel) {
             await genSpeaker(i, checkXO);
           }
@@ -9331,7 +9329,7 @@ zip.file("_micCal.txt", micCal);
           customCrossover[1 + (i - nSpeakers) / 2] = bestXO;
           i += 2;
         }
-        console.infoUpdate(`${cmdIds} - Initial XO: ${rolloff}hz → Best XO: ${bestXO}hz`);
+        console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Best XO: ${bestXO}hz`);
       }
     }
     async function drawResults() {
