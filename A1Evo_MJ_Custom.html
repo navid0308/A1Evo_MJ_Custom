@@ -257,16 +257,16 @@
     <button id="button2" onclick="startButton_clicked()" disabled>Optimize calibration</button>
   </div>
   <div class="customization-options">
-    <small>    
+    <small>
       <label>
         <input type="checkbox" id="noInversion" onchange="updateCheckboxStates('noInversion')">
-        Avoid sub polarity inversion
-        <span class="explanation">Avoids subwoofer polarity inversion checks in optimizations. Select this option if your sub(s) don't have a polarity/phase inversion flip switch.</span>
+        Avoid subwoofer polarity inversion
+        <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
       <label>
         <input type="checkbox" id="movieMode" onchange="updateCheckboxStates('movieMode')">
         Movie mode
-        <span class="explanation">This mode levels and EQs more aggressively and prioritizes immersion over natural sound of your speakers.</span>
+        <span class="explanation">This mode levels and EQs more aggressively to prioritize immersion over the natural sound of your speakers.</span>
       </label>
     </small>
   </div>
@@ -9299,7 +9299,7 @@ zip.file("_micCal.txt", micCal);
           // don't look at XO below speaker initialXO, above 2x initialXO or outside sub bandwidth
           if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(2 * initialXO, maxXO)) { continue; }
           // final XO determination logic
-          console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz, Best XO: ${bestXO}hz`);
+          console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           if (singleChannel) {
             await genSpeaker(i, checkXO);
           }
@@ -9361,7 +9361,7 @@ zip.file("_micCal.txt", micCal);
       await fetch_mREW(mCount, 'PUT', { title: "LFEfinal-120hz-LPF" });
       await fetchSafe('target-level', 1, 75.0);
       await postNext('Generate target measurement', 1);
-      let targetName = (targetCurveName === "" ? "Reference" : targetCurveName) + " @ 75dB";
+      let targetName = (targetCurveName === "" ? "TC-DEQ" : targetCurveName) + " @ 75dB";
       await fetch_mREW(mCount + 1, 'PUT', { title: targetName });
       // room curve no longer needed. keeping it enabled will only confuse on next run
       if (targetCurveName === "") { await disableRoomCurve(); }
