@@ -8678,10 +8678,10 @@ zip.file("_micCal.txt", micCal);
       Object.freeze(movieMode);
     }
     async function optimizeOCA() {
+      const startTime = performance.now();
       await clearCommands();
       await disableGraph();
       await enableBlock();
-      const startTime = performance.now();
       document.getElementById('noInversion').disabled = true;
       document.getElementById('movieMode').disabled = true;
       await bootUp();
@@ -9126,7 +9126,7 @@ zip.file("_micCal.txt", micCal);
           if (rpArray[j] >= -3) { break; }
           rolloff *= octave;
         }
-        const initialXO = Math.max(findNearestXO(rolloff), 40);
+        const initialXO = findNearestXO(rolloff);
         customCrossover[(i - nSpeakers) / 2] = initialXO;
         if (!singleChannel) {
           customCrossover[1 + (i - nSpeakers) / 2] = initialXO;
@@ -9154,24 +9154,22 @@ zip.file("_micCal.txt", micCal);
       await postDelete(rpIdx);
       await postDelete(tcIdx);
       // find low freq -3dB point
-      let rolloffLow = 10;
+      subLowFreq = 10;
       for (let i = 0; i < rpArray.length; i++) {
         if (rpArray[i] >= -3) { break; }
-        rolloffLow *= octave;
+        subLowFreq *= octave;
       }
-      subLowFreq = Math.max(10, rolloffLow);
       Object.freeze(subLowFreq);
-      minXO = Math.max(findNearestXO(2 * subLowFreq), 40);
+      minXO = findNearestXO(2 * subLowFreq);
       Object.freeze(minXO);
       // find high freq -3dB point
-      let rolloffHigh = 250;
+      subHighFreq = 250;
       for (let i = rpArray.length - 1; i >= 0; i--) {
         if (rpArray[i] >= -3) { break; }
-        rolloffHigh /= octave;
+        subHighFreq /= octave;
       }
-      subHighFreq = Math.min(250, rolloffHigh);
       Object.freeze(subHighFreq);
-      maxXO = Math.min(findNearestXO(subHighFreq), 250);
+      maxXO = findNearestXO(subHighFreq);
       Object.freeze(maxXO);
       console.info(`${commandId[nSpeakers].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
     }
@@ -9699,8 +9697,6 @@ zip.file("_micCal.txt", micCal);
       await postNext('Generate predicted measurement', i);
     }
     async function genSpeaker(i, freq) {
-      let slope;
-      freq === 15.75 ? slope = 6 : slope = 12;
       await postSafe(`${baseUrl}/${i}/filters`, {
         filters: [{
           "index": 21,
@@ -9709,7 +9705,7 @@ zip.file("_micCal.txt", micCal);
           "isAuto": false,
           "frequency": freq,
           "shape": "BU",
-          "slopedBPerOctave": slope
+          "slopedBPerOctave": 12
         }]
       }, "Filters set");
       await postNext('Generate predicted measurement', i);
