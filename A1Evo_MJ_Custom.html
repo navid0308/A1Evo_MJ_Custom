@@ -299,7 +299,7 @@
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
-    let adyContents, fileName, sOs, isCirrusLogic, hasxo180, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
+    let adyContents, fileName, sOs, isCirrusLogic, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [], delayAdjustment = {}, freqIndex = [];
     let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [], minXO = 40, maxXO = 250;
     let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "", subLowFreq = 10, subHighFreq = 250;
@@ -318,9 +318,12 @@
         let modelName = jsonData.targetModelName;
         const model = modelName.slice(-6);
         sOs = modelsSoS300.includes(model) ? 300.00 : 343.00;
+        Object.freeze(sOs);
         isCirrusLogic = micCalProb.includes(model) ? true : false;
-        hasxo180 = noxo180.includes(model) ? false : true;
-        hasxo180 ? freqIndex = [15.75, 40, 60, 80, 90, 100, 110, 120, 150, 180, 200, 250] : freqIndex = [15.75, 40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
+        Object.freeze(isCirrusLogic);
+        const hasxo180 = noxo180.includes(model) ? false : true;
+        freqIndex = hasxo180 ? [40, 60, 80, 90, 100, 110, 120, 150, 180, 200, 250] : [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
+        Object.freeze(freqIndex);
         console.log(`Speed of sound setting has been automatically adjusted for your ${modelName} at ${sOs} m/s.`);
         const hasSWChannels = jsonData.detectedChannels.some(channel => channel.commandId && channel.commandId.startsWith("SW"));
         if (!hasSWChannels) {
@@ -8675,14 +8678,9 @@ zip.file("_micCal.txt", micCal);
       Object.freeze(movieMode);
     }
     async function optimizeOCA() {
-      clearCommands();
-      await new Promise((resolve) => setTimeout(resolve, speedDelay));
-      disableBlock();
-      await new Promise((resolve) => setTimeout(resolve, speedDelay));
-      enableBlock();
-      enableGraph();
-      await new Promise((resolve) => setTimeout(resolve, speedDelay));
-      disableGraph();
+      await clearCommands();
+      await disableGraph();
+      await enableBlock();
       const startTime = performance.now();
       document.getElementById('noInversion').disabled = true;
       document.getElementById('movieMode').disabled = true;
@@ -8699,8 +8697,8 @@ zip.file("_micCal.txt", micCal);
       await optimizeSubDelay();
       await finalizeXO();
       await drawResults();
-      enableGraph();
-      disableBlock();
+      await disableBlock();
+      await enableGraph();
       await updateAdy();
       const endTime = performance.now();
       const totalTime = (endTime - startTime) / 1000;
