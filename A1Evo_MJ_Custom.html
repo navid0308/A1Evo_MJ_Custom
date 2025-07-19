@@ -328,7 +328,6 @@
         const hasSWChannels = jsonData.detectedChannels.some(channel => channel.commandId && channel.commandId.startsWith("SW"));
         if (!hasSWChannels) {
           console.warn("No subwoofer detected in your calibration file. Mains will be set to Large/Full Range!");
-          //throw new Error;
           noSub = true;
         }
         bassMode = jsonData.subwooferMode;
@@ -9056,7 +9055,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function finalizeTrims() {
-      console.log("Final speaker & subwoofer trims:")
+      console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " trims:")
       for (let i = 1; i < (noSub ? nSpeakers + 1 : nSpeakers); i++) {
         const customLevelOriginal = customLevel[i];
         customLevel[i] = Math.max(-12, customLevel[i]);
@@ -9280,7 +9279,7 @@ zip.file("_micCal.txt", micCal);
         console.info("This adjustment will ONLY improve overall sound quality.");
         console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
       }
-      console.log("Final speaker & subwoofer distances:");
+      console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " distances:");
       for (let i = 1; i < nSpeakers + numSub; i++) {
         customDistance[i] = flDist + (mSec[i] - mSec[flIndex]) * sOs;
         if (distMinSub < 0) {
