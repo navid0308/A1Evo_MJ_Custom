@@ -8596,7 +8596,7 @@ zip.file("_micCal.txt", micCal);
         }
         const checkMeasurementCount = async () => {
           const measurements = await fetch_mREW();
-          let mCount = Object.keys(measurements).length;
+          const mCount = Object.keys(measurements).length;
           if(isCirrusLogic) (mCount--);
           if (mCount === totalMeasurements) {
             document.getElementById("button2").disabled = false;
@@ -8695,6 +8695,7 @@ zip.file("_micCal.txt", micCal);
       await calculateSubBandwidth();
       finalizeInitialXO();
       await optimizeSubDelay();
+      await finalizeDistances();
       await finalizeXO();
       await drawResults();
       await disableBlock();
@@ -8782,7 +8783,7 @@ zip.file("_micCal.txt", micCal);
       console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
       const titles = {}; let titleIndices = {};
-      let mCount = Object.keys(measurements).length;
+      const mCount = Object.keys(measurements).length;
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
       if (isCirrusLogic) {mCount--;};
       let baseMessage = "Resetting IR windows, EQ type, target shape and room curve settings for all measurements..."
@@ -8823,6 +8824,8 @@ zip.file("_micCal.txt", micCal);
           throw new Error;
         }
       }
+      nSpeakers = Object.keys(titles).length;
+      Object.freeze(nSpeakers);
       const rewVersion = await fetch(`http://localhost:4735/version`);
       if (rewVersion.ok) {
         const rew = await rewVersion.json();
@@ -8849,10 +8852,9 @@ zip.file("_micCal.txt", micCal);
           console.log("No target curve chosen - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ!");
           await enableRoomCurve();
         }
-        const measurements = await fetch_mREW();
-        const mCount = Object.keys(measurements).length;
         await fetchSafe('target-level', 1, 75.0);
-        await postNext('Generate target measurement', 1);
+        const targetCurve = await postNext('Generate target measurement', 1);
+        const targetCurveIdx = parseInt(Object.keys(targetCurve.results));
         targetResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, mCount + 1);
         Object.freeze(targetResponse); // ensure it doesn't change once optimization starts
         await postDelete(mCount + 1);
@@ -8861,8 +8863,6 @@ zip.file("_micCal.txt", micCal);
         console.error(`Failed to fetch target curve, please make sure to have started REW API server! HTTP status code: ${tcResponse.status}.`);
         throw new Error;
       }
-      nSpeakers = Object.keys(titles).length;
-      Object.freeze(nSpeakers);
       const indicesCounts = Object.values(titleIndices).map(indices => indices.length);
       const isIndicesEqual = indicesCounts.every(count => count === indicesCounts[0]);
       if (!isIndicesEqual) {
@@ -8899,10 +8899,10 @@ zip.file("_micCal.txt", micCal);
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       console.log(`Optimizing volume & time alignment using <${micPositions}> different microphone positions...`);
-      console.info(`This will take a while but ensure 'direct sound' is prioritized for every measurement impulse.`);
-      let count = 1;
+      console.info(`Starting...`);
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length
+      let count = 1;
       let title = {};
       for (let i = 1; i <= mCount; i += micPositions) {
         console.infoUpdate(`Computing optimal spatial averaging configuration for speaker #${(i - 1) / micPositions + 1}`)
@@ -8978,7 +8978,7 @@ zip.file("_micCal.txt", micCal);
       console.info(`Available bass system volume adjustment range → { ${subLO}dB : ${subHI}dB }`);
       console.info(`Total 'delay headroom' available to subwoofer after maxing out all tweaks → ${-maxNegative.toFixed(2)}ms`);
       if (maxNegative > 0) {
-        console.warn(`The distances/delays between your speakers/sub(s) are above the hardware limit of 6m by defualt!`);
+        console.warn(`The distances/delays between your speakers/sub(s) are above the hardware limit of 6m by default!`);
         console.error(`It's technically not possible to correctly time align them. Optimization cannot continue!`)
         throw new Error;
       }
@@ -9014,18 +9014,18 @@ zip.file("_micCal.txt", micCal);
           console.warn(`${commandId[i - nSpeakers]} could not be equalized!`);
         }
         const filter = await postNext('Generate filters measurement', i);
-        let filterIdx = parseInt(Object.keys(filter.results));
-        const spIdx = (filterIdx - nSpeakers * 2) / 2 + 0.5;
-        await postNext('Arithmetic', [spIdx, filterIdx], { function: "A * B" });
-        const spEQIdx = `${commandId[i - nSpeakers]}-equalized`;
-        await fetch_mREW(filterIdx + 1, 'PUT', { title: spEQIdx });
+        const filterIdx = parseInt(Object.keys(filter.results));
+        const eqResponse = await postNext('Arithmetic', [i - nSpeakers, filterIdx], { function: "A * B" });
+        const eqResponseIdx = parseInt(Object.keys(eqResponse.results));
+        const eqResponseName = `${commandId[i - nSpeakers]}-equalized`;
+        await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
       }
       for (let i = nSpeakers * 2; i > nSpeakers; i--) {
         await postDelete(i);
       }
-      for (let i = nSpeakers + 1; i < nSpeakers * 3; i += 2) {
-        const id = (i - nSpeakers) / 2 + 0.5;
-        await fetch_mREW(i, 'PUT', { title: `${commandId[id]}-filters` });
+      let speakerCmdId = 1;
+      for (let i = nSpeakers + 1; i <= nSpeakers * 3; i += 2) {
+        await fetch_mREW(i, 'PUT', { title: `${commandId[speakerCmdId++]}-filters` });
       }
       console.infoUpdate("Completed equalizing all channels!");
     }
@@ -9231,6 +9231,8 @@ zip.file("_micCal.txt", micCal);
         mSec[nSpeakers] += subMoves;
         invertSub[nSpeakers] = isInverted;
       }
+    }
+    async function finalizeDistances() {
       let flIndex = 1;
       for (let i = 1; i <= nSpeakers; i++) {
         if (commandId[i].startsWith("FL")) {
@@ -9331,43 +9333,34 @@ zip.file("_micCal.txt", micCal);
     async function drawResults() {
       console.log("Generating expected final outputs for each channel...");
       console.info("Starting...");
-      const meas = await fetch_mREW();
-      const measCount = Object.keys(meas).length
-      for (let i = measCount; i > nSpeakers * 3; i--) {
-        await postDelete(i);
-      }
       for (let i = 1; i < nSpeakers; i++) {
-        const j = nSpeakers + 2 * i;
-        await genSpeaker(j, customCrossover[i]);
-        await genSub(nSpeakers * 3, customCrossover[i]);
-      }
-      let kOrg = 1;
-      for (let i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
-        console.infoUpdate(`Generating final output for channel - ${commandId[kOrg]}`);
-        const addition = await postNext('Arithmetic', [i + 1, i], { function: "A + B" });
-        let key = Object.keys(addition.results)[0]
-        const chName = commandId[kOrg] + `final-${customCrossover[kOrg]}hz-xo`;
-        await fetch_mREW(key, 'PUT', { title: chName });
-        kOrg++;
+        console.infoUpdate(`Generating final output for channel - ${commandId[i]}`);
+        const eqSpeaker = nSpeakers + 2 * i;
+        const spWithHPF = await genSpeaker(eqSpeaker, customCrossover[i]);
+        const spWithHPFIdx = parseInt(Object.keys(spWithHPF.results));
+        const subWithLPF = await genSub(nSpeakers * 3, customCrossover[i]);
+        const subWithLPFIdx = parseInt(Object.keys(subWithLPF.results));
+        const finalResponse = await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
+        const finalResponseIdx = parseInt(Object.keys(finalResponse.results));
+        const finalResponseName = commandId[i] + `final-${customCrossover[i]}hz-xo`;
+        await fetch_mREW(finalResponseIdx, 'PUT', { title: finalResponseName });
+        await postDelete(subWithLPFIdx);
+        await postDelete(spWithHPFIdx);
       }
       console.infoUpdate("Generating final output for channel - LFE");
-      await genSub(nSpeakers * 3, 120);
-      measurements = await fetch_mREW();
-      mCount = Object.keys(measurements).length
-      await fetch_mREW(mCount, 'PUT', { title: "LFEfinal-120hz-LPF" });
+      const LFEChannel = await genSub(nSpeakers * 3, 120);
+      const LFEChannelIdx = parseInt(Object.keys(LFEChannel.results));
+      await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-120hz-LPF" });
       await fetchSafe('target-level', 1, 75.0);
-      await postNext('Generate target measurement', 1);
-      let targetName = (targetCurveName === "" ? "TC-DEQ" : targetCurveName) + " @ 75dB";
-      await fetch_mREW(mCount + 1, 'PUT', { title: targetName });
+      const targetCurve = await postNext('Generate target measurement', 1);
+      const targetCurveIdx = parseInt(Object.keys(targetCurve.results));
+      const targetName = (targetCurveName === "" ? "TC-DEQ" : targetCurveName) + " @ 75dB";
+      await fetch_mREW(targetCurveIdx, 'PUT', { title: targetName });
       // room curve no longer needed. keeping it enabled will only confuse on next run
       if (targetCurveName === "") { await disableRoomCurve(); }
-      for (let i = mCount; i > nSpeakers * 3; i--) {
-        titleM = await fetch_mREW(i);
-        const title = titleM.title;
-        if (title.includes("EQ")) { await postDelete(i); }
-      }
-      measurements = await fetch_mREW();
-      mCount = Object.keys(measurements).length
+      // use 1/6 smoothing for results
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length
       for (let i = 1; i <= mCount; i++) {
         titleM = await fetch_mREW(i);
         const title = titleM.title;
@@ -9694,7 +9687,7 @@ zip.file("_micCal.txt", micCal);
           "slopedBPerOctave": 24
         }]
       }, "Filters set");
-      await postNext('Generate predicted measurement', i);
+      return await postNext('Generate predicted measurement', i);
     }
     async function genSpeaker(i, freq) {
       await postSafe(`${baseUrl}/${i}/filters`, {
@@ -9708,7 +9701,7 @@ zip.file("_micCal.txt", micCal);
           "slopedBPerOctave": 12
         }]
       }, "Filters set");
-      await postNext('Generate predicted measurement', i);
+      return await postNext('Generate predicted measurement', i);
     }
     async function updateAdy() {
       const antiMicCal = [1.44388E-06,
