@@ -8599,7 +8599,7 @@ zip.file("_micCal.txt", micCal);
         }
         const checkMeasurementCount = async () => {
           const measurements = await fetch_mREW();
-          const mCount = Object.keys(measurements).length;
+          let mCount = Object.keys(measurements).length;
           if(isCirrusLogic) (mCount--);
           if (mCount === totalMeasurements) {
             document.getElementById("button2").disabled = false;
@@ -8786,7 +8786,7 @@ zip.file("_micCal.txt", micCal);
       console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
       const titles = {}; let titleIndices = {};
-      const mCount = Object.keys(measurements).length;
+      let mCount = Object.keys(measurements).length;
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
       if (isCirrusLogic) {mCount--;};
       let baseMessage = "Resetting IR windows, EQ type, target shape and room curve settings for all measurements..."
