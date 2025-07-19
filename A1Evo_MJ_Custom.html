@@ -9221,9 +9221,8 @@ zip.file("_micCal.txt", micCal);
         const title = mData.title;
         if (title.endsWith("-equalized")) {
           eqResults.push(i);
-          initialXOs += parseFloat(customCrossover[count]);
+          initialXOs += parseFloat(customCrossover[count++]);
         }
-        count++;
       }
       if (initialXOs > 0) { avgInitialXO = initialXOs / eqResults.length; }
       Object.freeze(avgInitialXO);
