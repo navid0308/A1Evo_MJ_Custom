@@ -330,6 +330,7 @@
           console.warn("No subwoofer detected in your calibration file. Mains will be set to Large/Full Range!");
           noSub = true;
         }
+        Object.freeze(noSub);
         bassMode = jsonData.subwooferMode;
         Object.freeze(bassMode);
         if (bassMode === "Directional") {
@@ -8949,7 +8950,7 @@ zip.file("_micCal.txt", micCal);
         await postDelete(i);
       }
       for (let i = 1; i < nSpeakers + numSub; i++) {
-        commandId[i] = title[i].slice(0, -1); // unnecessary coupling
+        commandId[i] = title[i].slice(0, -1);
       }
       console.infoUpdate("Executing precision temporal alignment across the speaker array for optimal coherence...");
       const oIndices = Array.from({ length: nSpeakers + numSub - 1 }, (_, j) => j + 1);
