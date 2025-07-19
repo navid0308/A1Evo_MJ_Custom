@@ -335,6 +335,7 @@
         if (bassMode === "Directional") {
           numSub = parseInt(jsonData.subwooferNum);
         }
+        Object.freeze(numSub);
         let lowestTrimAdjustment = Infinity;
         let highestTrimAdjustment = -Infinity;
         let maxDelayAdjustment = 0;
@@ -354,14 +355,16 @@
             }
           }
         });
+        Object.freeze(swChannelCount);
         subLO = -12 + Math.abs(lowestTrimAdjustment);
         subHI = 12 - Math.abs(highestTrimAdjustment);
         Object.freeze(subLO);
         Object.freeze(subHI);
         maxDelayAdjustment != 0.00 ? multisubDelay = maxDelayAdjustment : multisubDelay = 0.00;
-        console.info("Speaker measurements have been extracted from the uploaded calibration file.");
+        Object.freeze(multisubDelay);
         flDist = getFLDistance(jsonData.detectedChannels);
         Object.freeze(flDist);
+        console.info("Speaker measurements have been extracted from the uploaded calibration file.");
         let totalMeasurements = 0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
@@ -8941,7 +8944,6 @@ zip.file("_micCal.txt", micCal);
         // go to next channel
         count++;
       }
-      await fetch_mREW(mCount + nSpeakers + numSub - 1, 'PUT', {title: title[nSpeakers + numSub - 1]});
       console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
@@ -9023,9 +9025,9 @@ zip.file("_micCal.txt", micCal);
       for (let i = nSpeakers * 2; i > nSpeakers; i--) {
         await postDelete(i);
       }
-      let speakerCmdId = 1;
+      let count = 1;
       for (let i = nSpeakers + 1; i <= nSpeakers * 3; i += 2) {
-        await fetch_mREW(i, 'PUT', { title: `${commandId[speakerCmdId++]}-filters` });
+        await fetch_mREW(i, 'PUT', { title: `${commandId[count++]}-filters` });
       }
       console.infoUpdate("Completed equalizing all channels!");
     }
