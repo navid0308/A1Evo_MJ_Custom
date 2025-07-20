@@ -8790,11 +8790,12 @@ zip.file("_micCal.txt", micCal);
       let mCount = Object.keys(measurements).length;
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
       if (isCirrusLogic) {mCount--;};
-      let baseMessage = "Resetting IR windows, EQ type, target shape and room curve settings for all measurements..."
+      let baseMessage = "Resetting IR windows, EQ type, target shape and smoothing for all measurements..."
       for (let q = 1; q <= mCount; q++) {
         await postSafe(`http://localhost:4735/measurements/${q}/ir-windows`, { leftWindowType: "Rectangular", rightWindowType: "Rectangular" }, "Update processed");
         await postSafe(`http://localhost:4735/measurements/${q}/equaliser`, { manufacturer: "Generic", model: "Generic" }, "Equaliser selected");
         await postSafe(`http://localhost:4735/measurements/${q}/target-settings`, { shape: "None" }, "Update processed");
+        await postNext('Smooth', q, { smoothing: "None" });
         console.infoUpdate(`${baseMessage} (${q}/${mCount})`);
       }
       if (isCirrusLogic) {await addmicCal();}
