@@ -31,8 +31,8 @@
   <style>
     body {
       font-family: Open Sans, sans-serif;
-      background-color: #f2f2f2;
-      color: #333333;
+      background-color: #0d0d0d;
+      color: #cccccc;
       margin: 0;
       padding: 0;
     }
@@ -52,13 +52,13 @@
       background-color: transparent;
       padding: 12px 20px;
       border-radius: 20px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3), -2px -2px 5px rgba(255, 255, 255, 0.5);
+      box-shadow: 0 4px 8px rgba(128, 128, 128, 0.2);
+      text-shadow: 2px 2px 5px rgba(96, 96, 96, 0.3), -2px -2px 5px rgba(96, 96, 96, 0.5);
     }
     h3 {
       font-size: 18px;
       color: #357ebd;
-      text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3), -2px -2px 5px rgba(255, 255, 255, 0.5);
+      text-shadow: 2px 2px 5px rgba(96, 96, 96, 0.3), -2px -2px 5px rgba(96, 96, 96, 0.5);
     }
     strong {
       font-style: italic;
@@ -80,7 +80,7 @@
       border: none;
       color: #ffffff;
       background-color: #FFA500;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 4px 8px rgba(128, 128, 128, 0.2);
       transition: all 0.3s ease;
       cursor: pointer;
       width: 250px;
@@ -88,7 +88,7 @@
     button:hover {
       background-color: #357ebd;
       transform: translateY(-2px);
-      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 6px 10px rgba(96, 96, 96, 0.3);
     }
     button:disabled {
       opacity: 0.5;
@@ -98,13 +98,13 @@
       display: none;
     }
     #logContainer {
-      background-color: #e0e0e0;
-      color: #000000;
+      background-color: #102030;
+      color: #cccccc;
       padding: 5px;
       border-radius: 5px;
       max-height: 280px;
       overflow-y: auto;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 2px 4px rgba(96, 96, 96, 0.2);
       margin-bottom: 1px;
       font-size: 13px !important;
     }
@@ -163,13 +163,13 @@
       margin-top: 25px;
     }
     .small-bullet {font-size: 13px;}
-    .warning {color:rgba(204, 102, 0, 1);
+    .warning {color:#ffA533;
     }
-    .error {color: red;
+    .error {color: #ff3333;
       font-weight: bold
     }
-    .info {color: darkslategrey;}
-    .log {color: blue;}
+    .info {color: #cccccc;}
+    .log {color: #33cc33;}
     .customization-options {
       margin-top: 10px;
       border-top: 1px solid #ccc;
@@ -194,7 +194,7 @@
     .explanation {
       margin-left: 10px;
       font-size: 0.9em;
-      color: #666;
+      color: #888;
     }
     .customization-options.new-style {
       display: block;
@@ -292,6 +292,8 @@
     const noxo180 = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "X6500H", "-S730H", "-S740H", "-S930H", "-S940H",
       "X1400H", "X1500H", "X2400H", "X2500H", "X3400H", "X3500H", "X4300H", "X4400H", "X4500H", "X6300H", "X6400H", "X6500H", "AV7703",
       "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012"];
+    const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
+      "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
     /////////////////////////// Customization parameters for enthusiasts //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     let noInversion = false;// If true, avoids subwoofer polarity inversion. This may limit alignment options and could negatively impact sound quality
@@ -299,10 +301,11 @@
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
-    let adyContents, fileName, sOs, isCirrusLogic, flDist, nSpeakers, subLO, subHI, multisubDelay, targetResponse;
-    let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [], delayAdjustment = {}, freqIndex = [];
-    let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [], minXO = 40, maxXO = 250;
-    let bassMode = "Standard", numSub = 1, swChannelCount = 0, swInvMsg = "", subLowFreq = 10, subHighFreq = 250;
+    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, swChannelCount = 0;
+    let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [], delayAdjustment = {};
+    let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [], targetResponse;
+    let bassMode = "Standard", noSub = false, swInvMsg = "", subLO, subHI, multisubDelay;
+    let subLowFreq = 10, subHighFreq = 250, minXO = 40, maxXO = 250, freqIndex = [];
     let msecMin, msecMax, invertSub = [], msecMinSub = Infinity, msecMaxSub = -Infinity, previousDelay = null;
 
     function extractAdy(event) {
@@ -321,20 +324,24 @@
         Object.freeze(sOs);
         isCirrusLogic = micCalProb.includes(model) ? true : false;
         Object.freeze(isCirrusLogic);
-        const hasxo180 = noxo180.includes(model) ? false : true;
-        freqIndex = hasxo180 ? [40, 60, 80, 90, 100, 110, 120, 150, 180, 200, 250] : [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
+        freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
+        if (!noxo180.includes(model)) {
+          freqIndex.push(180);
+        }
+        if (models70xo.includes(model)) {
+          freqIndex.push(70);
+        }
+        freqIndex.sort(function(a, b) {return a - b;});
         Object.freeze(freqIndex);
         console.log(`Speed of sound setting has been automatically adjusted for your ${modelName} at ${sOs} m/s.`);
         const hasSWChannels = jsonData.detectedChannels.some(channel => channel.commandId && channel.commandId.startsWith("SW"));
         if (!hasSWChannels) {
-          console.error("No subwoofer detected in your calibration file. The tool cannot complete optimization without a subwoofer in the system!");
-          throw new Error;
+          console.warn("No subwoofer detected in your calibration file. Mains will be set to Large/Full Range!");
+          noSub = true;
         }
+        Object.freeze(noSub);
         bassMode = jsonData.subwooferMode;
         Object.freeze(bassMode);
-        if (bassMode === "Directional") {
-          numSub = parseInt(jsonData.subwooferNum);
-        }
         let lowestTrimAdjustment = Infinity;
         let highestTrimAdjustment = -Infinity;
         let maxDelayAdjustment = 0;
@@ -354,14 +361,16 @@
             }
           }
         });
+        Object.freeze(swChannelCount);
         subLO = -12 + Math.abs(lowestTrimAdjustment);
         subHI = 12 - Math.abs(highestTrimAdjustment);
         Object.freeze(subLO);
         Object.freeze(subHI);
         maxDelayAdjustment != 0.00 ? multisubDelay = maxDelayAdjustment : multisubDelay = 0.00;
-        console.info("Speaker measurements have been extracted from the uploaded calibration file.");
+        Object.freeze(multisubDelay);
         flDist = getFLDistance(jsonData.detectedChannels);
         Object.freeze(flDist);
+        console.info("Speaker measurements have been extracted from the uploaded calibration file.");
         let totalMeasurements = 0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
@@ -8667,7 +8676,7 @@ zip.file("_micCal.txt", micCal);
       logContainer.style.transition = 'max-height 0.3s ease';
       document.querySelector('.customization-options').classList.add('new-style');
       document.querySelector('.notice').style.fontSize = '0.5em'; 
-      optimizeOCA();
+      runOptimizer();
     }
     function updateCheckboxStates(triggeredBy) {
       const noInversionCheckbox = document.getElementById('noInversion');
@@ -8677,7 +8686,7 @@ zip.file("_micCal.txt", micCal);
       movieMode = movieModeCheckbox.checked;
       Object.freeze(movieMode);
     }
-    async function optimizeOCA() {
+    async function runOptimizer() {
       const startTime = performance.now();
       await clearCommands();
       await disableGraph();
@@ -8695,6 +8704,7 @@ zip.file("_micCal.txt", micCal);
       await calculateSubBandwidth();
       finalizeInitialXO();
       await optimizeSubDelay();
+      await finalizeDistances();
       await finalizeXO();
       await drawResults();
       await disableBlock();
@@ -8785,11 +8795,12 @@ zip.file("_micCal.txt", micCal);
       let mCount = Object.keys(measurements).length;
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
       if (isCirrusLogic) {mCount--;};
-      let baseMessage = "Resetting IR windows, EQ type, target shape and room curve settings for all measurements..."
+      let baseMessage = "Resetting IR windows, EQ type, target shape and smoothing for all measurements..."
       for (let q = 1; q <= mCount; q++) {
         await postSafe(`http://localhost:4735/measurements/${q}/ir-windows`, { leftWindowType: "Rectangular", rightWindowType: "Rectangular" }, "Update processed");
         await postSafe(`http://localhost:4735/measurements/${q}/equaliser`, { manufacturer: "Generic", model: "Generic" }, "Equaliser selected");
         await postSafe(`http://localhost:4735/measurements/${q}/target-settings`, { shape: "None" }, "Update processed");
+        await postNext('Smooth', q, { smoothing: "None" });
         console.infoUpdate(`${baseMessage} (${q}/${mCount})`);
       }
       if (isCirrusLogic) {await addmicCal();}
@@ -8816,13 +8827,33 @@ zip.file("_micCal.txt", micCal);
           throw new Error;
         }
       }
+      nSpeakers = 0;
+      nSubs = 0;
       for (const titleKey in titleIndices) {
         const indices = titleIndices[titleKey];
         if (indices[0] != Math.min(...indices)) {
           console.error(`MLP measurement needs to be the first measurement for ${titleKey} channel!`);
           throw new Error;
         }
+        if (titleKey === "SWMIX") {
+          nSubs = 1;
+        }
+        else if (titleKey.startsWith("SW")) {
+          for (let i = 0; i < titleIndices[titleKey].length; i++) {
+            swIdx = String(titleIndices[titleKey][i]);
+            if (swIdx.length === 2 && swIdx.endsWith("0")) {
+              nSubs++;
+            }
+          }
+        }
+        else {
+          nSpeakers++;
+        }
       }
+      Object.freeze(nSpeakers);
+      Object.freeze(nSubs);
+      nChannels = Object.keys(titles).length;
+      Object.freeze(nChannels);
       const rewVersion = await fetch(`http://localhost:4735/version`);
       if (rewVersion.ok) {
         const rew = await rewVersion.json();
@@ -8830,7 +8861,7 @@ zip.file("_micCal.txt", micCal);
       }
       else {
         console.error('There seems to be a problem with REW installation!');
-        throw new Error();
+        throw new Error;
       }
       const tcResponse = await fetch('http://localhost:4735/eq/house-curve');
       if (tcResponse.ok) {
@@ -8849,20 +8880,17 @@ zip.file("_micCal.txt", micCal);
           console.log("No target curve chosen - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ!");
           await enableRoomCurve();
         }
-        const measurements = await fetch_mREW();
-        const mCount = Object.keys(measurements).length;
         await fetchSafe('target-level', 1, 75.0);
-        await postNext('Generate target measurement', 1);
-        targetResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, mCount + 1);
+        const targetCurve = await postNext('Generate target measurement', 1);
+        const targetCurveIdx = Object.keys(targetCurve.results)[0];
+        targetResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, targetCurveIdx);
         Object.freeze(targetResponse); // ensure it doesn't change once optimization starts
-        await postDelete(mCount + 1);
+        await postDelete(targetCurveIdx);
       }
       else {
         console.error(`Failed to fetch target curve, please make sure to have started REW API server! HTTP status code: ${tcResponse.status}.`);
         throw new Error;
       }
-      nSpeakers = Object.keys(titles).length;
-      Object.freeze(nSpeakers);
       const indicesCounts = Object.values(titleIndices).map(indices => indices.length);
       const isIndicesEqual = indicesCounts.every(count => count === indicesCounts[0]);
       if (!isIndicesEqual) {
@@ -8872,8 +8900,8 @@ zip.file("_micCal.txt", micCal);
             problemG.push(titleKey);
           }
         }
-        if (problemG.some(group => group.startsWith('SW')) && numSub > 1) {
-          console.info(`'Directional bass' mode with ${numSub} subwoofers detected!`);
+        if (problemG.some(group => group.startsWith('SW')) && nSubs > 1) {
+          console.info(`'Directional bass' mode with '${nSubs}' subwoofers detected!`);
         } else {
           console.error('Speaker names have different numbers of indices.');
           throw new Error();
@@ -8895,14 +8923,14 @@ zip.file("_micCal.txt", micCal);
         const name = measurements[i].title;
         if (name.startsWith("SW")) {await postDelete(i);}
       }
-      const micPositions = mCount / (nSpeakers + numSub - 1);
+      const micPositions = mCount / (nSpeakers + nSubs);
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       console.log(`Optimizing volume & time alignment using <${micPositions}> different microphone positions...`);
-      console.info(`This will take a while but ensure 'direct sound' is prioritized for every measurement impulse.`);
-      let count = 1;
+      console.info(`Starting...`);
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length
+      let count = 1;
       let title = {};
       for (let i = 1; i <= mCount; i += micPositions) {
         console.infoUpdate(`Computing optimal spatial averaging configuration for speaker #${(i - 1) / micPositions + 1}`)
@@ -8941,44 +8969,44 @@ zip.file("_micCal.txt", micCal);
         // go to next channel
         count++;
       }
-      await fetch_mREW(mCount + nSpeakers + numSub - 1, 'PUT', {title: title[nSpeakers + numSub - 1]});
       console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
       }
-      for (let i = 1; i < nSpeakers + numSub; i++) {
-        commandId[i] = title[i].slice(0, -1); // unnecessary coupling
+      for (let i = 1; i <= nSpeakers + nSubs; i++) {
+        commandId[i] = title[i].slice(0, -1);
       }
       console.infoUpdate("Executing precision temporal alignment across the speaker array for optimal coherence...");
-      const oIndices = Array.from({ length: nSpeakers + numSub - 1 }, (_, j) => j + 1);
+      const oIndices = Array.from({ length: nSpeakers + nSubs }, (_, j) => j + 1);
       await postNext('Time align', oIndices);
       measurements = await fetch_mREW();
-      for (let i = 1; i < nSpeakers + numSub; i++) {
+      for (let i = 1; i <= nSpeakers + nSubs; i++) {
         mSec[i] += parseFloat(measurements[i].cumulativeIRShiftSeconds);
       }
-      const minM = Math.min(...mSec.slice(1, nSpeakers));
-      const maxM = Math.max(...mSec.slice(1, nSpeakers));
+      console.infoUpdate("Completed speaker volume & time alignment!");
+      if (noSub) { return; } // no need to go further without subwoofer
+      const minM = Math.min(...mSec.slice(1, nSpeakers + 1));
+      const maxM = Math.max(...mSec.slice(1, nSpeakers + 1));
       const limInsec = 6.00049999 / sOs;
       msecMin = maxM - limInsec;
       msecMax = minM + limInsec;
-      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         const overDelay = mSec[i] - msecMax;
         mSec[i] -= overDelay;
         await postNext2('Offset t=0', i, {offset: -overDelay, unit: "seconds"});
       }
-      console.infoUpdate("Completed speaker volume & time alignment!");
-      if (numSub > 1) {
+      if (nSubs > 1) {
         console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
         await directional2standard();
         console.warn("Conversion from 'directional bass' mode to 'standard bass' mode completed.")
       } else {
-        maxNegative = (msecMin - mSec[nSpeakers]) * 1000;
+        maxNegative = (msecMin - mSec[nChannels]) * 1000;
         maxPositive = 0;
       }
       console.info(`Available bass system volume adjustment range → { ${subLO}dB : ${subHI}dB }`);
       console.info(`Total 'delay headroom' available to subwoofer after maxing out all tweaks → ${-maxNegative.toFixed(2)}ms`);
       if (maxNegative > 0) {
-        console.warn(`The distances/delays between your speakers/sub(s) are above the hardware limit of 6m by defualt!`);
+        console.warn(`The distances/delays between your speakers/sub(s) are above the hardware limit of 6m by default!`);
         console.error(`It's technically not possible to correctly time align them. Optimization cannot continue!`)
         throw new Error;
       }
@@ -8986,7 +9014,7 @@ zip.file("_micCal.txt", micCal);
     async function generateFilters() {
       console.log(`Generating EQ filters based on Min. Phase responses...`);
       console.info("Starting...");
-      for (let i = 1; i <= nSpeakers; i++) {
+      for (let i = 1; i <= nChannels; i++) {
         await postNext('Minimum phase version', i, {
           "include cal": false,
           "append lf tail": false,
@@ -8995,9 +9023,9 @@ zip.file("_micCal.txt", micCal);
           "replicate data": true
         });
       }
-      for (let i = nSpeakers + 1; i <= nSpeakers * 2; i++) {
-        console.infoUpdate(`Equalizing channel - ${commandId[i - nSpeakers]}`);
-        const isSub = commandId[i - nSpeakers].startsWith("SW");
+      for (let i = nChannels + 1; i <= nChannels * 2; i++) {
+        console.infoUpdate(`Equalizing channel - ${commandId[i - nChannels]}`);
+        const isSub = commandId[i - nChannels].startsWith("SW");
         await fetchSafe('target-level', i, 75.0);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
@@ -9011,48 +9039,49 @@ zip.file("_micCal.txt", micCal);
           await postNext('Match target', i);
         }
         catch (error) {
-          console.warn(`${commandId[i - nSpeakers]} could not be equalized!`);
+          console.warn(`${commandId[i - nChannels]} could not be equalized!`);
         }
         const filter = await postNext('Generate filters measurement', i);
-        let filterIdx = parseInt(Object.keys(filter.results));
-        const spIdx = (filterIdx - nSpeakers * 2) / 2 + 0.5;
-        await postNext('Arithmetic', [spIdx, filterIdx], { function: "A * B" });
-        const spEQIdx = `${commandId[i - nSpeakers]}-equalized`;
-        await fetch_mREW(filterIdx + 1, 'PUT', { title: spEQIdx });
+        const filterIdx = Object.keys(filter.results)[0];
+        const eqResponse = await postNext('Arithmetic', [i - nChannels, filterIdx], { function: "A * B" });
+        const eqResponseIdx = Object.keys(eqResponse.results)[0];
+        const eqResponseName = `${commandId[i - nChannels]}-equalized`;
+        await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
       }
-      for (let i = nSpeakers * 2; i > nSpeakers; i--) {
+      for (let i = nChannels * 2; i > nChannels; i--) {
         await postDelete(i);
       }
-      for (let i = nSpeakers + 1; i < nSpeakers * 3; i += 2) {
-        const id = (i - nSpeakers) / 2 + 0.5;
-        await fetch_mREW(i, 'PUT', { title: `${commandId[id]}-filters` });
+      let count = 1;
+      for (let i = nChannels + 1; i < nChannels * 3; i += 2) {
+        await fetch_mREW(i, 'PUT', { title: `${commandId[count++]}-filters` });
       }
       console.infoUpdate("Completed equalizing all channels!");
     }
     async function audyALCompensation() {
       console.log(`Applying Audyssey auto-leveling compensation...`);
       let spSum = 0.0;
-      for (let i = 1; i < nSpeakers; i++) {
-        const filterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nSpeakers - 1));
+      for (let i = 1; i <= nSpeakers; i++) {
+        const filterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nChannels - 1));
         const filterArray = await response2array(filterResponse, 500, 2000);
         spSum = filterArray.reduce((acc, val) => acc + val, 0) / filterArray.length;
         spSum = Math.round(spSum * 2) / 2;
         customLevel[i] += spSum;
         if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
       }
+      if (noSub) { return; } // no need to go further without subwoofer
       spSum = 0.0;
-      const subFilterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nSpeakers * 3 - 1);
+      const subFilterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nChannels * 3 - 1);
       const subFilterArray = await response2array(subFilterResponse, 30, 80);
       spSum = subFilterArray.reduce((acc, val) => acc + val, 0) / subFilterArray.length;
       spSum = Math.round(spSum * 2) / 2;
-      for (let i = nSpeakers; i < (nSpeakers + numSub); i++) {
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         customLevel[i] += spSum;
         if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
       }
     }
     async function finalizeTrims() {
-      console.log("Final speaker & subwoofer trims:")
-      for (let i = 1; i < nSpeakers; i++) {
+      console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " trims:")
+      for (let i = 1; i <= nSpeakers; i++) {
         const customLevelOriginal = customLevel[i];
         customLevel[i] = Math.max(-12, customLevel[i]);
         customLevel[i] = Math.min(customLevel[i], 12);
@@ -9063,7 +9092,8 @@ zip.file("_micCal.txt", micCal);
           console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i]}dB`);
         }
       }
-      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
+      if (noSub) { return; } // no need to go further without subwoofer
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         const customLevelOriginal = customLevel[i];
         customLevel[i] = Math.max(subLO, customLevel[i]);
         customLevel[i] = Math.min(customLevel[i], subHI);
@@ -9098,13 +9128,15 @@ zip.file("_micCal.txt", micCal);
       console.log("Calculating speaker -3dB points from target curve...");
       await fetchSafe('target-level', 1, 75.0);
       const tcData = await postNext('Generate target measurement', 1);
-      const tcIdx = parseInt(Object.keys(tcData.results));
+      const tcIdx = Object.keys(tcData.results)[0];
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      for (let i = nSpeakers + 2; i <= nSpeakers * 3 - 2; i += 2) {
+      let count = 1;
+      for (let i = nChannels + 2; i <= nChannels * 3; i += 2) {
+        if (commandId[count].startsWith("SW")) { continue; }
         // check if single channel or speaker pair
-        const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
-        const cmdIds = (singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`).padStart(9, ".");
+        const singleChannel = isSingleChannel(commandId[count]);
+        const cmdIds = (singleChannel ? commandId[count] : `${commandId[count]} & ${commandId[1 + count]}`).padStart(9, ".");
         // rolloff determination logic
         let idx = i;
         if (!singleChannel) {
@@ -9113,7 +9145,7 @@ zip.file("_micCal.txt", micCal);
         }
         await postNext('Smooth', idx, { smoothing: "Psy" }); // Psy is useful for rolloff detection, less noise
         const rpData = await postNext('Arithmetic', [idx, tcIdx], {function: "|A| / |B|"});
-        const rpIdx = parseInt(Object.keys(rpData.results));
+        const rpIdx = Object.keys(rpData.results)[0];
         const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', rpIdx);
         const rpArray = response2array(response, 10, 250);
         const octave = Math.pow(2, 1/96);
@@ -9126,27 +9158,38 @@ zip.file("_micCal.txt", micCal);
           if (rpArray[j] >= -3) { break; }
           rolloff *= octave;
         }
-        const initialXO = findNearestXO(rolloff);
-        customCrossover[(i - nSpeakers) / 2] = initialXO;
-        if (!singleChannel) {
-          customCrossover[1 + (i - nSpeakers) / 2] = initialXO;
+        if (noSub && cmdIds.endsWith("FL & FR")) {
+          customCrossover[count] = "L";
+          customCrossover[1 + count] = "L";
           i += 2;
+          count += 2;
+          console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → Large/Full Range`);
+          continue;
         }
+        const initialXO = findNearestXO(rolloff);
+        customCrossover[count] = initialXO;
+        if (!singleChannel) {
+          customCrossover[1 + count] = initialXO;
+          i += 2;
+          count++;
+        }
+        count++;
         console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → Initial XO: ${initialXO}hz`);
       }
       // cleanup
       await postDelete(tcIdx);
     }
     async function calculateSubBandwidth() {
+      if (noSub) { return; } // no need to go further without subwoofer
       console.log("Calculating subwoofer -3dB points from target curve...")
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       await postNext('Smooth', mCount, { smoothing: "Psy" }); // Psy is useful for rolloff detection, less noise
       await fetchSafe('target-level', 1, 75.0);
       const tcData = await postNext('Generate target measurement', 1);
-      const tcIdx = parseInt(Object.keys(tcData.results));
+      const tcIdx = Object.keys(tcData.results)[0];
       const rpData = await postNext('Arithmetic', [mCount, tcIdx], {function: "|A| / |B|"});
-      const rpIdx = parseInt(Object.keys(rpData.results));
+      const rpIdx = Object.keys(rpData.results)[0];
       const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', rpIdx);
       const rpArray = response2array(response, 10, 250);
       const octave = Math.pow(2, 1/96);
@@ -9171,11 +9214,12 @@ zip.file("_micCal.txt", micCal);
       Object.freeze(subHighFreq);
       maxXO = findNearestXO(subHighFreq);
       Object.freeze(maxXO);
-      console.info(`${commandId[nSpeakers].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
+      console.info(`${commandId[nChannels].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
     }
     function finalizeInitialXO() {
+      if (noSub) { return; } // no need to go further without subwoofer
       console.log("Sanity checking initial XOs based on usable XO range...")
-      for (let i = 1; i < nSpeakers; i++) {
+      for (let i = 1; i <= nSpeakers; i++) {
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[1 + i]}`).padStart(9, ".");
         const initialXO = customCrossover[i];
@@ -9191,26 +9235,37 @@ zip.file("_micCal.txt", micCal);
       console.info("Completed sanity checks on initial XOs!");
     }
     async function optimizeSubDelay() {
+      if (noSub) { return; } // no need to go further without subwoofer
       let minSum = Infinity, subMoves = NaN;
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false;
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       let eqResults = [], initialXOs = 0, avgInitialXO = 80;
-      for (let i = nSpeakers; i < mCount; i++) {
+      let count = 1;
+      for (let i = nChannels + 2; i <= nChannels * 3; i += 2) {
+        if (commandId[count].startsWith("SW")) { continue; }
         const mData = await fetch_mREW(i);
         const title = mData.title;
         if (title.endsWith("-equalized")) {
           eqResults.push(i);
-          initialXOs += parseFloat(customCrossover[(i - nSpeakers) / 2]);
+          initialXOs += parseFloat(customCrossover[count++]);
         }
       }
       if (initialXOs > 0) { avgInitialXO = initialXOs / eqResults.length; }
       Object.freeze(avgInitialXO);
       console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgInitialXO.toFixed(2)}hz as average XO...`); 
-      await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
-      await genSpeaker(mCount + 1, avgInitialXO);
-      await genSub(mCount, avgInitialXO);
-      [isPossibleI, requiredDelayI, isInverted] = await align4system(mCount + 2, mCount + 3);
+      const avgSpeaker = await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
+      const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
+      const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
+      const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
+      const subwooferWithLPF = await genSub(mCount, avgInitialXO);
+      const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
+      [isPossibleI, requiredDelayI, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
+      // cleanup
+      await postDelete(subwooferWithLPFIdx);
+      await postDelete(avgSpeakerWithHPFIdx);
+      await postDelete(avgSpeakerIdx);
+      // apply optimal delay
       if (isPossibleI) {
         subMoves = requiredDelayI;
       }
@@ -9219,27 +9274,29 @@ zip.file("_micCal.txt", micCal);
         subMoves = 0.0;
         isInverted = false;
       }
-      if (isInverted) {await postSafe(`http://localhost:4735/measurements/${nSpeakers * 3}/command`,{command: "Invert"}, "Invert completed");}
+      if (isInverted) {await postSafe(`http://localhost:4735/measurements/${nChannels * 3}/command`,{command: "Invert"}, "Invert completed");}
       subMoves /= 1000;
-      await postNext('Offset t=0', nSpeakers * 3, {offset: subMoves, unit: "seconds"});
-      if (numSub > 1) {
-        for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
+      await postNext('Offset t=0', nChannels * 3, {offset: subMoves, unit: "seconds"});
+      if (nSubs > 1) {
+        for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           mSec[i] += subMoves;
           invertSub[i] = isInverted ? !invertSub[i] : invertSub[i];
         }
       } else {
-        mSec[nSpeakers] += subMoves;
-        invertSub[nSpeakers] = isInverted;
+        mSec[nChannels] += subMoves;
+        invertSub[nChannels] = isInverted;
       }
+    }
+    async function finalizeDistances() {
       let flIndex = 1;
-      for (let i = 1; i <= nSpeakers; i++) {
+      for (let i = 1; i <= nChannels; i++) {
         if (commandId[i].startsWith("FL")) {
           flIndex = i;
           break;
         }
       }
       let distMinSub = Infinity;
-      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
+      for (let i = nSpeakers + 1; !noSub && i <= nSpeakers + nSubs; i++) {
         customDistance[i] = flDist + (mSec[i] - mSec[flIndex]) * sOs;
         if (customDistance[i] < distMinSub) {distMinSub = customDistance[i];}
       }
@@ -9248,14 +9305,14 @@ zip.file("_micCal.txt", micCal);
         console.info("This adjustment will ONLY improve overall sound quality.");
         console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
       }
-      console.log("Final speaker & subwoofer distances:");
-      for (let i = 1; i < nSpeakers + numSub; i++) {
+      console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " distances:");
+      for (let i = 1; i <= nSpeakers + nSubs; i++) {
         customDistance[i] = flDist + (mSec[i] - mSec[flIndex]) * sOs;
         if (distMinSub < 0) {
           customDistance[i] += Math.abs(distMinSub) + multisubDelay;
         }
         customDistance[i] = Math.round(parseFloat(customDistance[i]) * 100) / 100;
-        if (i >= nSpeakers) {
+        if (i > nSpeakers) {
           console.warn(`${commandId[i].padStart(3, ".")} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
           swInvMsg += invertSub[i] ? `inv${commandId[i]}_` : "";
         } else {
@@ -9265,29 +9322,32 @@ zip.file("_micCal.txt", micCal);
       if (swChannelCount > 1 && invertSub.every(isInv => isInv === true)) {
         console.warn(`You will need to switch polarity of EACH of your ${swChannelCount} subwoofers!`);
       }
+      // prepare relative delay of multiple subs for updating ady
       let delay0 = -Infinity;
-      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
+      for (let i = nSpeakers + 1; !noSub && i <= nSpeakers + nSubs; i++) {
         if (customDistance[i] > delay0) {
           delay0 = customDistance[i];
         }
       }
-      for (let i = nSpeakers; i < nSpeakers + numSub; i++) {
+      for (let i = nSpeakers + 1; !noSub && i <= nSpeakers + nSubs; i++) {
         delayAdjustment[i] = (delay0 - customDistance[i]).toFixed(2);
       }
-      for (let i = nSpeakers * 3 + 3; i > nSpeakers * 3; i--) {await postDelete(i);}
     }
     async function finalizeXO(start=20, end=250) {
+      if (noSub) { return; } // no need to go further without subwoofer
       console.log("Finalizing crossover frequencies to best follow the target curve...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       const targetArray = response2array(targetResponse, start, end);
+      let count = 1;
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
-      for (let i = nSpeakers + 2; i < mCount; i += 2) {
+      for (let i = nChannels + 2; i <= nChannels * 3; i += 2) {
+        if (commandId[count].startsWith("SW")) { continue; }
         // check if single channel or speaker pair
-        const singleChannel = isSingleChannel(commandId[(i - nSpeakers) / 2]);
-        const cmdIds = (singleChannel ? commandId[(i - nSpeakers) / 2] : `${commandId[(i - nSpeakers) / 2]} & ${commandId[1 + (i - nSpeakers) / 2]}`).padStart(9, ".");
+        const singleChannel = isSingleChannel(commandId[count]);
+        const cmdIds = (singleChannel ? commandId[count] : `${commandId[count]} & ${commandId[1 + count]}`).padStart(9, ".");
         // finalize xo that is closest match to target curve
-        const initialXO = parseFloat(customCrossover[(i - nSpeakers) / 2]);
+        const initialXO = parseFloat(customCrossover[count]);
         let bestXO = initialXO, minRmsError = Infinity;
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
@@ -9320,54 +9380,54 @@ zip.file("_micCal.txt", micCal);
             await postDelete(k);
           }
         }
-        customCrossover[(i - nSpeakers) / 2] = bestXO;
+        customCrossover[count] = bestXO;
         if (!singleChannel) {
-          customCrossover[1 + (i - nSpeakers) / 2] = bestXO;
+          customCrossover[1 + count] = bestXO;
           i += 2;
+          count++;
         }
+        count++;
         console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Best XO: ${bestXO}hz`);
       }
     }
     async function drawResults() {
       console.log("Generating expected final outputs for each channel...");
       console.info("Starting...");
-      const meas = await fetch_mREW();
-      const measCount = Object.keys(meas).length
-      for (let i = measCount; i > nSpeakers * 3; i--) {
-        await postDelete(i);
+      for (let i = 1; i <= nSpeakers; i++) {
+        console.infoUpdate(`Generating final output for channel - ${commandId[i]}`);
+        const isLarge = customCrossover[i] === "L";
+        const finalResponseName = commandId[i] + (isLarge ? "final-Large" : `final-${customCrossover[i]}hz-xo`);
+        const eqSpeaker = nChannels + 2 * i;
+        const spWithHPF = await genSpeaker(eqSpeaker, customCrossover[i]);
+        const spWithHPFIdx = (isLarge ? nChannels * 3 + i : Object.keys(spWithHPF.results)[0]);
+        if (noSub) {
+          await fetch_mREW(spWithHPFIdx, 'PUT', { title: finalResponseName });
+          continue;
+        }
+        const subWithLPF = await genSub(nChannels * 3, customCrossover[i]);
+        const subWithLPFIdx = Object.keys(subWithLPF.results)[0];
+        const finalResponse = await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
+        const finalResponseIdx = Object.keys(finalResponse.results)[0];
+        await fetch_mREW(finalResponseIdx, 'PUT', { title: finalResponseName });
+        await postDelete(subWithLPFIdx);
+        await postDelete(spWithHPFIdx);
       }
-      for (let i = 1; i < nSpeakers; i++) {
-        const j = nSpeakers + 2 * i;
-        await genSpeaker(j, customCrossover[i]);
-        await genSub(nSpeakers * 3, customCrossover[i]);
+      if (!noSub) {
+        console.infoUpdate("Generating final output for channel - LFE");
+        const LFEChannel = await genSub(nChannels * 3, 120);
+        const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
+        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-120hz-LPF" });
       }
-      let kOrg = 1;
-      for (let i = nSpeakers * 3 + 1; i <= nSpeakers * 5 - 3; i += 2) {
-        console.infoUpdate(`Generating final output for channel - ${commandId[kOrg]}`);
-        const addition = await postNext('Arithmetic', [i + 1, i], { function: "A + B" });
-        let key = Object.keys(addition.results)[0]
-        const chName = commandId[kOrg] + `final-${customCrossover[kOrg]}hz-xo`;
-        await fetch_mREW(key, 'PUT', { title: chName });
-        kOrg++;
-      }
-      console.infoUpdate("Generating final output for channel - LFE");
-      await genSub(nSpeakers * 3, 120);
-      measurements = await fetch_mREW();
-      mCount = Object.keys(measurements).length
-      await fetch_mREW(mCount, 'PUT', { title: "LFEfinal-120hz-LPF" });
       await fetchSafe('target-level', 1, 75.0);
-      await postNext('Generate target measurement', 1);
-      let targetName = (targetCurveName === "" ? "TC-DEQ" : targetCurveName) + " @ 75dB";
-      await fetch_mREW(mCount + 1, 'PUT', { title: targetName });
+      const targetCurve = await postNext('Generate target measurement', 1);
+      const targetCurveIdx = Object.keys(targetCurve.results)[0];
+      const targetName = (targetCurveName === "" ? "TC-DEQ" : targetCurveName) + " @ 75dB";
+      await fetch_mREW(targetCurveIdx, 'PUT', { title: targetName });
       // room curve no longer needed. keeping it enabled will only confuse on next run
       if (targetCurveName === "") { await disableRoomCurve(); }
-      for (let i = mCount; i > nSpeakers * 3; i--) {
-        titleM = await fetch_mREW(i);
-        const title = titleM.title;
-        if (title.includes("EQ")) { await postDelete(i); }
-      }
-      measurements = await fetch_mREW();
-      mCount = Object.keys(measurements).length
+      // use 1/6 smoothing for results
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length
       for (let i = 1; i <= mCount; i++) {
         titleM = await fetch_mREW(i);
         const title = titleM.title;
@@ -9380,9 +9440,9 @@ zip.file("_micCal.txt", micCal);
       let sumIndex, loDelay, hiDelay;
       let isPossibleI = false, requiredDelayI = NaN, isInverted = false;
       const alignmentResults = [];
-      let keeperDelay = new Array(numSub).fill(0);
-      let i1 = nSpeakers + configSub[0];
-      let i2 = nSpeakers + configSub[1];
+      let keeperDelay = new Array(nSubs).fill(0);
+      let i1 = nChannels + configSub[0];
+      let i2 = nChannels + configSub[1];
       const loDelay0 = msecMin - mSec[i1];
       const hiDelay0 = 0;
       loDelay = loDelay0 - (mSec[i2] - mSec[i1]) * (mSec[i2] < mSec[i1]);
@@ -9401,7 +9461,7 @@ zip.file("_micCal.txt", micCal);
       keeperDelay[0] = 0;
       keeperDelay[1] = requiredDelayI / 1000;
       for (let i = 2; i < configSub.length; i++) {
-        i2 = nSpeakers + configSub[i];
+        i2 = nChannels + configSub[i];
         const minRequired = Math.max(...keeperDelay) - 6.00049999 / sOs;
         const maxRequired = Math.min(...keeperDelay) + 6.00049999 / sOs;
         loDelay = loDelay0 - (mSec[i2] - mSec[i1]) * (mSec[i2] < mSec[i1]);
@@ -9432,7 +9492,7 @@ zip.file("_micCal.txt", micCal);
             [2,0,1,3], [2,0,3,1], [2,1,0,3], [2,1,3,0], [2,3,0,1], [2,3,1,0],
             [3,0,1,2], [3,0,2,1], [3,1,0,2], [3,1,2,0], [3,2,0,1], [3,2,1,0]]
       }
-      const subOrder = subOrders[numSub];
+      const subOrder = subOrders[nSubs];
       let finalIndices = [];
       let finalResults = [];
       let configIdx = 1;
@@ -9469,29 +9529,29 @@ zip.file("_micCal.txt", micCal);
       const targetIndex = finalResults.indexOf(bestI);
       const configurationArray = finalResults[targetIndex + 1];
       console.info(`Optimal selection: Configuration #${bestCount} [${configurationArray}] with ${(bestScore).toFixed(2)} linearity score.`);
-      invertSub[nSpeakers + configurationArray[0]] = false;
-      for (let i = 0; i < (numSub - 1); i++) {
+      invertSub[nChannels + configurationArray[0]] = false;
+      for (let i = 0; i < nSubs - 1; i++) {
         const requiredDelayIValue = finalResults[targetIndex + 2][i].requiredDelayI;
-        const newsubI = nSpeakers + configurationArray[i + 1]
+        const newsubI = nChannels + configurationArray[i + 1]
         invertSub[newsubI] = finalResults[targetIndex + 2][i].isInverted;
         if ((mSec[newsubI] + requiredDelayIValue / 1000) < msecMinSub) { msecMinSub = mSec[newsubI] + requiredDelayIValue / 1000 }
         if ((mSec[newsubI] + requiredDelayIValue / 1000) > msecMaxSub) { msecMaxSub = mSec[newsubI] + requiredDelayIValue / 1000 }
         mSec[newsubI] = mSec[newsubI] + requiredDelayIValue / 1000;
       }
-      msecMinSub = Math.min(msecMinSub, mSec[nSpeakers + configurationArray[0]]);
-      msecMaxSub = Math.max(msecMaxSub, mSec[nSpeakers + configurationArray[0]]);
+      msecMinSub = Math.min(msecMinSub, mSec[nChannels + configurationArray[0]]);
+      msecMaxSub = Math.max(msecMaxSub, mSec[nChannels + configurationArray[0]]);
       await fetch_mREW(bestI, 'PUT', { title: "SW1o" });
-      await fetch_mREW(nSpeakers, 'PUT', { title: "tempSub" });
+      await fetch_mREW(nChannels, 'PUT', { title: "tempSub" });
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      for (let i = mCount; i >= nSpeakers; i--) {
+      for (let i = mCount; i >= nChannels; i--) {
         const title = measurements[i].title;
         if (title != "SW1o") { await postDelete(i); }
       }
-      const volAdjust = parseFloat(await getTrim(nSpeakers, start, end));
-      await postNext('Add SPL offset', nSpeakers, { offset: volAdjust });
+      const volAdjust = parseFloat(await getTrim(nChannels, start, end));
+      await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
-      for (let i = nSpeakers; i < (nSpeakers + numSub); i++) {
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         customLevel[i] += volAdjust;
         console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
       }
@@ -9561,8 +9621,8 @@ zip.file("_micCal.txt", micCal);
       const ind1Array = response2array(ind1FreqResponse, start, end);
       const ind2FreqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', ind2);
       const ind2Array = response2array(ind2FreqResponse, start, end);
-      if (ind1Array.length != ind2Array.length) { throw new Error("Unexpected error!"); }
-      for (let i = 0; i < ind1Array.length; i++) {
+      const arrayLength = Math.min(ind1Array.length, ind2Array.length);
+      for (let i = 0; i < arrayLength; i++) {
         maxSumArray.push(ind1Array[i] + ind2Array[i]);
       }
       return maxSumArray;
@@ -9683,6 +9743,10 @@ zip.file("_micCal.txt", micCal);
       return [isPossible, requiredDelay, isInverted, sumIndex];
     }
     async function genSub(i, freq) {
+      if (freq === "L") {
+        console.error("Cannot set subwoofer as LARGE!")
+        throw new Error;
+      }
       await postSafe(`${baseUrl}/${i}/filters`, {
         filters: [{
           "index": 21,
@@ -9694,9 +9758,12 @@ zip.file("_micCal.txt", micCal);
           "slopedBPerOctave": 24
         }]
       }, "Filters set");
-      await postNext('Generate predicted measurement', i);
+      return await postNext('Generate predicted measurement', i);
     }
     async function genSpeaker(i, freq) {
+      if (freq === "L") {
+        return await postSafe(`http://localhost:4735/measurements/${i}/command`, { command: "Response copy" }, "Completed");
+      }
       await postSafe(`${baseUrl}/${i}/filters`, {
         filters: [{
           "index": 21,
@@ -9708,7 +9775,7 @@ zip.file("_micCal.txt", micCal);
           "slopedBPerOctave": 12
         }]
       }, "Filters set");
-      await postNext('Generate predicted measurement', i);
+      return await postNext('Generate predicted measurement', i);
     }
     async function updateAdy() {
       const antiMicCal = [1.44388E-06,
@@ -27627,29 +27694,29 @@ zip.file("_micCal.txt", micCal);
                              8.089,
                              8.113,
                              8.134 ];
-      for (let i = 1; i < nSpeakers; i++) {
+      for (let i = 1; i <= nSpeakers; i++) {
         if (customCrossover[i] === "L") {continue;};
         if (customCrossover[i] > 90) {customCrossover[i] /= 10;} 
       }
       const jsonData = JSON.parse(adyContents);
-      if (numSub > 1) {
-        for (let i = jsonData.detectedChannels.length - 1; i >= nSpeakers - 1; i--) {
+      if (nSubs > 1) {
+        for (let i = jsonData.detectedChannels.length - 1; i >= nChannels - 1; i--) {
           const swChannel = jsonData.detectedChannels[i];
           swChannel.delayAdjustment = delayAdjustment[i + 1];
         }
         let ii = 54;
-        for (let i = nSpeakers - 1; i < jsonData.detectedChannels.length; i++) {
+        for (let i = nChannels - 1; i < jsonData.detectedChannels.length; i++) {
           const swChannel = jsonData.detectedChannels[i];
           swChannel.enChannelType = ii;
           ii++;
           if (swChannel.customCrossover) { delete swChannel.customCrossover };
           if (swChannel.customSpeakerType) { delete swChannel.customSpeakerType };
-          if (swChannel.customTargetCurvePoints && (i != (nSpeakers - 1))) { delete swChannel.customTargetCurvePoints };
+          if (swChannel.customTargetCurvePoints && (i != (nChannels - 1))) { delete swChannel.customTargetCurvePoints };
         }
       }
       jsonData.dynamicVolume = false;
       jsonData.lfc = false;
-      jsonData.dynamicEq = targetCurveName === "";
+      jsonData.dynamicEq = (targetCurveName === "");
       jsonData.enTargetCurveType = 1;
       jsonData.detectedChannels.forEach((channel, index) => {
         const responseData = channel.responseData;
@@ -27669,14 +27736,14 @@ zip.file("_micCal.txt", micCal);
             count++;
           }
         }
-        if (index >= nSpeakers) {
+        if (index > nSpeakers) {
           channel.responseData = {};
         }
       });
       const octave = Math.pow(2, 1 / 96);
-      for (let i = 1; i < nSpeakers; i++) {
+      for (let i = 1; i <= nSpeakers; i++) {
         const fltArray = [];
-        const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nSpeakers - 1));
+        const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nChannels - 1));
         const bytes = Uint8Array.from(atob(fltResponse.magnitude), c => c.charCodeAt(0));
         const buffer = bytes.buffer;
         const data = new DataView(buffer);
@@ -27697,37 +27764,39 @@ zip.file("_micCal.txt", micCal);
         thisChannel.customSpeakerType = customCrossover[i] === "L" ? "L" : "S";
         thisChannel.channelReport.customEnSpeakerConnect = customCrossover[i] === "L" ? 2 : 1;
       }
-      const subArray = [];
-      const subResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nSpeakers * 3 - 1);
-      const bytesSub = Uint8Array.from(atob(subResponse.magnitude), c => c.charCodeAt(0));
-      const bufferSub = bytesSub.buffer;
-      const dataSub = new DataView(bufferSub);
-      let freq = subResponse.startFreq;
-      for (let k = 0; k <= 1531; k++) {
-        const subMagnitude = dataSub.getFloat32(k * 4);
-        subArray.push([freq, subMagnitude]);
-        freq *= octave;
-      }
-      const customTargetCurvePointsSub = subArray.map(point => `{${point[0]}, ${point[1]}}`);
-      const subChannel = jsonData.detectedChannels[nSpeakers - 1];
-      subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
-      k = 0;
-      for (let channel of jsonData.detectedChannels) {
-        if (channel.commandId.startsWith("SW")) {
-          const customDistanceValue = parseFloat(customDistance[nSpeakers]) + parseFloat(delayAdjustment[nSpeakers]) - parseFloat(channel.delayAdjustment);
-          let customLevelValue = parseFloat(customLevel[nSpeakers + k]) + parseFloat(channel.trimAdjustment);
-          channel.customDistance = Math.round(parseFloat(customDistanceValue) * 100) / 100;
-          channel.customLevel = customLevelValue.toFixed(1);
-          channel.frequencyRangeRolloff = 250;
-          if (numSub > 1) { k++ };
+      if (!noSub) {
+        const subArray = [];
+        const subResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nChannels * 3 - 1);
+        const bytesSub = Uint8Array.from(atob(subResponse.magnitude), c => c.charCodeAt(0));
+        const bufferSub = bytesSub.buffer;
+        const dataSub = new DataView(bufferSub);
+        let freq = subResponse.startFreq;
+        for (let k = 0; k <= 1531; k++) {
+          const subMagnitude = dataSub.getFloat32(k * 4);
+          subArray.push([freq, subMagnitude]);
+          freq *= octave;
+        }
+        const customTargetCurvePointsSub = subArray.map(point => `{${point[0]}, ${point[1]}}`);
+        const subChannel = jsonData.detectedChannels[nChannels - 1];
+        subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
+        k = 0;
+        for (let channel of jsonData.detectedChannels) {
+          if (channel.commandId.startsWith("SW")) {
+            const customDistanceValue = parseFloat(customDistance[nChannels]) + parseFloat(delayAdjustment[nChannels]) - parseFloat(channel.delayAdjustment);
+            let customLevelValue = parseFloat(customLevel[nChannels + k]) + parseFloat(channel.trimAdjustment);
+            channel.customDistance = Math.round(parseFloat(customDistanceValue) * 100) / 100;
+            channel.customLevel = customLevelValue.toFixed(1);
+            channel.frequencyRangeRolloff = 250;
+            if (nSubs > 1) { k++ };
+          }
+        }
+        if (nSubs > 1) {
+          jsonData.subwooferLayout = "N/A";
+          sOs === 343 ? jsonData.subwooferMode = "Standard" : jsonData.subwooferMode = "N/A";
         }
       }
-      if (numSub > 1) {
-        jsonData.subwooferLayout = "N/A";
-        sOs === 343 ? jsonData.subwooferMode = "Standard" : jsonData.subwooferMode = "N/A";
-      }
-      const adyOCA = JSON.stringify(jsonData);
-      const blob = new Blob([adyOCA], { type: 'application/json' });
+      const ady = JSON.stringify(jsonData);
+      const blob = new Blob([ady], { type: 'application/json' });
       const urlBlob = URL.createObjectURL(blob);
       var downloadLink = document.createElement("a");
       downloadLink.href = urlBlob;
