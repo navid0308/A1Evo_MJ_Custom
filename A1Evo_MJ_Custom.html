@@ -292,6 +292,8 @@
     const noxo180 = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "X6500H", "-S730H", "-S740H", "-S930H", "-S940H",
       "X1400H", "X1500H", "X2400H", "X2500H", "X3400H", "X3500H", "X4300H", "X4400H", "X4500H", "X6300H", "X6400H", "X6500H", "AV7703",
       "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012"];
+    const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
+      "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
     /////////////////////////// Customization parameters for enthusiasts //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     let noInversion = false;// If true, avoids subwoofer polarity inversion. This may limit alignment options and could negatively impact sound quality
@@ -322,8 +324,14 @@
         Object.freeze(sOs);
         isCirrusLogic = micCalProb.includes(model) ? true : false;
         Object.freeze(isCirrusLogic);
-        const hasxo180 = noxo180.includes(model) ? false : true;
-        freqIndex = hasxo180 ? [40, 60, 80, 90, 100, 110, 120, 150, 180, 200, 250] : [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
+        freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
+        if (!noxo180.includes(model)) {
+          freqIndex.push(180);
+        }
+        if (models70xo.includes(model)) {
+          freqIndex.push(70);
+        }
+        freqIndex.sort(function(a, b) {return a - b;});
         Object.freeze(freqIndex);
         console.log(`Speed of sound setting has been automatically adjusted for your ${modelName} at ${sOs} m/s.`);
         const hasSWChannels = jsonData.detectedChannels.some(channel => channel.commandId && channel.commandId.startsWith("SW"));
