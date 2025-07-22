@@ -259,12 +259,12 @@
   <div class="customization-options">
     <small>
       <label>
-        <input type="checkbox" id="noInversion" onchange="updateCheckboxStates('noInversion')">
+        <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
         Avoid subwoofer polarity inversion
         <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
       <label>
-        <input type="checkbox" id="movieMode" onchange="updateCheckboxStates('movieMode')">
+        <input type="checkbox" id="movieMode" onchange="updateCheckboxStates()">
         Movie mode
         <span class="explanation">This mode levels and EQs more aggressively to prioritize immersion over the natural sound of your speakers.</span>
       </label>
@@ -310,7 +310,6 @@
 
     function extractAdy(event) {
       console.info("Initialising A1 Evo MJ Custom...");
-      updateCheckboxStates();
       const file = event.target.files[0];
       fileName = file.name;
       console.info(`Audyssey calibration '${fileName}' has been uploaded!`)
@@ -371,6 +370,7 @@
         flDist = getFLDistance(jsonData.detectedChannels);
         Object.freeze(flDist);
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
+        updateCheckboxStates(); // if no subwoofer, disable avoid subwoofer polarity inversion option
         let totalMeasurements = 0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
@@ -8678,24 +8678,30 @@ zip.file("_micCal.txt", micCal);
       document.querySelector('.notice').style.fontSize = '0.5em'; 
       runOptimizer();
     }
-    function updateCheckboxStates(triggeredBy) {
-      const noInversionCheckbox = document.getElementById('noInversion');
-      noInversion = noInversionCheckbox.checked;
+    function updateCheckboxStates() {
+      if (noSub) {
+        document.getElementById('noInversion').checked = false;
+        document.getElementById('noInversion').disabled = true;
+      }
+      noInversion = document.getElementById('noInversion').checked;
+      movieMode = document.getElementById('movieMode').checked;
+    }
+    function lockOptions() {
+      updateCheckboxStates(); // final sanity check
+      document.getElementById('noInversion').disabled = true;
       Object.freeze(noInversion);
-      const movieModeCheckbox = document.getElementById('movieMode');
-      movieMode = movieModeCheckbox.checked;
+      document.getElementById('movieMode').disabled = true;
       Object.freeze(movieMode);
     }
     async function runOptimizer() {
       const startTime = performance.now();
+      console.info("Optimization started...");
+      console.warn("Please keep REW on 'SPL & Phase' tab and stay on this web page until optimization is completed!");
+      lockOptions();
       await clearCommands();
       await disableGraph();
       await enableBlock();
-      document.getElementById('noInversion').disabled = true;
-      document.getElementById('movieMode').disabled = true;
       await bootUp();
-      console.info("Optimization started...");
-      console.warn("Please keep REW on 'SPL & Phase' tab and stay on this web page until optimization is completed!");
       await groundWorks();
       await generateFilters();
       await audyALCompensation();
@@ -8951,7 +8957,7 @@ zip.file("_micCal.txt", micCal);
         if (title[oIndex].startsWith("SW")) { title[oIndex] = title[oIndex].slice(0, -6) + "o"; }
         // trim determination using MLP
         if (title[oIndex].startsWith("SW")) {
-          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getTrim(i, 20, 120);
+          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getTrim(i, 20, 120, "Var");
         }
         else {
           customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
@@ -9548,7 +9554,7 @@ zip.file("_micCal.txt", micCal);
         const title = measurements[i].title;
         if (title != "SW1o") { await postDelete(i); }
       }
-      const volAdjust = parseFloat(await getTrim(nChannels, start, end));
+      const volAdjust = parseFloat(await getTrim(nChannels, start, end, "Var"));
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
@@ -9606,10 +9612,10 @@ zip.file("_micCal.txt", micCal);
       const magSum = rpArray.reduce((acc, val) => acc + val - tcLevel, 0);
       return magSum / calculateSTD(rpArray);
     }
-    async function getTrim(idx, start, end) {
+    async function getTrim(idx, start, end, smooth="Psy") {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const freqResponse = await fetchSafe(`frequency-response?smoothing=${smooth}&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
