@@ -8929,7 +8929,7 @@ zip.file("_micCal.txt", micCal);
       console.log(`Optimizing volume & time alignment using <${micPositions}> different microphone positions...`);
       console.info(`Starting...`);
       measurements = await fetch_mREW();
-      mCount = Object.keys(measurements).length
+      mCount = Object.keys(measurements).length;
       let count = 1;
       let title = {};
       for (let i = 1; i <= mCount; i += micPositions) {
@@ -9427,7 +9427,7 @@ zip.file("_micCal.txt", micCal);
       if (targetCurveName === "") { await disableRoomCurve(); }
       // use 1/6 smoothing for results
       const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length
+      const mCount = Object.keys(measurements).length;
       for (let i = 1; i <= mCount; i++) {
         titleM = await fetch_mREW(i);
         const title = titleM.title;
@@ -9515,7 +9515,7 @@ zip.file("_micCal.txt", micCal);
       }
       let bestScore = -Infinity, bestI, iCount = 1, bestCount = null;
       const tcArray = response2array(targetResponse, start, end);
-      const tcLevel = tcArray.reduce((acc, val) => acc + val, 0) / tcArray.length
+      const tcLevel = tcArray.reduce((acc, val) => acc + val, 0) / tcArray.length;
       for (const index of finalIndices) {
         if (index !== null) {
           const tempSum = await fetchSafe('frequency-response?smoothing=Var&ppo=96', index);
@@ -9654,7 +9654,7 @@ zip.file("_micCal.txt", micCal);
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
-      postSafe("http://localhost:4735/alignment-tool/mode", "Impulse", "Mode set");
+      await postSafe("http://localhost:4735/alignment-tool/mode", "Impulse", "Mode set");
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", -hiDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", -loDelay, "Maximum positive delay set to");
       console.info("Starting...")
