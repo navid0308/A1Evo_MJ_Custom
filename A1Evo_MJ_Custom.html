@@ -9005,7 +9005,7 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using MLP
         if (title[count].startsWith("SW")) {
-          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getTrim(i, 20, 120, "Var");
+          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getTrim(i, 20, 120);
         }
         else {
           customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
@@ -9030,22 +9030,25 @@ zip.file("_micCal.txt", micCal);
       for (let i = 1; i <= nSpeakers + nSubs; i++) {
         commandId[i] = title[i].slice(0, -1);
       }
-      console.infoUpdate("Executing precision temporal alignment across the speaker array for optimal coherence...");
+      console.infoUpdate("Time aligning speakers...");
       // align speakers but leave subwoofers alone. ANY align command messes up subwoofer IR alignment
       const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
       await postNext('Cross corr align', spIndices);
       measurements = await fetch_mREW();
+      let totalIRStartDelay = 0;
       for (let i = 1; i <= nSpeakers; i++) {
         mSec[i] -= parseFloat(measurements[i].cumulativeIRShiftSeconds);
+        totalIRStartDelay += measurements[i].timeOfIRStartSeconds;
       }
-      finalizeDelayHeadroom();
-      // remove audyssey IR delay but preserve relative IR delay differences
-      const audyIRStartDelay = measurements[spIndices[0]].timeOfIRStartSeconds;
+      // normalize IRs to t=0
+      const avgIRStartDelay = totalIRStartDelay / nSpeakers;
       for (let i = 1; i <= nSpeakers + nSubs; i++) {
-        await postNext('Offset t=0', i, {offset: audyIRStartDelay, unit: "seconds"});
+        await postNext('Offset t=0', i, {offset: avgIRStartDelay, unit: "seconds"});
       }
-      console.infoUpdate("Completed speaker volume & time alignment!");
-      if (noSub) { return; } // no need to go further without subwoofer
+      console.infoUpdate("Completed averaging, volume & time alignment!");
+      // no need to go further without subwoofer
+      if (noSub) { return; }
+      finalizeDelayHeadroom();
       if (bassMode === "Directional") {
         console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
         await directional2standard();
@@ -9491,7 +9494,7 @@ zip.file("_micCal.txt", micCal);
         await postDelete(i);
       }
       await fetch_mREW(nChannels, 'PUT', { title: "SW1o" });
-      const volAdjust = parseFloat(await getTrim(nChannels, 20, 120, "Var"));
+      const volAdjust = parseFloat(await getTrim(nChannels, 20, 120));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
@@ -9536,10 +9539,10 @@ zip.file("_micCal.txt", micCal);
       const meanOfSquares = sumOfSquares / arrayLength;
       return Math.sqrt(meanOfSquares);
     }
-    async function getTrim(idx, start, end, smooth="Psy") {
+    async function getTrim(idx, start, end) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe(`frequency-response?smoothing=${smooth}&ppo=96`, idx);
+      const freqResponse = await fetchSafe(`frequency-response?smoothing=Psy&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
