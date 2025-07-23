@@ -9035,15 +9035,13 @@ zip.file("_micCal.txt", micCal);
       const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
       await postNext('Cross corr align', spIndices);
       measurements = await fetch_mREW();
-      let totalIRStartDelay = 0;
       for (let i = 1; i <= nSpeakers; i++) {
         mSec[i] -= parseFloat(measurements[i].cumulativeIRShiftSeconds);
-        totalIRStartDelay += measurements[i].timeOfIRStartSeconds;
       }
       // normalize IRs to t=0
-      const avgIRStartDelay = totalIRStartDelay / nSpeakers;
+      const IRStartDelay = measurements[spIndices[0]].timeOfIRStartSeconds;
       for (let i = 1; i <= nSpeakers + nSubs; i++) {
-        await postNext('Offset t=0', i, {offset: avgIRStartDelay, unit: "seconds"});
+        await postNext('Offset t=0', i, {offset: IRStartDelay, unit: "seconds"});
       }
       console.infoUpdate("Completed averaging, volume & time alignment!");
       // no need to go further without subwoofer
