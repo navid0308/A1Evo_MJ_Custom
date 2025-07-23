@@ -9033,19 +9033,24 @@ zip.file("_micCal.txt", micCal);
       console.infoUpdate("Time aligning speakers...");
       // align speakers but leave subwoofers alone. ANY align command messes up subwoofer IR alignment
       const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
-      await postNext('Cross corr align', spIndices);
+      await postNext('Remove IR delays', spIndices);
       measurements = await fetch_mREW();
+      let totalIRShift = 0;
       for (let i = 1; i <= nSpeakers; i++) {
-        mSec[i] -= parseFloat(measurements[i].cumulativeIRShiftSeconds);
+        totalIRShift += parseFloat(measurements[i].cumulativeIRShiftSeconds);
       }
-      // normalize IRs to t=0
-      const IRStartDelay = measurements[spIndices[0]].timeOfIRStartSeconds;
-      for (let i = 1; i <= nSpeakers + nSubs; i++) {
-        await postNext('Offset t=0', i, {offset: IRStartDelay, unit: "seconds"});
+      const avgIRShift = totalIRShift / nSpeakers;
+      // normalize delay to t=0
+      for (let i = 1; i <= nSpeakers; i++) {
+        mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - avgIRShift);
       }
       console.infoUpdate("Completed averaging, volume & time alignment!");
       // no need to go further without subwoofer
       if (noSub) { return; }
+      // normalize subwoofer IRs to t=0
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+        await postNext('Offset t=0', i, {offset: avgIRShift, unit: "seconds"});
+      }
       finalizeDelayHeadroom();
       if (bassMode === "Directional") {
         console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
@@ -27783,48 +27788,6 @@ zip.file("_micCal.txt", micCal);
       if (Array.isArray(indices)) {
         body = { ...body, measurementIndices: indices };
       }
-      const fetchData = async () => {
-        const response = await fetch(requestUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!response.ok) {
-          throw new Error('Network response was not OK!');
-        }
-        const data = await response.json();
-        return data;
-      }
-      const checkResponse = async (data) => {
-        if (data.message && data.message.includes('ompleted')) {
-          const resultUrl = `${baseUrl}/process-result`;
-          const resultResponse = await fetch(resultUrl);
-          if (!resultResponse.ok) {
-            throw new Error('Failed to fetch result data!');
-          }
-          const resultData = await resultResponse.json();
-          return resultData;
-        } else if (data.message.includes('in progress') || data.message.includes('running')) {
-          await new Promise((resolve) => setTimeout(resolve, speedDelay));
-          return checkResponse(await fetchData());
-        } else {
-          return data;
-        }
-      }
-      try {
-        const data = await fetchData();
-        const result = await checkResponse(data);
-        return result;
-      } catch (error) {
-        throw new Error('Error fetching result:', error);
-      }
-    }
-    async function postNext2(processName, indices, parameters = null) {
-      let requestUrl;
-      let body;
-      requestUrl = `${baseUrl}/${indices}/command`;
-      body = { command: processName };
-      body = { ...body, parameters: parameters };
       const fetchData = async () => {
         const response = await fetch(requestUrl, {
           method: 'POST',
