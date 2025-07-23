@@ -9551,20 +9551,6 @@ zip.file("_micCal.txt", micCal);
       const offset = targetSPL - freqSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
-    async function getMaxSumArray(ind1, ind2, start, end) {
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
-      const ind1Mag = await postSafe(`${baseUrl}/${ind1}/command`, { command: "Response magnitude copy" }, "Completed");
-      const ind2Mag = await postSafe(`${baseUrl}/${ind2}/command`, { command: "Response magnitude copy" }, "Completed");
-      const magSum = await postNext('Arithmetic', [mCount + 1, mCount + 2], {function: "A + B"});
-      await postNext('Add SPL offset', mCount + 3, { offset: 6 }); // 6dB theoretical maximum gain
-      const maxSumResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', mCount + 3);
-      const maxSumArray= response2array(maxSumResponse, start, end);
-      for (let i = mCount + 3; i > mCount ; i--) {
-        await postDelete(i);
-      }
-      return maxSumArray;
-    }
     async function alignVol2MLP(indices, mlpIdx) {
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
@@ -9622,10 +9608,9 @@ zip.file("_micCal.txt", micCal);
       return [isPossible, requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, start=20, end=120) {
-      const maxSumArray = await getMaxSumArray(ind1, ind2, start, end);
       const [loDelay, hiDelay] = getDelayRangeOf(mSec[ind2]);
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
-      let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, minRmsError = Infinity, sumIndex = null;
+      let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity, sumIndex = null;
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
@@ -9645,11 +9630,11 @@ zip.file("_micCal.txt", micCal);
         const delayB = -parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
-        const rmsError = calculateRMSError(tempSumArray, maxSumArray);
-        if (rmsError < minRmsError) {
-          minRmsError = rmsError;
+        const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
+        if (maxSum < tempMagSum) {
+          maxSum = tempMagSum;
           bestFreq = checkFreq;
           isPossible = true;
           requiredDelay = delayB;
