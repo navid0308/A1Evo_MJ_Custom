@@ -8701,11 +8701,11 @@ zip.file("_micCal.txt", micCal);
       await groundWorks();
       await generateFilters();
       await audyALCompensation();
-      await finalizeTrims();
+      finalizeTrims();
       await calculateRolloffs();
       await calculateSubBandwidth();
       await optimizeSubDelay();
-      await finalizeDistances();
+      finalizeDistances();
       await finalizeXO();
       await drawResults();
       await disableBlock();
@@ -9032,26 +9032,26 @@ zip.file("_micCal.txt", micCal);
       const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
       await postNext('Remove IR delays', spIndices);
       measurements = await fetch_mREW();
+      // calculate audyssey IR start delay
       let totalIRShift = 0;
       for (let i = 1; i <= nSpeakers; i++) {
         totalIRShift += parseFloat(measurements[i].cumulativeIRShiftSeconds);
       }
+      // determine relative delays and remove audyssey IR start delay
       const avgIRShift = totalIRShift / nSpeakers;
-      // normalize delay to t=0
       for (let i = 1; i <= nSpeakers; i++) {
         mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - avgIRShift);
       }
+      finalizeDelayHeadroom(); // delay headroom based on speakers only
       console.infoUpdate("Completed averaging, volume & time alignment!");
       // no need to go further without subwoofer
       if (noSub) { return; }
-      // remove audyssey IR start delay from subwoofers
-      // and normalize swmix to median
+      // remove audyssey IR start delay from subwoofers and normalize standard bass subwoofer IRs to t=0
       const IRShift4MultiSubDelay = (subLoDelay + subHiDelay) / 2;
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         await postNext('Offset t=0', i, {offset: avgIRShift + IRShift4MultiSubDelay, unit: "seconds"});
         mSec[i] -= IRShift4MultiSubDelay;
       }
-      finalizeDelayHeadroom();
       if (bassMode === "Directional") {
         console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
         await directional2standard();
@@ -9129,7 +9129,7 @@ zip.file("_micCal.txt", micCal);
         if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - spSum}dB → ${customLevel[i]}dB (${spSum}dB)`); }
       }
     }
-    async function finalizeTrims() {
+    function finalizeTrims() {
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " trims:")
       for (let i = 1; i <= nSpeakers; i++) {
         const customLevelOriginal = customLevel[i];
@@ -9281,7 +9281,7 @@ zip.file("_micCal.txt", micCal);
           i++;
         }
         if (initialXO != customCrossover[i]) {
-          console.warn(`${cmdIds} initial XO below usable XO range - shifted: ${initialXO}hz → ${customCrossover[i]}hz`)
+          console.warn(`${cmdIds} initial XO below usable XO range - shifted: ${initialXO}hz → ${customCrossover[i]}hz`);
         }
       }
     }
@@ -9347,7 +9347,7 @@ zip.file("_micCal.txt", micCal);
       return flIndex;
     }
     function initializeDistances() {
-      // initialize
+      // initialize to 0
       for (let i = 1; i <= nSpeakers + nSubs; i++) {
         customDistance[i] = 0;
       }
@@ -9377,7 +9377,7 @@ zip.file("_micCal.txt", micCal);
         }
       }
     }
-    async function finalizeDistances() {
+    function finalizeDistances() {
       initializeDistances();
       const flIndex = getFLIndex();
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " distances:");
