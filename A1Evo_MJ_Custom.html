@@ -9547,7 +9547,7 @@ zip.file("_micCal.txt", micCal);
     async function getTrim(idx, start, end) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe(`frequency-response?smoothing=Psy&ppo=96`, idx);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
@@ -27720,7 +27720,7 @@ zip.file("_micCal.txt", micCal);
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      downloadLink.download = getadyName(fileName, (movieMode ? "_Movie_" : "_") + swInvMsg + `${tcName}_` + `A1Evo_${timestamp}.ady`);
+      downloadLink.download = getadyName(fileName, (movieMode ? "_Movie_" : "_") + swInvMsg + `${tcName}_` + `A1EvoMJC_${timestamp}.ady`);
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
       downloadLink.click();
