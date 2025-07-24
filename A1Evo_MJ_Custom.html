@@ -9180,9 +9180,10 @@ zip.file("_micCal.txt", micCal);
       const tcData = await postNext('Generate target measurement', 1);
       const tcIdx = Object.keys(tcData.results)[0];
       const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
       let count = 1;
       for (let i = nChannels + 2; i <= nChannels * 3; i += 2) {
+        const title = measurements[i].title;
+        if (!title.endsWith("-equalized")) { continue; }
         if (commandId[count].startsWith("SW")) { continue; }
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[count]);
@@ -9190,8 +9191,8 @@ zip.file("_micCal.txt", micCal);
         // rolloff determination logic
         let idx = i;
         if (!singleChannel) {
-          await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
-          idx = mCount + 1;
+          const pairAvg = await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
+          idx = Object.keys(pairAvg.results)[0];
         }
         const rpData = await postNext('Arithmetic', [idx, tcIdx], {function: "|A| / |B|"});
         const rpIdx = Object.keys(rpData.results)[0];
@@ -9204,9 +9205,10 @@ zip.file("_micCal.txt", micCal);
         // find -3dB point
         let rolloff = 10;
         for (let j = 0; j < rpArray.length; j++) {
-          if (rpArray[j] >= -3) { break; }
+          if (rpArray[j] >= -3 || rolloff >= 250) { break; }
           rolloff *= octave;
         }
+        rolloff = Math.min(rolloff, 250); //sanity check
         if (noSub && cmdIds.endsWith("FL & FR")) {
           customCrossover[count] = "L";
           customCrossover[1 + count] = "L";
@@ -9247,18 +9249,20 @@ zip.file("_micCal.txt", micCal);
       // find low freq -3dB point
       subLowFreq = 10;
       for (let i = 0; i < rpArray.length; i++) {
-        if (rpArray[i] >= -3) { break; }
+        if (rpArray[i] >= -3 || subLowFreq >= 250) { break; }
         subLowFreq *= octave;
       }
+      subLowFreq = Math.min(subLowFreq, 250); //sanity check
       Object.freeze(subLowFreq);
       minXO = findNearestXO(2 * subLowFreq);
       Object.freeze(minXO);
       // find high freq -3dB point
       subHighFreq = 250;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if (rpArray[i] >= -3) { break; }
+        if (rpArray[i] >= -3 || subHighFreq <= 10) { break; }
         subHighFreq /= octave;
       }
+      subHighFreq = Math.max(subHighFreq, 10); //sanity check
       Object.freeze(subHighFreq);
       maxXO = findNearestXO(subHighFreq);
       Object.freeze(maxXO);
@@ -9289,13 +9293,11 @@ zip.file("_micCal.txt", micCal);
       let eqResults = [], initialXOs = 0, avgInitialXO = 80;
       let count = 1;
       for (let i = nChannels + 2; i <= nChannels * 3; i += 2) {
+        const title = measurements[i].title;
+        if (!title.endsWith("-equalized")) { continue; }
         if (commandId[count].startsWith("SW")) { continue; }
-        const mData = await fetch_mREW(i);
-        const title = mData.title;
-        if (title.endsWith("-equalized")) {
-          eqResults.push(i);
-          initialXOs += parseFloat(customCrossover[count++]);
-        }
+        eqResults.push(i);
+        initialXOs += parseFloat(customCrossover[count++]);
       }
       if (initialXOs > 0) { avgInitialXO = initialXOs / eqResults.length; }
       Object.freeze(avgInitialXO);
