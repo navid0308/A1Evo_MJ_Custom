@@ -9266,6 +9266,10 @@ zip.file("_micCal.txt", micCal);
       Object.freeze(subHighFreq);
       maxXO = findNearestXO(subHighFreq);
       Object.freeze(maxXO);
+      if (minXO > maxXO) {
+        console.error("Failed to calculate subwoofer bandwidth!");
+        throw new Error;
+      }
       console.info(`${commandId[nChannels].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
       sanityCheckInitialXO(); // update initialXOs based on subwoofer bandwidth
     }
