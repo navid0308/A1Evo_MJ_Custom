@@ -9002,7 +9002,7 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using MLP
         if (title[count].startsWith("SW")) {
-          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getTrim(i, 20, 120);
+          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getTrim(i, 20, 120, "Var");
         }
         else {
           customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
@@ -9528,7 +9528,7 @@ zip.file("_micCal.txt", micCal);
         await postDelete(i);
       }
       await fetch_mREW(nChannels, 'PUT', { title: "SW1o" });
-      const volAdjust = parseFloat(await getTrim(nChannels, 20, 120));
+      const volAdjust = parseFloat(await getTrim(nChannels, 20, 120, "Var"));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
@@ -9573,10 +9573,10 @@ zip.file("_micCal.txt", micCal);
       const meanOfSquares = sumOfSquares / arrayLength;
       return Math.sqrt(meanOfSquares);
     }
-    async function getTrim(idx, start, end) {
+    async function getTrim(idx, start, end, smoothing="Psy") {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const freqResponse = await fetchSafe(`frequency-response?smoothing=${smoothing}&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
