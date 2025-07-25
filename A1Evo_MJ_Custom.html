@@ -9009,8 +9009,17 @@ zip.file("_micCal.txt", micCal);
         }
         // level match all other positions to MLP & average
         await alignVol2MLP(indices, i);
-        micPositions === 1 ? await postSafe(`${baseUrl}/${i}/command`, {command: "Response copy" }, "Completed") :
-                             await postNext('Magn plus phase average', indices);
+        if (micPositions === 1) {
+          await postSafe(`${baseUrl}/${i}/command`, {command: "Response copy" }, "Completed");
+        }
+        else {
+          if (title[count].startsWith("SW")) {
+            await postNext('Vector average', indices); // using VA seems to better isolate room modes
+          }
+          else {
+            await postNext('Magn plus phase average', indices); // do not use VA for speakers, it reduces SPL of mids/highs!
+          }
+        }
         // the "o" measurement
         const idx = mCount + count;
         await fetch_mREW(idx, 'PUT', { title: title[count] });
