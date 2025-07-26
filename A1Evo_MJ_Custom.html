@@ -9111,14 +9111,13 @@ zip.file("_micCal.txt", micCal);
     }
     async function audyALCompensation() {
       console.log(`Adjusting filter SPLs to prevent Audyssey auto-leveling...`);
-      console.info("Starting...");
       let spSum = 0.0;
       for (let i = 1; i <= nSpeakers; i++) {
         const filterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nChannels - 1));
         const filterArray = await response2array(filterResponse, 500, 2000);
         spSum = -1 * filterArray.reduce((acc, val) => acc + val, 0) / filterArray.length;
         await postNext('Add SPL offset', 2 * i + (nChannels - 1), { offset: spSum });
-        if (spSum != 0) { console.infoUpdate(`${commandId[i].padStart(3, ".")} - shifted: ${spSum.toFixed(2)}dB`); }
+        if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")}-filters - offset applied: ${spSum.toFixed(2)}dB`); }
       }
       if (noSub) { return; } // no need to go further without subwoofer
       spSum = 0.0;
@@ -9127,9 +9126,8 @@ zip.file("_micCal.txt", micCal);
       spSum = -1 * subFilterArray.reduce((acc, val) => acc + val, 0) / subFilterArray.length;
       await postNext('Add SPL offset', nChannels * 3 - 1, { offset: spSum });
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        if (spSum != 0) { console.infoUpdate(`${commandId[i].padStart(3, ".")} - shifted: ${spSum.toFixed(2)}dB`); }
+        if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")}-filters - offset applied: ${spSum.toFixed(2)}dB`); }
       }
-      console.infoUpdate("Completed filter SPL adjustments!");
     }
     function finalizeTrims() {
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " trims:")
@@ -9176,11 +9174,36 @@ zip.file("_micCal.txt", micCal);
       }
       return xo;
     }
+    async function getLow3dBPoint(idx, start=10, end=250) {
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const rpArray = response2array(response, start, end);
+      const tcArray = response2array(targetResponse, start, end);
+      const arrLength = Math.min(rpArray.length, tcArray.length);
+      const octave = Math.pow(2, 1/96);
+      // find -3dB point
+      let rolloff = start;
+      for (let i = 0; i < arrLength; i++) {
+        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        rolloff *= octave;
+      }
+      return Math.min(rolloff, end);
+    }
+    async function getHigh3dBPoint(idx, start=10, end=250) {
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const rpArray = response2array(response, start, end);
+      const tcArray = response2array(targetResponse, start, end);
+      const arrLength = Math.min(rpArray.length, tcArray.length);
+      const octave = Math.pow(2, 1/96);
+      // find -3dB point
+      let rolloff = end;
+      for (let i = arrLength - 1; i >= 0; i--) {
+        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        rolloff /= octave;
+      }
+      return Math.max(rolloff, start);
+    }
     async function calculateRolloffs() {
       console.log("Calculating speaker -3dB points from target curve...");
-      await fetchSafe('target-level', 1, 75.0);
-      const tcData = await postNext('Generate target measurement', 1);
-      const tcIdx = Object.keys(tcData.results)[0];
       const measurements = await fetch_mREW();
       let count = 1;
       for (let i = nChannels + 2; i <= nChannels * 3; i += 2) {
@@ -9196,27 +9219,15 @@ zip.file("_micCal.txt", micCal);
           const pairAvg = await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
           idx = Object.keys(pairAvg.results)[0];
         }
-        const rpData = await postNext('Arithmetic', [idx, tcIdx], {function: "|A| / |B|"});
-        const rpIdx = Object.keys(rpData.results)[0];
-        const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', rpIdx);
-        const rpArray = response2array(response, 10, 250);
-        const octave = Math.pow(2, 1/96);
-        // cleanup
-        await postDelete(rpIdx);
-        if (!singleChannel) { await postDelete(idx); }
-        // find -3dB point
-        let rolloff = 10;
-        for (let j = 0; j < rpArray.length; j++) {
-          if (rpArray[j] >= -3 || rolloff >= 250) { break; }
-          rolloff *= octave;
-        }
-        rolloff = Math.min(rolloff, 250); //sanity check
+        const rolloff = await getLow3dBPoint(idx);
+        // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           customCrossover[count] = "L";
           customCrossover[1 + count] = "L";
           i += 2;
           count += 2;
           console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → Large/Full Range`);
+          await postDelete(idx); // cleanup
           continue;
         }
         const initialXO = findNearestXO(rolloff);
@@ -9225,46 +9236,24 @@ zip.file("_micCal.txt", micCal);
           customCrossover[1 + count] = initialXO;
           i += 2;
           count++;
+          await postDelete(idx); // cleanup
         }
         count++;
         console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → Initial XO: ${initialXO}hz`);
       }
-      // cleanup
-      await postDelete(tcIdx);
     }
     async function calculateSubBandwidth() {
       if (noSub) { return; } // no need to go further without subwoofer
       console.log("Calculating subwoofer -3dB points from target curve...")
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      await fetchSafe('target-level', 1, 75.0);
-      const tcData = await postNext('Generate target measurement', 1);
-      const tcIdx = Object.keys(tcData.results)[0];
-      const rpData = await postNext('Arithmetic', [mCount, tcIdx], {function: "|A| / |B|"});
-      const rpIdx = Object.keys(rpData.results)[0];
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', rpIdx);
-      const rpArray = response2array(response, 10, 250);
-      const octave = Math.pow(2, 1/96);
-      // cleanup
-      await postDelete(rpIdx);
-      await postDelete(tcIdx);
-      // find low freq -3dB point
-      subLowFreq = 10;
-      for (let i = 0; i < rpArray.length; i++) {
-        if (rpArray[i] >= -3 || subLowFreq >= 250) { break; }
-        subLowFreq *= octave;
-      }
-      subLowFreq = Math.min(subLowFreq, 250); //sanity check
+      // find low freq -3dB point & set minXO
+      subLowFreq = await getLow3dBPoint(mCount);
       Object.freeze(subLowFreq);
       minXO = findNearestXO(2 * subLowFreq);
       Object.freeze(minXO);
-      // find high freq -3dB point
-      subHighFreq = 250;
-      for (let i = rpArray.length - 1; i >= 0; i--) {
-        if (rpArray[i] >= -3 || subHighFreq <= 10) { break; }
-        subHighFreq /= octave;
-      }
-      subHighFreq = Math.max(subHighFreq, 10); //sanity check
+      // find high freq -3dB point and set maxXO
+      subHighFreq = await getHigh3dBPoint(mCount);
       Object.freeze(subHighFreq);
       maxXO = findNearestXO(subHighFreq);
       Object.freeze(maxXO);
