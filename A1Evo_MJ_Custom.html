@@ -308,7 +308,7 @@
     let minXO = 40, maxXO = 250, freqIndex = [], invertSub = [], previousDelay = null, swChannelCount = 0;
 
     function extractAdy(event) {
-      console.info("Initialising A1 Evo MJ Custom...");
+      console.info("Initializing A1 Evo MJ Custom...");
       const file = event.target.files[0];
       fileName = file.name;
       console.info(`Audyssey calibration '${fileName}' has been uploaded!`)
@@ -8967,22 +8967,6 @@ zip.file("_micCal.txt", micCal);
       }
       return [loDelay, hiDelay];
     }
-    async function sanityCheckSubTrims() {
-      // find sub bandwidth and use it to do a final level sanity check. limit to 20-120hz
-      const subLowFreq = await getLow3dBPoint(nChannels);
-      const subHighFreq = await getHigh3dBPoint(nChannels);
-      const start = Math.max(Math.round(subLowFreq), 20);
-      const end = Math.min(Math.round(subHighFreq), 120);
-      const volAdjust = parseFloat(await getTrim(nChannels, start, end, "Var"));
-      if (volAdjust != 0) {
-        console.warn(`Compensating subwoofer trim(s) by ${volAdjust}dB due to peaks/dips...`);
-        await postNext('Add SPL offset', nChannels, { offset: volAdjust });
-        for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-          customLevel[i] += volAdjust;
-          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
-        }
-      }
-    }
     async function groundWorks() {
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
@@ -9018,7 +9002,7 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using MLP
         if (title[count].startsWith("SW")) {
-          customLevel[count] = await getTrim(i, 30, 80);
+          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getFinalSubTrim(i);
         }
         else {
           customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
@@ -9082,7 +9066,6 @@ zip.file("_micCal.txt", micCal);
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
-      await sanityCheckSubTrims();
     }
     async function generateFilters() {
       console.log(`Generating EQ filters based on Min. Phase responses...`);
@@ -9114,6 +9097,7 @@ zip.file("_micCal.txt", micCal);
         catch (error) {
           console.warn(`${commandId[i - nChannels]} could not be equalized!`);
         }
+        await new Promise(resolve => setTimeout(resolve, speedDelay));
         const filter = await postNext('Generate filters measurement', i);
         const filterIdx = Object.keys(filter.results)[0];
         const filterName = `${commandId[i - nChannels]}-filters`;
@@ -9193,7 +9177,7 @@ zip.file("_micCal.txt", micCal);
       }
       return xo;
     }
-    async function getLow3dBPoint(idx, start=10, end=250) {
+    async function getLow3dBPoint(idx, start=10, end=250, offset=0) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9202,12 +9186,12 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = start;
       for (let i = 0; i < arrLength; i++) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
-    async function getHigh3dBPoint(idx, start=10, end=250) {
+    async function getHigh3dBPoint(idx, start=10, end=250, offset=0) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9216,7 +9200,7 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = end;
       for (let i = arrLength - 1; i >= 0; i--) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
@@ -9523,7 +9507,7 @@ zip.file("_micCal.txt", micCal);
         await postDelete(i);
       }
       await fetch_mREW(nChannels, 'PUT', { title: "SW1o" });
-      const volAdjust = parseFloat(await getTrim(nChannels, 30, 80));
+      const volAdjust = parseFloat(await getFinalSubTrim(nChannels));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
@@ -9576,6 +9560,17 @@ zip.file("_micCal.txt", micCal);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
+    }
+    async function getFinalSubTrim(idx) {
+      // find response bandwidth and use it for determining trim
+      // limit to 20-120hz so peaks past 120hz doesn't lower bass
+      const initialTrim = await getTrim(idx, 30, 80);
+      const subLowFreq = await getLow3dBPoint(idx, 20, 120, initialTrim);
+      const subHighFreq = await getHigh3dBPoint(idx, 20, 120, initialTrim);
+      const startFreq = Math.round(subLowFreq);
+      const endFreq = Math.round(subHighFreq);
+      const finalTrim = await getTrim(idx, startFreq, endFreq, "Var");
+      return finalTrim;
     }
     async function alignVol2MLP(indices, mlpIdx) {
       if (indices.length <= 1) { return; }
