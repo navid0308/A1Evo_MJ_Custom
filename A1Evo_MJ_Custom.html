@@ -8975,7 +8975,7 @@ zip.file("_micCal.txt", micCal);
       const end = Math.min(Math.round(subHighFreq), 120);
       const volAdjust = parseFloat(await getTrim(nChannels, start, end, "Var"));
       if (volAdjust != 0) {
-        console.warn(`Adjusting subwoofer trim(s) by ${volAdjust}dB to compensate for peaks/dips...`);
+        console.warn(`Compensating subwoofer trim(s) by ${volAdjust}dB due to peaks/dips...`);
         await postNext('Add SPL offset', nChannels, { offset: volAdjust });
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           customLevel[i] += volAdjust;
