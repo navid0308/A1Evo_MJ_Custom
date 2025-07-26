@@ -305,8 +305,7 @@
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [];
     let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [], targetResponse;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
-    let subLowFreq = 10, subHighFreq = 250, minXO = 40, maxXO = 250, freqIndex = [];
-    let invertSub = [], previousDelay = null, swChannelCount = 0;
+    let minXO = 40, maxXO = 250, freqIndex = [], invertSub = [], previousDelay = null, swChannelCount = 0;
 
     function extractAdy(event) {
       console.info("Initialising A1 Evo MJ Custom...");
@@ -8996,6 +8995,7 @@ zip.file("_micCal.txt", micCal);
         const indices = Array.from({length: micPositions }, (_, j) => i + j);
         if (micPositions > 1) {
           await postNext('Cross corr align', indices);
+          await new Promise(resolve => setTimeout(resolve, speedDelay));
         }
         mSec[count] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
         title[count] = measurements[i].title.slice(0, -1) + "o";
@@ -9014,6 +9014,7 @@ zip.file("_micCal.txt", micCal);
         }
         else {
           await postNext('Magn plus phase average', indices); // do not use VA, it reduces SPL!
+          await new Promise(resolve => setTimeout(resolve, speedDelay));
         }
         // the "o" measurement
         const idx = mCount + count;
@@ -9035,6 +9036,7 @@ zip.file("_micCal.txt", micCal);
       // align speakers but leave subwoofers alone. ANY align command messes up subwoofer IR alignment
       const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
       await postNext('Time align', spIndices);
+      await new Promise(resolve => setTimeout(resolve, speedDelay));
       measurements = await fetch_mREW();
       // calculate audyssey IR start delay
       let totalIRShift = 0;
@@ -9220,17 +9222,11 @@ zip.file("_micCal.txt", micCal);
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPoint(idx);
+        let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
-          customCrossover[count] = "L";
-          customCrossover[1 + count] = "L";
-          i += 2;
-          count += 2;
-          console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → Large/Full Range`);
-          await postDelete(idx); // cleanup
-          continue;
+          initialXO = "L";
         }
-        const initialXO = findNearestXO(rolloff);
         customCrossover[count] = initialXO;
         if (!singleChannel) {
           customCrossover[1 + count] = initialXO;
@@ -9239,7 +9235,8 @@ zip.file("_micCal.txt", micCal);
           await postDelete(idx); // cleanup
         }
         count++;
-        console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → Initial XO: ${initialXO}hz`);
+        const logMessage = initialXO === "L" ? "Large/Full Range" : `Initial XO: ${initialXO}hz`;
+        console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → ${logMessage}`);
       }
     }
     async function calculateSubBandwidth() {
@@ -9248,13 +9245,11 @@ zip.file("_micCal.txt", micCal);
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       // find low freq -3dB point & set minXO
-      subLowFreq = await getLow3dBPoint(mCount);
-      Object.freeze(subLowFreq);
+      const subLowFreq = await getLow3dBPoint(mCount);
       minXO = findNearestXO(2 * subLowFreq);
       Object.freeze(minXO);
       // find high freq -3dB point and set maxXO
-      subHighFreq = await getHigh3dBPoint(mCount);
-      Object.freeze(subHighFreq);
+      const subHighFreq = await getHigh3dBPoint(mCount);
       maxXO = findNearestXO(subHighFreq);
       Object.freeze(maxXO);
       if (minXO > maxXO) {
@@ -9297,6 +9292,7 @@ zip.file("_micCal.txt", micCal);
       Object.freeze(avgInitialXO);
       console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgInitialXO.toFixed(2)}hz as average XO...`); 
       const avgSpeaker = await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
+      await new Promise(resolve => setTimeout(resolve, speedDelay));
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
