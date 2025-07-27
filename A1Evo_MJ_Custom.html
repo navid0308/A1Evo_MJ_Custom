@@ -9594,7 +9594,7 @@ zip.file("_micCal.txt", micCal);
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Starting...")
-      for (let checkFreq = start; checkFreq <= end; checkFreq++) {
+      for (let checkFreq = 20; checkFreq <= 250; checkFreq++) {
         console.infoUpdate(`Checking: @${checkFreq}Hz, Best: ${requiredDelay.toFixed(2)}ms @${bestFreq}hz Inverted: ${isInverted}`);
         const postAlignResult = await postAlign('Align IRs', checkFreq);
         if (postAlignResult.message === 'Delay too large') { continue; }
@@ -9639,7 +9639,7 @@ zip.file("_micCal.txt", micCal);
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Starting...")
-      for (let checkFreq = start; checkFreq <= end; checkFreq++) {
+      for (let checkFreq = 20; checkFreq <= 250; checkFreq++) {
         console.infoUpdate(`Checking: @${checkFreq}Hz, Best: ${requiredDelay.toFixed(2)}ms @${bestFreq}hz Inverted: ${isInverted}`);
         const postAlignResult = await postAlign('Align IRs', checkFreq);
         if (postAlignResult.message === 'Delay too large' && previousDelay != postAlignResult.delay) {
