@@ -8909,9 +8909,9 @@ zip.file("_micCal.txt", micCal);
       }
       return;
     }
-    function finalizeDelayHeadroom() {
-      const minM = Math.min(...mSec.slice(1, nSpeakers + 1));
-      const maxM = Math.max(...mSec.slice(1, nSpeakers + 1));
+    function updateAvailableDelay() {
+      const minM = Math.min(...mSec.slice(1, nSpeakers + nSubs + 1));
+      const maxM = Math.max(...mSec.slice(1, nSpeakers + nSubs + 1));
       const limInsec = 6 / sOs;
       const msecMin = maxM - limInsec;
       const msecMax = minM + limInsec;
@@ -8921,11 +8921,10 @@ zip.file("_micCal.txt", micCal);
         console.error("Ran out of delay range!");
         throw new Error;
       }
-      Object.freeze(maxNegative);
-      Object.freeze(maxPositive);
     }
     // returns range that "thisDelay" can be shifted by
     function getDelayRangeOf(thisDelay) {
+      updateAvailableDelay();
       const delayms = thisDelay * 1000;
       let loDelay = Infinity, hiDelay = -Infinity;
       if (thisDelay < 0) {
@@ -9048,7 +9047,6 @@ zip.file("_micCal.txt", micCal);
       for (let i = 1; i <= nSpeakers; i++) {
         mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - avgIRShift);
       }
-      finalizeDelayHeadroom(); // delay headroom based on speakers only
       console.infoUpdate("Completed averaging, volume & time alignment!");
       // no need to go further without subwoofer
       if (noSub) { return; }
