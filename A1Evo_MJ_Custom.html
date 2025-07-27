@@ -295,15 +295,10 @@
     const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
-    /////////////////////////// Customization parameters for enthusiasts //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    let noInversion = false;// If true, avoids subwoofer polarity inversion. This may limit alignment options and could negatively impact sound quality
-    let movieMode = false;// If true, high shelf is enabbled and speakers are leveled using 250-10k instead of 250-4k. This results in extra EQ but better channel to channel consistency
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
     let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [];
-    let maxNegative, maxPositive, targetCurvePath, targetCurveName, targetArray = [], targetResponse;
+    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, freqIndex = [], invertSub = [], previousDelay = null, swChannelCount = 0;
 
@@ -8909,22 +8904,23 @@ zip.file("_micCal.txt", micCal);
       }
       return;
     }
-    function updateAvailableDelay() {
-      const minM = Math.min(...mSec.slice(1, nSpeakers + nSubs + 1));
-      const maxM = Math.max(...mSec.slice(1, nSpeakers + nSubs + 1));
+    function getDelayHeadroom(startIdx, endIdx) {
+      const minM = Math.min(...mSec.slice(startIdx, endIdx + 1));
+      const maxM = Math.max(...mSec.slice(startIdx, endIdx + 1));
       const limInsec = 6 / sOs;
       const msecMin = maxM - limInsec;
       const msecMax = minM + limInsec;
-      maxNegative = msecMin * 1000;
-      maxPositive = msecMax * 1000;
+      const maxNegative = msecMin * 1000;
+      const maxPositive = msecMax * 1000;
       if (maxNegative > maxPositive) {
         console.error("Ran out of delay range!");
         throw new Error;
       }
+      return [maxNegative, maxPositive];
     }
     // returns range that "thisDelay" can be shifted by
-    function getDelayRangeOf(thisDelay) {
-      updateAvailableDelay();
+    function getDelayRangeOf(thisDelay, startIdx, endIdx) {
+      const [maxNegative, maxPositive] = getDelayHeadroom(startIdx, endIdx);
       const delayms = thisDelay * 1000;
       let loDelay = Infinity, hiDelay = -Infinity;
       if (thisDelay < 0) {
@@ -8945,20 +8941,15 @@ zip.file("_micCal.txt", micCal);
       let [loDelay, hiDelay] = getDelayRangeOf(mSec[nChannels]);
       // directional subwoofer delay(s)
       if (bassMode === "Directional") {
-        for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
-          const [tmpLoDelay, tmpHiDelay] = getDelayRangeOf(mSec[i]);
-          loDelay = Math.max(loDelay, tmpLoDelay);
-          hiDelay = Math.min(hiDelay, tmpHiDelay);
-        }
+        const loDelaySub = Math.min(...mSec.slice(nSpeakers, nSpeakers + nSubs + 1));
+        const hiDelaySub = Math.max(...mSec.slice(nSpeakers, nSpeakers + nSubs + 1));
+        [loDelay, ] = getDelayRangeOf(loDelaySub, 1, nSpeakers);
+        [, hiDelay] = getDelayRangeOf(hiDelaySub, 1, nSpeakers);
       }
       // standard bass relative delay(s)
       else {
-        let [tmpLoDelay, tmpHiDelay] = getDelayRangeOf(mSec[nChannels] + subLoDelay);
-        loDelay = Math.max(loDelay, tmpLoDelay);
-        hiDelay = Math.min(hiDelay, tmpHiDelay);
-        [tmpLoDelay, tmpHiDelay] = getDelayRangeOf(mSec[nChannels] + subHiDelay);
-        loDelay = Math.max(loDelay, tmpLoDelay);
-        hiDelay = Math.min(hiDelay, tmpHiDelay);
+        [loDelay, ] = getDelayRangeOf(mSec[nChannels] + subLoDelay, 1, nSpeakers);
+        [, hiDelay] = getDelayRangeOf(mSec[nChannels] + subHiDelay, 1, nSpeakers);
       }
       if (loDelay > hiDelay) {
         console.error("Ran out of delay range!");
@@ -9627,7 +9618,7 @@ zip.file("_micCal.txt", micCal);
       return [isPossible, requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, start=20, end=120) {
-      const [loDelay, hiDelay] = getDelayRangeOf(mSec[ind2]);
+      const [loDelay, hiDelay] = getDelayRangeOf(mSec[ind2], nSpeakers + 1, nSpeakers + nSubs);
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity, sumIndex = null;
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
