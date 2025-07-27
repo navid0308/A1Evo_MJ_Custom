@@ -9480,6 +9480,7 @@ zip.file("_micCal.txt", micCal);
     async function directional2standard() {
       let currSubIdx = nSpeakers + 1;
       let cmdIds = commandId[currSubIdx];
+      let minDelay = 0, maxDelay = 0;
       for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
         console.log(`Aligning ${commandId[i]} to ${cmdIds}...`);
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i);
@@ -9491,11 +9492,20 @@ zip.file("_micCal.txt", micCal);
         mSec[i] += (requiredDelay / 1000);
         invertSub[i] = isInverted;
         cmdIds += ` & ${commandId[i]}`;
+        minDelay = Math.min(minDelay, mSec[i]);
+        maxDelay = Math.max(maxDelay, mSec[i]);
       }
       for (let i = currSubIdx - 1; i > nSpeakers; i--) {
         await postDelete(i);
       }
       await fetch_mREW(nChannels, 'PUT', { title: "SW1o" });
+      // normalize median to t=0
+      const IROffset = (minDelay + maxDelay) / 2;
+      await postNext('Offset t=0', nChannels, {offset: IROffset, unit: "seconds"});
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+        mSec[i] -= IROffset;
+      }
+      // offset volume from combining subwoofers
       const volAdjust = parseFloat(await getFinalSubTrim(nChannels));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
