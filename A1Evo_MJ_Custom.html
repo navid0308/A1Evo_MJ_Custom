@@ -8941,8 +8941,8 @@ zip.file("_micCal.txt", micCal);
       let [loDelay, hiDelay] = getDelayRangeOf(mSec[nChannels]);
       // directional subwoofer delay(s)
       if (bassMode === "Directional") {
-        const loDelaySub = Math.min(...mSec.slice(nSpeakers, nSpeakers + nSubs + 1));
-        const hiDelaySub = Math.max(...mSec.slice(nSpeakers, nSpeakers + nSubs + 1));
+        const loDelaySub = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
+        const hiDelaySub = Math.max(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
         [loDelay, ] = getDelayRangeOf(loDelaySub, 1, nSpeakers);
         [, hiDelay] = getDelayRangeOf(hiDelaySub, 1, nSpeakers);
       }
@@ -9034,23 +9034,27 @@ zip.file("_micCal.txt", micCal);
         totalIRShift += parseFloat(measurements[i].cumulativeIRShiftSeconds);
       }
       // determine relative delays and remove audyssey IR start delay
-      const avgIRShift = totalIRShift / nSpeakers;
+      const IRStartDelay = totalIRShift / nSpeakers;
       for (let i = 1; i <= nSpeakers; i++) {
-        mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - avgIRShift);
+        mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - IRStartDelay);
       }
       console.infoUpdate("Completed averaging, volume & time alignment!");
       // no need to go further without subwoofer
       if (noSub) { return; }
-      // remove audyssey IR start delay from subwoofers and normalize standard bass subwoofer IRs to t=0
-      const IRShift4MultiSubDelay = (subLoDelay + subHiDelay) / 2;
+      // remove audyssey IR start delay from subwoofers
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        await postNext('Offset t=0', i, {offset: avgIRShift + IRShift4MultiSubDelay, unit: "seconds"});
-        mSec[i] -= IRShift4MultiSubDelay;
+        await postNext('Offset t=0', i, {offset: IRStartDelay, unit: "seconds"});
       }
       if (bassMode === "Directional") {
         console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
         await directional2standard();
         console.warn("Conversion from 'directional bass' mode to 'standard bass' mode completed.")
+      }
+      else {
+        // normalize standard bass subwoofer median IR to t=0
+        const IROffset = (subLoDelay + subHiDelay) / 2;
+        await postNext('Offset t=0', nChannels, {offset: IROffset, unit: "seconds"});
+        mSec[nChannels] -= IROffset;
       }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
@@ -9499,7 +9503,7 @@ zip.file("_micCal.txt", micCal);
         await postDelete(i);
       }
       await fetch_mREW(nChannels, 'PUT', { title: "SW1o" });
-      // normalize median to t=0
+      // normalize directional bass subwoofer median IR to t=0
       const IROffset = (minDelay + maxDelay) / 2;
       await postNext('Offset t=0', nChannels, {offset: IROffset, unit: "seconds"});
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
