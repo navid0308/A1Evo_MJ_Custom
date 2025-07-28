@@ -297,10 +297,12 @@
 
     const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
-    let mSec = [], customLevel = {}, customDistance = {}, customCrossover = {}, commandId = [];
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
-    let minXO = 40, maxXO = 250, freqIndex = [], invertSub = [], previousDelay = null, swChannelCount = 0;
+    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0;
+    const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
+    const customLevel = {}, customDistance = {}, customCrossover = {};
+    const mSec = [], invertSub = [], commandId = [];
 
     function extractAdy(event) {
       console.info("Initializing A1 Evo MJ Custom...");
@@ -317,7 +319,6 @@
         Object.freeze(sOs);
         isCirrusLogic = micCalProb.includes(model) ? true : false;
         Object.freeze(isCirrusLogic);
-        freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
         if (!noxo180.includes(model)) {
           freqIndex.push(180);
         }
@@ -8694,7 +8695,6 @@ zip.file("_micCal.txt", micCal);
       await bootUp();
       await groundWorks();
       await generateFilters();
-      await audyALCompensation();
       finalizeTrims();
       await calculateRolloffs();
       await calculateSubBandwidth();
@@ -9060,9 +9060,14 @@ zip.file("_micCal.txt", micCal);
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
+    async function getALOffset(idx, isSub) {
+      const fltResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
+      const offset = -1 * fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
+      return offset;
+    }
     async function generateFilters() {
       console.log(`Generating EQ filters based on Min. Phase responses...`);
-      console.info("Starting...");
       for (let i = 1; i <= nChannels; i++) {
         await postNext('Minimum phase version', i, {
           "include cal": false,
@@ -9073,7 +9078,7 @@ zip.file("_micCal.txt", micCal);
         });
       }
       for (let i = nChannels + 1; i <= nChannels * 2; i++) {
-        console.infoUpdate(`Equalizing channel - ${commandId[i - nChannels]}`);
+        console.info(`${commandId[i - nChannels].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i - nChannels].startsWith("SW");
         await fetchSafe('target-level', i, 75.0);
         await postNext('Smooth', i, { smoothing: "Var" });
@@ -9088,41 +9093,27 @@ zip.file("_micCal.txt", micCal);
           await postNext('Match target', i);
         }
         catch (error) {
-          console.warn(`${commandId[i - nChannels]} could not be equalized!`);
+          // not really an issue if it fails
+          console.debug(`${commandId[i - nChannels]} could not be equalized!`);
         }
         await new Promise(resolve => setTimeout(resolve, speedDelay));
+        // generate filters
         const filter = await postNext('Generate filters measurement', i);
         const filterIdx = Object.keys(filter.results)[0];
         const filterName = `${commandId[i - nChannels]}-filters`;
         await fetch_mREW(filterIdx, 'PUT', { title: filterName });
+        // generate predicted response; do not use "Generate predicted measurement", it's minimum phase
         const eqResponse = await postNext('Arithmetic', [i - nChannels, filterIdx], { function: "A * B" });
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
         const eqResponseName = `${commandId[i - nChannels]}-equalized`;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
+        // auto-level offset
+        const offset = await getALOffset(filterIdx, isSub);
+        await postNext('Add SPL offset', filterIdx, { offset: offset });
+        console.infoUpdate(`${commandId[i - nChannels].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`);
       }
       for (let i = nChannels * 2; i > nChannels; i--) {
         await postDelete(i);
-      }
-      console.infoUpdate("Completed equalizing all channels!");
-    }
-    async function audyALCompensation() {
-      console.log(`Adjusting filter SPLs to prevent Audyssey auto-leveling...`);
-      let spSum = 0.0;
-      for (let i = 1; i <= nSpeakers; i++) {
-        const filterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nChannels - 1));
-        const filterArray = await response2array(filterResponse, 500, 2000);
-        spSum = -1 * filterArray.reduce((acc, val) => acc + val, 0) / filterArray.length;
-        await postNext('Add SPL offset', 2 * i + (nChannels - 1), { offset: spSum });
-        if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")}-filters - offset applied: ${spSum.toFixed(2)}dB`); }
-      }
-      if (noSub) { return; } // no need to go further without subwoofer
-      spSum = 0.0;
-      const subFilterResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nChannels * 3 - 1);
-      const subFilterArray = await response2array(subFilterResponse, 30, 80);
-      spSum = -1 * subFilterArray.reduce((acc, val) => acc + val, 0) / subFilterArray.length;
-      await postNext('Add SPL offset', nChannels * 3 - 1, { offset: spSum });
-      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        if (spSum != 0) { console.info(`${commandId[i].padStart(3, ".")}-filters - offset applied: ${spSum.toFixed(2)}dB`); }
       }
     }
     function finalizeTrims() {
