@@ -9061,7 +9061,7 @@ zip.file("_micCal.txt", micCal);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function getALOffset(idx, isSub) {
-      const fltResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const fltResponse = await fetchSafe('frequency-response?smoothing=ERB&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
       const offset = -1 * fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
       return offset;
