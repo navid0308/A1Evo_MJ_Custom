@@ -295,7 +295,7 @@
     const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
-    const baseUrl = 'http://localhost:4735/measurements', speedDelay = 100, rewDelay = 10;
+    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 1;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
@@ -27746,7 +27746,9 @@ zip.file("_micCal.txt", micCal);
       });
     }
     async function fetch_mREW(indice = null, method = 'GET', _body = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) {
+        await new Promise(resolve => setTimeout(resolve, rewDelay));
+      }
       let body;
       let requestUrl;
       if (indice === null) { requestUrl = baseUrl; } else { requestUrl = baseUrl + `/${indice}` };
@@ -27759,7 +27761,7 @@ zip.file("_micCal.txt", micCal);
             body: JSON.stringify(body)
           });
           if (!response.ok) {
-            await new Promise(resolve => setTimeout(resolve, speedDelay));
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
           } else {
             const data = await response.json();
             return data;
@@ -27770,7 +27772,9 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postNext(processName, indices, parameters = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) {
+        await new Promise(resolve => setTimeout(resolve, rewDelay));
+      }
       let requestUrl;
       let body;
       if (Array.isArray(indices)) {
@@ -27811,7 +27815,7 @@ zip.file("_micCal.txt", micCal);
           const resultData = await resultResponse.json();
           return resultData;
         } else if (data.message.includes('in progress') || data.message.includes('running')) {
-          await new Promise((resolve) => setTimeout(resolve, speedDelay));
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
           return checkResponse(await fetchData());
         } else {
           return data;
@@ -27826,7 +27830,9 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postSafe(requestUrl, parameters, message) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) {
+        await new Promise(resolve => setTimeout(resolve, rewDelay));
+      }
       const fetchData = async () => {
         const response = await fetch(requestUrl, {
           method: 'POST',
@@ -27843,7 +27849,7 @@ zip.file("_micCal.txt", micCal);
         if (data.message.includes(message)) {
           return data;
         } else if (data.message.includes('in progress') || data.message.includes('running')) {
-          await new Promise((resolve) => setTimeout(resolve, speedDelay));
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
           return checkResponse(await fetchData());
         } else {
           throw new Error(`Unexpected response: ${data.message}`);
@@ -27858,7 +27864,9 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postDelete(indice) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) {
+        await new Promise(resolve => setTimeout(resolve, rewDelay));
+      }
       const mDeleted = `Measurement ${indice} deleted`
       while (true) {
         try {
@@ -27873,7 +27881,7 @@ zip.file("_micCal.txt", micCal);
           if (data.message === mDeleted) {
             return indice;
           } else {
-            await new Promise(resolve => setTimeout(resolve, speedDelay));
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
           }
         } catch (error) {
           throw new Error('Error fetching result:', error);
@@ -27881,7 +27889,9 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function fetchSafe(extUrl, indice, parameters = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) {
+        await new Promise(resolve => setTimeout(resolve, rewDelay));
+      }
       const requestUrl = `${baseUrl}/${indice}/${extUrl}`;
       let options;
       if (parameters === null) {
@@ -27901,7 +27911,7 @@ zip.file("_micCal.txt", micCal);
         try {
           const response = await fetch(requestUrl, options);
           if (!response.ok) {
-            await new Promise(resolve => setTimeout(resolve, speedDelay));
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
           } else {
             const data = await response.json();
             return data;
@@ -27912,7 +27922,9 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postAlign(processName, frequency = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) {
+        await new Promise(resolve => setTimeout(resolve, rewDelay));
+      }
       const requestUrl = `http://localhost:4735/alignment-tool/command`;
       const body = { command: processName };
       if (frequency != null) {
@@ -27978,7 +27990,9 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function fetchAlign(extUrl) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) {
+        await new Promise(resolve => setTimeout(resolve, rewDelay));
+      }
       try {
         const requestUrl = `http://localhost:4735/alignment-tool/${extUrl}`;
         const response = await fetch(requestUrl, {
