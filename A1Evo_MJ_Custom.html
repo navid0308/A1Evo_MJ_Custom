@@ -295,7 +295,7 @@
     const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
-    const baseUrl = 'http://localhost:4735/measurements', speedDelay = 127;
+    const baseUrl = 'http://localhost:4735/measurements', speedDelay = 100, rewDelay = 10;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
@@ -8985,14 +8985,13 @@ zip.file("_micCal.txt", micCal);
         const indices = Array.from({length: micPositions }, (_, j) => i + j);
         if (micPositions > 1) {
           await postNext('Cross corr align', indices);
-          await new Promise(resolve => setTimeout(resolve, speedDelay));
         }
         mSec[count] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
         title[count] = measurements[i].title.slice(0, -1) + "o";
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using MLP
         if (title[count].startsWith("SW")) {
-          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getFinalSubTrim(i);
+          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getTrimOfFinalSub(i);
         }
         else {
           customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
@@ -9004,7 +9003,6 @@ zip.file("_micCal.txt", micCal);
         }
         else {
           await postNext('Magn plus phase average', indices); // do not use VA, it reduces SPL!
-          await new Promise(resolve => setTimeout(resolve, speedDelay));
         }
         // the "o" measurement
         const idx = mCount + count;
@@ -9026,7 +9024,6 @@ zip.file("_micCal.txt", micCal);
       // align speakers but leave subwoofers alone. ANY align command messes up subwoofer IR alignment
       const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
       await postNext('Time align', spIndices);
-      await new Promise(resolve => setTimeout(resolve, speedDelay));
       measurements = await fetch_mREW();
       // calculate audyssey IR start delay
       let totalIRShift = 0;
@@ -9061,7 +9058,7 @@ zip.file("_micCal.txt", micCal);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function getALOffset(idx, isSub) {
-      const fltResponse = await fetchSafe('frequency-response?smoothing=ERB&ppo=96', idx);
+      const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
       const offset = -1 * fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
       return offset;
@@ -9096,7 +9093,6 @@ zip.file("_micCal.txt", micCal);
           // not really an issue if it fails
           console.debug(`${commandId[i - nChannels]} could not be equalized!`);
         }
-        await new Promise(resolve => setTimeout(resolve, speedDelay));
         // generate filters
         const filter = await postNext('Generate filters measurement', i);
         const filterIdx = Object.keys(filter.results)[0];
@@ -9277,13 +9273,12 @@ zip.file("_micCal.txt", micCal);
       Object.freeze(avgInitialXO);
       console.log(`Calculating optimal subwoofer delay for ALL speakers using ${avgInitialXO.toFixed(2)}hz as average XO...`); 
       const avgSpeaker = await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
-      await new Promise(resolve => setTimeout(resolve, speedDelay));
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
       const subwooferWithLPF = await genSub(mCount, avgInitialXO);
       const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
-      let [isPossible, requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
+      let [isPossible, requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx, avgInitialXO);
       // cleanup
       await postDelete(subwooferWithLPFIdx);
       await postDelete(avgSpeakerWithHPFIdx);
@@ -9476,9 +9471,13 @@ zip.file("_micCal.txt", micCal);
       let currSubIdx = nSpeakers + 1;
       let cmdIds = commandId[currSubIdx];
       let minDelay = 0, maxDelay = 0;
+      let startFreq = Math.round(await getLow3dBPoint(currSubIdx));
+      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx));
       for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
         console.log(`Aligning ${commandId[i]} to ${cmdIds}...`);
-        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i);
+        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i)));
+        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i)));
+        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i, startFreq, endFreq);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
           throw new Error;
@@ -9501,7 +9500,7 @@ zip.file("_micCal.txt", micCal);
         mSec[i] -= IROffset;
       }
       // offset volume from combining subwoofers
-      const volAdjust = parseFloat(await getFinalSubTrim(nChannels));
+      const volAdjust = parseFloat(await getTrimOfFinalSub(nChannels));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
@@ -9555,14 +9554,13 @@ zip.file("_micCal.txt", micCal);
       const offset = targetSPL - freqSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
-    async function getFinalSubTrim(idx) {
+    async function getTrimOfFinalSub(idx) {
       // find response bandwidth and use it for determining trim
-      // limit to 20-120hz so peaks past 120hz doesn't lower bass
+      // limit to 20-120hz so peaks outside 20-120hz doesn't lower bass
+      // use less smoothing so it does a dynamic bass fill
       const initialTrim = await getTrim(idx, 30, 80);
-      const subLowFreq = await getLow3dBPoint(idx, 20, 120, initialTrim);
-      const subHighFreq = await getHigh3dBPoint(idx, 20, 120, initialTrim);
-      const startFreq = Math.round(subLowFreq);
-      const endFreq = Math.round(subHighFreq);
+      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120, initialTrim));
+      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120, initialTrim));
       const finalTrim = await getTrim(idx, startFreq, endFreq, "Var");
       return finalTrim;
     }
@@ -9577,7 +9575,8 @@ zip.file("_micCal.txt", micCal);
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
     }
-    async function align4system(ind1, ind2, start=20, end=250) {
+    async function align4system(ind1, ind2, xo) {
+      const start = Math.round(xo / 2), end = Math.round(xo * 2);
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity;
@@ -9622,7 +9621,7 @@ zip.file("_micCal.txt", micCal);
       }
       return [isPossible, requiredDelay, isInverted];
     }
-    async function alignMsub(ind1, ind2, start=20, end=120) {
+    async function alignMsub(ind1, ind2, start, end) {
       const [loDelay, hiDelay] = getDelayRangeOf(mSec[ind2], nSpeakers + 1, nSpeakers + nSubs);
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity, sumIndex = null;
@@ -27747,6 +27746,7 @@ zip.file("_micCal.txt", micCal);
       });
     }
     async function fetch_mREW(indice = null, method = 'GET', _body = null) {
+      await new Promise(resolve => setTimeout(resolve, rewDelay));
       let body;
       let requestUrl;
       if (indice === null) { requestUrl = baseUrl; } else { requestUrl = baseUrl + `/${indice}` };
@@ -27770,6 +27770,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postNext(processName, indices, parameters = null) {
+      await new Promise(resolve => setTimeout(resolve, rewDelay));
       let requestUrl;
       let body;
       if (Array.isArray(indices)) {
@@ -27825,6 +27826,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postSafe(requestUrl, parameters, message) {
+      await new Promise(resolve => setTimeout(resolve, rewDelay));
       const fetchData = async () => {
         const response = await fetch(requestUrl, {
           method: 'POST',
@@ -27856,6 +27858,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postDelete(indice) {
+      await new Promise(resolve => setTimeout(resolve, rewDelay));
       const mDeleted = `Measurement ${indice} deleted`
       while (true) {
         try {
@@ -27878,6 +27881,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function fetchSafe(extUrl, indice, parameters = null) {
+      await new Promise(resolve => setTimeout(resolve, rewDelay));
       const requestUrl = `${baseUrl}/${indice}/${extUrl}`;
       let options;
       if (parameters === null) {
@@ -27908,6 +27912,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postAlign(processName, frequency = null) {
+      await new Promise(resolve => setTimeout(resolve, rewDelay));
       const requestUrl = `http://localhost:4735/alignment-tool/command`;
       const body = { command: processName };
       if (frequency != null) {
@@ -27973,6 +27978,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function fetchAlign(extUrl) {
+      await new Promise(resolve => setTimeout(resolve, rewDelay));
       try {
         const requestUrl = `http://localhost:4735/alignment-tool/${extUrl}`;
         const response = await fetch(requestUrl, {
