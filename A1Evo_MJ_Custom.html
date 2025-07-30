@@ -9568,9 +9568,6 @@ zip.file("_micCal.txt", micCal);
         totalDips += Math.min((subArray[i] + baseTrim) - targetArray[i], 0);
       }
       const dynamicBassFill = Math.round(-2 * (totalDips / arrayLength)) / 2; // round to nearest 0.5
-      if (dynamicBassFill != 0) {
-        console.warn(`***Applying ${dynamicBassFill}dB of bass fill to compensate for dips!***`);
-      }
       const finalTrim = baseTrim + dynamicBassFill;
       return finalTrim;
     }
