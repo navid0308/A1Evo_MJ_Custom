@@ -303,6 +303,7 @@
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = {}, customDistance = {}, customCrossover = {};
     const mSec = [], invertSub = [], commandId = [];
+    const m3dBPoints = {};
 
     function extractAdy(event) {
       console.info("Initializing A1 Evo MJ Custom...");
@@ -8694,10 +8695,10 @@ zip.file("_micCal.txt", micCal);
       await enableBlock();
       await bootUp();
       await groundWorks();
-      await generateFilters();
-      finalizeTrims();
       await calculateRolloffs();
       await calculateSubBandwidth();
+      await generateFilters();
+      finalizeTrims();
       await optimizeSubDelay();
       finalizeDistances();
       await finalizeXO();
@@ -9064,52 +9065,48 @@ zip.file("_micCal.txt", micCal);
       return offset;
     }
     async function generateFilters() {
-      console.log(`Generating EQ filters based on Min. Phase responses...`);
+      console.log(`Generating min. phase EQ filters...`);
       for (let i = 1; i <= nChannels; i++) {
-        await postNext('Minimum phase version', i, {
-          "include cal": false,
-          "append lf tail": false,
-          "append hf tail": false,
-          "frequency warping": false,
-          "replicate data": true
-        });
-      }
-      for (let i = nChannels + 1; i <= nChannels * 2; i++) {
-        console.info(`${commandId[i - nChannels].padStart(3, ".")} - equalizing channel...`);
-        const isSub = commandId[i - nChannels].startsWith("SW");
+        console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
+        const isSub = commandId[i].startsWith("SW");
         await fetchSafe('target-level', i, 75.0);
         await postNext('Smooth', i, { smoothing: "Var" });
+        // tinker as needed
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
-          startFrequency: 10, endFrequency: 10000,
-          individualMaxBoostdB: 3, overallMaxBoostdB: movieMode ? 1 : 0,
-          flatnessTargetdB: 1, allowNarrowFiltersBelow200Hz: true, varyQAbove200Hz: false,
-          allowLowShelf: false, allowHighShelf: movieMode && !isSub,
-          highShelfMin: -3, highShelfMax: 3
+          startFrequency: m3dBPoints[i][0],
+          endFrequency: m3dBPoints[i][1],
+          individualMaxBoostdB: 3,
+          overallMaxBoostdB: movieMode ? 1 : 0,
+          flatnessTargetdB: 1,
+          allowNarrowFiltersBelow200Hz: true,
+          varyQAbove200Hz: false,
+          allowLowShelf: false,
+          lowShelfMin: -3,
+          lowShelfMax: 3,
+          allowHighShelf: movieMode && !isSub,
+          highShelfMin: -3,
+          highShelfMax: 3
         }, "Update processed");
         try {
           await postNext('Match target', i);
         }
         catch (error) {
           // not really an issue if it fails
-          console.debug(`${commandId[i - nChannels]} could not be equalized!`);
+          console.debug(`${commandId[i]} could not be equalized!`);
         }
         // generate filters
         const filter = await postNext('Generate filters measurement', i);
         const filterIdx = Object.keys(filter.results)[0];
-        const filterName = `${commandId[i - nChannels]}-filters`;
+        const filterName = `${commandId[i]}-filters`;
         await fetch_mREW(filterIdx, 'PUT', { title: filterName });
-        // generate predicted response; do not use "Generate predicted measurement", it's minimum phase
-        const eqResponse = await postNext('Arithmetic', [i - nChannels, filterIdx], { function: "A * B" });
+        const eqResponse = await postNext('Generate predicted measurement', i);
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
-        const eqResponseName = `${commandId[i - nChannels]}-equalized`;
+        const eqResponseName = `${commandId[i]}-equalized`;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
         // auto-level offset
         const offset = await getALOffset(filterIdx, isSub);
         await postNext('Add SPL offset', filterIdx, { offset: offset });
-        console.infoUpdate(`${commandId[i - nChannels].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`);
-      }
-      for (let i = nChannels * 2; i > nChannels; i--) {
-        await postDelete(i);
+        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`);
       }
     }
     function finalizeTrims() {
@@ -9188,34 +9185,31 @@ zip.file("_micCal.txt", micCal);
     async function calculateRolloffs() {
       console.log("Calculating speaker -3dB points from target curve...");
       const measurements = await fetch_mREW();
-      let count = 1;
-      for (let i = nChannels + 2; i <= nChannels * 3; i += 2) {
+      for (let i = 1; i <= nSpeakers; i++) {
         const title = measurements[i].title;
-        if (!title.endsWith("-equalized")) { continue; }
-        if (commandId[count].startsWith("SW")) { continue; }
         // check if single channel or speaker pair
-        const singleChannel = isSingleChannel(commandId[count]);
-        const cmdIds = (singleChannel ? commandId[count] : `${commandId[count]} & ${commandId[1 + count]}`).padStart(9, ".");
+        const singleChannel = isSingleChannel(commandId[i]);
+        const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         // rolloff determination logic
         let idx = i;
         if (!singleChannel) {
-          const pairAvg = await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
+          const pairAvg = await postNext('Magn plus phase average', [i, i + 1]); // do not use VA. it unfairly benefits single channel speakers
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPoint(idx);
+        m3dBPoints[i] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           initialXO = "L";
         }
-        customCrossover[count] = initialXO;
+        customCrossover[i] = initialXO;
         if (!singleChannel) {
-          customCrossover[1 + count] = initialXO;
-          i += 2;
-          count++;
+          m3dBPoints[i + 1] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k
+          customCrossover[i + 1] = initialXO;
+          i++;
           await postDelete(idx); // cleanup
         }
-        count++;
         const logMessage = initialXO === "L" ? "Large/Full Range" : `Initial XO: ${initialXO}hz`;
         console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → ${logMessage}`);
       }
@@ -9223,18 +9217,17 @@ zip.file("_micCal.txt", micCal);
     async function calculateSubBandwidth() {
       if (noSub) { return; } // no need to go further without subwoofer
       console.log("Calculating subwoofer -3dB points from target curve...")
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
       // find low freq -3dB point & set minXO
-      const subLowFreq = await getLow3dBPoint(mCount);
+      const subLowFreq = await getLow3dBPoint(nChannels);
       minXO = findNearestXO(2 * subLowFreq);
       // find high freq -3dB point and set maxXO
-      const subHighFreq = await getHigh3dBPoint(mCount);
+      const subHighFreq = await getHigh3dBPoint(nChannels);
       maxXO = findNearestXO(subHighFreq);
       if (minXO >= maxXO) {
         minXO = maxXO;
         console.warn(`Subwoofer has very little bandwidth and can only support ${minXO}hz crossover!`);
       }
+      m3dBPoints[nChannels] = [Math.round(subLowFreq), Math.round(subHighFreq)];
       Object.freeze(minXO);
       Object.freeze(maxXO);
       console.info(`${commandId[nChannels].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
@@ -9556,6 +9549,7 @@ zip.file("_micCal.txt", micCal);
     }
     async function getTrimOfFinalSub(idx) {
       // determine the average dips below target between -3dB points and add bass fill to compensate
+      // limit to 20-120hz to prevent bass fills due to dips outside typical subwoofer range
       const baseTrim = await getTrim(idx, 30, 80);
       const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120, baseTrim));
       const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120, baseTrim));
