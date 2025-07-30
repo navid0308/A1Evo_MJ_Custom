@@ -9559,7 +9559,7 @@ zip.file("_micCal.txt", micCal);
       const baseTrim = await getTrim(idx, 30, 80);
       const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120, baseTrim));
       const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120, baseTrim));
-      const subFreqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const subArray = response2array(subFreqResponse, startFreq, endFreq);
       const targetArray = response2array(targetResponse, startFreq, endFreq);
       const arrayLength = Math.min(subArray.length, targetArray.length);
