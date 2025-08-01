@@ -9505,10 +9505,13 @@ zip.file("_micCal.txt", micCal);
       const volAdjust = parseFloat(await getTrim(nChannels, 30, 80));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
-      console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
-      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        customLevel[i] += volAdjust;
-        console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
+      // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
+      if (sOs === 300) {
+        console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
+        for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+          customLevel[i] += volAdjust;
+          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
+        }
       }
     }
     function response2array(response, start, end, phase=false) {
