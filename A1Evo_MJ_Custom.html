@@ -295,7 +295,7 @@
     const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
-    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
+    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 10;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
@@ -9080,16 +9080,23 @@ zip.file("_micCal.txt", micCal);
         const isSub = commandId[i].startsWith("SW");
         await fetchSafe('target-level', i, 75.0);
         await postNext('Smooth', i, { smoothing: "Var" });
+        await postSafe(`${baseUrl}/${i}/target-settings`, {
+          shape: isSub ? "Subwoofer" : "Full range",
+          lowFreqCutoffHz: (isSub && m3dBPoints[i][0] === 10) ? 0 : m3dBPoints[i][0],
+          lowFreqSlopedBPerOctave: 48, // steep slope to EQ without effect and keep REW happy
+          bassManagementCutoffHz: (isSub && m3dBPoints[i][1] === 320) ? 20000 : m3dBPoints[i][1],
+          bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
+        }, "Update processed");
         // tinker as needed
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: m3dBPoints[i][0],
           endFrequency: m3dBPoints[i][1],
-          individualMaxBoostdB: 3,
-          overallMaxBoostdB: movieMode ? 1 : 0,
+          individualMaxBoostdB: movieMode ? (isSub ? 6 : 3) : 0,
+          overallMaxBoostdB: movieMode ? (isSub ? 3 : 1) : 0,
           flatnessTargetdB: 1,
           allowNarrowFiltersBelow200Hz: true,
           varyQAbove200Hz: false,
-          allowLowShelf: false,
+          allowLowShelf: movieMode && isSub,
           lowShelfMin: -3,
           lowShelfMax: 3,
           allowHighShelf: movieMode && !isSub,
@@ -9116,6 +9123,10 @@ zip.file("_micCal.txt", micCal);
         const offset = await getALOffset(filterIdx, isSub);
         await postNext('Add SPL offset', filterIdx, { offset: offset });
         console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`);
+      }
+      // clean up EQ params
+      for (let i = nChannels + 1; i <= nChannels * 3; i++) {
+        await postSafe(`${baseUrl}/${i}/target-settings`, { shape: "None" }, "Update processed");
       }
     }
     function finalizeTrims() {
@@ -9163,7 +9174,7 @@ zip.file("_micCal.txt", micCal);
       }
       return xo;
     }
-    async function getLow3dBPoint(idx, start=10, end=250) {
+    async function getLow3dBPoint(idx, start=10, end=320) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9177,7 +9188,7 @@ zip.file("_micCal.txt", micCal);
       }
       return Math.min(rolloff, end);
     }
-    async function getHigh3dBPoint(idx, start=10, end=250) {
+    async function getHigh3dBPoint(idx, start=10, end=320) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9451,8 +9462,8 @@ zip.file("_micCal.txt", micCal);
         const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
         await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-120hz-LPF" });
       }
-      await fetchSafe('target-level', 1, 75.0);
-      const targetCurve = await postNext('Generate target measurement', 1);
+      await fetchSafe('target-level', nChannels * 3, 75.0);
+      const targetCurve = await postNext('Generate target measurement', nChannels * 3);
       const targetCurveIdx = Object.keys(targetCurve.results)[0];
       const targetName = (targetCurveName === "" ? "TC-DEQ" : targetCurveName) + " @ 75dB";
       await fetch_mREW(targetCurveIdx, 'PUT', { title: targetName });
@@ -9553,7 +9564,7 @@ zip.file("_micCal.txt", micCal);
     async function getTrim(idx, start, end) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
