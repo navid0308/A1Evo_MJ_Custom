@@ -8784,6 +8784,22 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`${baseUrl}/${i}/room-curve-settings`, { addRoomCurve: false }, "Update processed");
       }
     }
+    function logCustomizations() {
+      console.info(`****************************************************************************************************`);
+      console.info("Optimization parameters:")
+      if (targetCurveName === "") {
+        console.log("  No target curve chosen - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
+      } else {
+        console.log(`  Active target curve: ${targetCurveName}.`);
+      }
+      if (movieMode) {
+        console.log("  Movie mode selected - A1Evo will level and EQ aggressively to prioritize immersion.")
+      } else {
+        console.log("  Default mode selected - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
+      }
+      console.log(`  Subwoofer polarity inversion allowed - ${noInversion ? "No" : "Yes"}.`);
+      console.info(`****************************************************************************************************`);
+    }
     async function bootUp() {
       console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
@@ -8867,13 +8883,11 @@ zip.file("_micCal.txt", micCal);
           targetCurveName = targetCurvePath.replace(/^.*[\\/]/, '').split(".")[0];
           Object.freeze(targetCurveName);
           Object.freeze(targetCurvePath);
-          console.info(`Active target curve: ${targetCurveName}`);
           await disableRoomCurve();
           await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, "House curve set");
         }
         else {
           targetCurveName = "";
-          console.log("No target curve chosen - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ!");
           await enableRoomCurve();
         }
         await fetchSafe('target-level', 1, 75.0);
@@ -8903,6 +8917,7 @@ zip.file("_micCal.txt", micCal);
           throw new Error();
         }
       }
+      logCustomizations();
       return;
     }
     function getDelayHeadroom(startIdx, endIdx) {
@@ -27787,7 +27802,7 @@ zip.file("_micCal.txt", micCal);
       });
     }
     async function fetch_mREW(indice = null, method = 'GET', _body = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       let body;
       let requestUrl;
       if (indice === null) { requestUrl = baseUrl; } else { requestUrl = baseUrl + `/${indice}` };
@@ -27811,7 +27826,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postNext(processName, indices, parameters = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       let requestUrl;
       let body;
       if (Array.isArray(indices)) {
@@ -27867,7 +27882,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postSafe(requestUrl, parameters, message) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const fetchData = async () => {
         const response = await fetch(requestUrl, {
           method: 'POST',
@@ -27899,7 +27914,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postDelete(indice) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const mDeleted = `Measurement ${indice} deleted`
       while (true) {
         try {
@@ -27922,7 +27937,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function fetchSafe(extUrl, indice, parameters = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const requestUrl = `${baseUrl}/${indice}/${extUrl}`;
       let options;
       if (parameters === null) {
@@ -27953,7 +27968,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postAlign(processName, frequency = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const requestUrl = `http://localhost:4735/alignment-tool/command`;
       const body = { command: processName };
       if (frequency != null) {
@@ -28019,7 +28034,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function fetchAlign(extUrl) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       try {
         const requestUrl = `http://localhost:4735/alignment-tool/${extUrl}`;
         const response = await fetch(requestUrl, {
@@ -28075,7 +28090,7 @@ zip.file("_micCal.txt", micCal);
       const originalWarn = console.warn;
       console.warn = function (...args) {
         const warningMessage = args.join(' ');
-        const warningEntry = `<div class="warning">${new Date().toLocaleTimeString()} [WARNING!] ${warningMessage}</div>`;
+        const warningEntry = `<div class="warning">${new Date().toLocaleTimeString()} [**WARNING**] ${warningMessage}</div>`;
         logContainer.insertAdjacentHTML('beforeend', warningEntry);
         scrollToBottom();
         originalWarn.apply(console, args);
@@ -28102,7 +28117,7 @@ zip.file("_micCal.txt", micCal);
       const originalLog = console.log;
       console.log = function (...args) {
         const logMessage = args.join(' ');
-        const logEntry = `<div class="log">${new Date().toLocaleTimeString()} [IMPORTANT!] ${logMessage}</div>`;
+        const logEntry = `<div class="log">${new Date().toLocaleTimeString()} [*IMPORTANT*] ${logMessage}</div>`;
         logContainer.insertAdjacentHTML('beforeend', logEntry);
         scrollToBottom();
         originalLog.apply(console, args);
@@ -28110,7 +28125,7 @@ zip.file("_micCal.txt", micCal);
       const originalError = console.error;
       console.error = function (...args) {
         const errorMessage = args.join(' ');
-        const errorEntry = `<div class="error">${new Date().toLocaleTimeString()} [ERROR!] ${errorMessage}</div>`;
+        const errorEntry = `<div class="error">${new Date().toLocaleTimeString()} [***ERROR***] ${errorMessage}</div>`;
         logContainer.insertAdjacentHTML('beforeend', errorEntry);
         scrollToBottom();
         originalError.apply(console, args);
