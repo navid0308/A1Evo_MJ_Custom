@@ -8990,6 +8990,13 @@ zip.file("_micCal.txt", micCal);
         mSec[count] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
         title[count] = measurements[i].title.slice(0, -1) + "o";
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
+        // trim determination using the MLP measurement
+        if (title[count].startsWith("SW")) {
+          customLevel[count] = await getTrim(i, 30, 80);
+        }
+        else {
+          customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
+        }
         // level match all other positions to MLP & average
         await alignVol2MLP(indices, i);
         if (micPositions === 1) {
@@ -9001,13 +9008,6 @@ zip.file("_micCal.txt", micCal);
         // the "o" measurement
         const idx = mCount + count;
         await fetch_mREW(idx, 'PUT', { title: title[count] });
-        // trim determination using the "o" measurement
-        if (title[count].startsWith("SW")) {
-          customLevel[count] = await getTrim(idx, 30, 80);
-        }
-        else {
-          customLevel[count] = movieMode ? await getTrim(idx, 250, 10000) : await getTrim(idx, 250, 4000);
-        }
         // align "o" measurement to target curve
         let volAdjust = parseFloat(customLevel[count]);
         await postNext('Add SPL offset', idx, { offset: volAdjust });
@@ -9564,7 +9564,7 @@ zip.file("_micCal.txt", micCal);
     async function getTrim(idx, start, end) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
