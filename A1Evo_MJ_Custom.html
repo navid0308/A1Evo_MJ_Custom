@@ -301,7 +301,7 @@
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
-    const customLevel = {}, customDistance = {}, customCrossover = {};
+    const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [];
     const m3dBPoints = {};
 
@@ -9129,7 +9129,28 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`${baseUrl}/${i}/target-settings`, { shape: "None" }, "Update processed");
       }
     }
+    function sanityCheckSpeakerTrims() {
+      // if a speaker is too sensitive or not sensitive enough, it may end up outside +/-12dB
+      const minSpeakerTrim = Math.min(...customLevel.slice(1, nSpeakers + 1));
+      const maxSpeakerTrim = Math.max(...customLevel.slice(1, nSpeakers + 1));
+      let offset = 0;
+      if (minSpeakerTrim < -12 && maxSpeakerTrim < 12) {
+        const requiredOffset = -12 - minSpeakerTrim;
+        offset = Math.min(requiredOffset, 12 - maxSpeakerTrim); // limited by maxSpeakerTrim
+      }
+      else if (maxSpeakerTrim > 12 && minSpeakerTrim > -12) {
+        const requiredOffset = 12 - maxSpeakerTrim;
+        offset = Math.max(requiredOffset, -12 - minSpeakerTrim); // limited by minSpeakerTrim
+      }
+      if (offset != 0) {
+        console.warn(`Trims are being shifted by ${offset}dB to best stay within hardware limits!`)
+        for (let i = 1; i <= nSpeakers + nSubs; i++) {
+          customLevel[i] += offset;
+        }
+      }
+    }
     function finalizeTrims() {
+      sanityCheckSpeakerTrims();
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " trims:")
       for (let i = 1; i <= nSpeakers; i++) {
         const customLevelOriginal = customLevel[i];
@@ -9353,7 +9374,7 @@ zip.file("_micCal.txt", micCal);
         distMinSub = Math.min(distLoSub, distHiSub);
       }
       if (distMinSub < 0) {
-        console.warn("Speaker distances will be shifted to accommodate the required subwoofer delay!");
+        console.warn(`Distances are being shifted by ${Math.abs(distMinSub).toFixed(2)}m to accommodate the required subwoofer delay!`);
         console.info("This adjustment will ONLY improve overall sound quality.");
         console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
         for (let i = 1; i <= nSpeakers + nSubs; i++) {
