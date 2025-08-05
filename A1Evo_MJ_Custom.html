@@ -8606,7 +8606,7 @@ zip.file("_micCal.txt", micCal);
             clearInterval(intervalId);
           } else if (mCount != totalMeasurements) {
             console.infoUpdate(`Expecting ${totalMeasurements} measurements`
-              + (isCirrusLogic ? " and Audyssey microphone calibration file" : "") + ` to be loaded into REW...`);
+              + (isCirrusLogic ? " and Audyssey microphone calibration file" : "") + ` to be imported into REW...`);
           }
         }
         const intervalId = setInterval(checkMeasurementCount, 1000);
