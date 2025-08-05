@@ -295,7 +295,7 @@
     const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
-    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 10;
+    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
@@ -8630,9 +8630,9 @@ zip.file("_micCal.txt", micCal);
       if (isNaN(dist) || dist === 0) {
         dist = parseFloat(channels[flIndex].customDistance);
         if (isNaN(dist) || dist === 0 || dist === null) {
-          console.warn(`No distance found for ${channels[flIndex].commandId}! Defaulting to 3m.`)
+          console.warn(`No distance found for ${channels[flIndex].commandId}! Defaulting to 6m.`)
           console.warn(`To fix: Open ady in MultEQ phone app then -\nSpeaker Detection Results > Change any crossover > Save and then retry.`);
-          dist = 3.00;
+          dist = 6.00;
         }
       }
       return dist;
