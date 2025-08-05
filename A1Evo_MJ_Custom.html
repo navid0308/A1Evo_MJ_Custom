@@ -8606,7 +8606,7 @@ zip.file("_micCal.txt", micCal);
             clearInterval(intervalId);
           } else if (mCount != totalMeasurements) {
             console.infoUpdate(`Expecting ${totalMeasurements} measurements`
-              + (isCirrusLogic ? " and audyssey microphone calibration file" : "") + ` to be loaded into REW...`);
+              + (isCirrusLogic ? " and Audyssey microphone calibration file" : "") + ` to be loaded into REW...`);
           }
         }
         const intervalId = setInterval(checkMeasurementCount, 1000);
@@ -8747,7 +8747,7 @@ zip.file("_micCal.txt", micCal);
       console.info("Enjoy your EVO'lved sound!");
     }
     async function addmicCal() {
-      console.info("Applying mic calibration file to measurements...");
+      console.info("Applying Audyssey microphone calibration file to measurements...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       for (let i = 1; i < mCount; i++) {
@@ -8763,6 +8763,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
       }
+      console.infoUpdate("Completed applying Audyssey microphone calibration file to measurements.");
     }
     async function enableRoomCurve() {
       await postSafe(`http://localhost:4735/eq/default-room-curve-settings`, {
