@@ -376,6 +376,7 @@
             totalMeasurements++;
           }));
         });
+        Object.freeze(totalMeasurements);
         if (isCirrusLogic) {
 const micCal = `* Impulse Response data saved by REW
 0 // Peak value before normalisation
@@ -8601,13 +8602,14 @@ zip.file("_micCal.txt", micCal);
           if(isCirrusLogic) (mCount--);
           if (mCount === totalMeasurements) {
             document.getElementById("button2").disabled = false;
-            console.info(`All ${mCount} measurements have now been successfully imported!`);
+            console.infoUpdate(`All ${isCirrusLogic ? mCount + 1 : mCount} measurements have now been successfully imported!`);
             clearInterval(intervalId);
-          } else if (mCount > totalMeasurements) {
-            console.warn(`You have too many measurements in REW! Not ready to start...`);
+          } else if (mCount != totalMeasurements) {
+            console.infoUpdate(`Expecting ${totalMeasurements} measurements`
+              + (isCirrusLogic ? " and audyssey microphone calibration file" : "") + ` to be loaded into REW...`);
           }
         }
-        const intervalId = setInterval(checkMeasurementCount, 2000);
+        const intervalId = setInterval(checkMeasurementCount, 1000);
       }
       reader.readAsText(file);
       document.getElementById('button1').disabled = true;
@@ -8815,13 +8817,18 @@ zip.file("_micCal.txt", micCal);
         await postNext('Smooth', q, { smoothing: "1/48" });
         console.infoUpdate(`${baseMessage} (${q}/${mCount})`);
       }
-      if (isCirrusLogic) {await addmicCal();}
       await console.infoUpdate("Resetting default equalizer to 'Generic/Generic'...");
       await postSafe(`http://localhost:4735/eq/default-equaliser`, { manufacturer: "Generic", model: "Generic" }, "Default equaliser changed");
       const firstTitle = measurements[1].title;
+      let previousTitle = "";
       console.infoUpdate(`Checking measurement names, indices and sorting...`);
       for (let i = 1; i <= mCount; i++) {
         const title = measurements[i].title;
+        if (previousTitle >= title) {
+          console.error("Measurements must be sorted in REW. To fix: All SPL > Sort (A to Z button).");
+          throw new Error;
+        }
+        previousTitle = title;
         const titleKey = title.replace(/\d+/g, '');
         if (!/^\D+(\d+)?$/.test(titleKey)) {
           console.error(`Speaker name ${titleKey} does not end with a numeric index.`);
@@ -8875,6 +8882,7 @@ zip.file("_micCal.txt", micCal);
         console.error('There seems to be a problem with REW installation!');
         throw new Error;
       }
+      if (isCirrusLogic) {await addmicCal();} // only apply if all sanity checks pass
       const tcResponse = await fetch('http://localhost:4735/eq/house-curve');
       if (tcResponse.ok) {
         const target = await tcResponse.json();
