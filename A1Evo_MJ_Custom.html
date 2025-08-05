@@ -9412,7 +9412,7 @@ zip.file("_micCal.txt", micCal);
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " distances:");
       for (let i = 1; i <= nSpeakers + nSubs; i++) {
         customDistance[i] += flDist + (mSec[flIndex] - mSec[i]) * sOs;
-        customDistance[i] = Math.round(parseFloat(customDistance[i]) * 100) / 100;
+        customDistance[i] = Math.max((Math.round(parseFloat(customDistance[i]) * 100) / 100), 0); // sanity check nothing goes into negative
         if (i > nSpeakers) {
           console.warn(`${commandId[i].padStart(3, ".")} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
           swInvMsg += invertSub[i] ? `inv${commandId[i]}_` : "";
