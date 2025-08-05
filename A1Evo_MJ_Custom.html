@@ -8791,14 +8791,14 @@ zip.file("_micCal.txt", micCal);
       console.info(`****************************************************************************************************`);
       console.info("Optimization parameters:")
       if (targetCurveName === "") {
-        console.log("  No target curve chosen - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
+        console.log("  No target curve - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
       } else {
         console.log(`  Active target curve: ${targetCurveName}.`);
       }
       if (movieMode) {
         console.log("  Movie mode selected - A1Evo will level and EQ aggressively to prioritize immersion.")
       } else {
-        console.log("  Default mode selected - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
+        console.log("  No movie mode - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
       }
       console.log(`  Subwoofer polarity inversion allowed - ${noInversion ? "No" : "Yes"}.`);
       console.info(`****************************************************************************************************`);
