@@ -264,7 +264,7 @@
         <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
       <label>
-        <input type="checkbox" id="movieMode" onchange="updateCheckboxStates()" checked>
+        <input type="checkbox" id="movieMode" onchange="updateCheckboxStates()">
         Movie mode
         <span class="explanation">This mode levels and EQs more aggressively to prioritize immersion over the natural sound of your speakers.</span>
       </label>
@@ -8581,7 +8581,7 @@ const micCal = `* Impulse Response data saved by REW
 zip.file("_micCal.txt", micCal);
         }
         console.log(`Please save ${fileName.substring(0, fileName.lastIndexOf('.'))}_extractedMeasurements.zip file when prompted.`);
-        console.info("Save prompt can be cancelled if the original Audyssey measurements are already loaded in REW.");
+        console.info("Checking for measurements...");
         await Promise.all(filePromises.flat());
         try {
           const content = await zip.generateAsync({ type: 'blob' });
@@ -8604,7 +8604,7 @@ zip.file("_micCal.txt", micCal);
             document.getElementById("button2").disabled = false;
             console.infoUpdate(`All ${isCirrusLogic ? mCount + 1 : mCount} measurements have now been successfully imported!`);
             clearInterval(intervalId);
-          } else if (mCount != totalMeasurements) {
+          } else {
             console.infoUpdate(`Expecting ${totalMeasurements} measurements`
               + (isCirrusLogic ? " and Audyssey microphone calibration file" : "") + ` to be imported into REW...`);
           }
