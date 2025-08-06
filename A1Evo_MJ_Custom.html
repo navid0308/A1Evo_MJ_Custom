@@ -8789,18 +8789,18 @@ zip.file("_micCal.txt", micCal);
     }
     function logCustomizations() {
       console.info(`****************************************************************************************************`);
-      console.info("Optimization parameters:")
+      console.log("Optimization parameters:")
       if (targetCurveName === "") {
-        console.log("  No target curve - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
+        console.info("  No target curve - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
       } else {
-        console.log(`  Active target curve: ${targetCurveName}.`);
+        console.info(`  Active target curve: ${targetCurveName}.`);
       }
       if (movieMode) {
-        console.log("  Movie mode - A1Evo will level and EQ aggressively to prioritize immersion.")
+        console.info("  Movie mode - A1Evo will level and EQ aggressively to prioritize immersion.")
       } else {
-        console.log("  Standard mode - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
+        console.info("  Standard mode - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
       }
-      console.log(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
+      console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
       console.info(`****************************************************************************************************`);
     }
     async function bootUp() {
