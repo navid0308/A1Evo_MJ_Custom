@@ -270,7 +270,7 @@
       </label>
     </small>
   </div>
-  <div class="notice">*Evo will perform best with the default options with majority of systems</div>
+  <div class="notice">*A1Evo will perform best with the default options with majority of systems</div>
   <h2 class="log-heading">Progress log:</h2>
   <pre id="logContainer"></pre>
 </div>
@@ -295,13 +295,13 @@
     const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
-    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 10;
+    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
-    const customLevel = {}, customDistance = {}, customCrossover = {};
+    const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [];
     const m3dBPoints = {};
 
@@ -376,6 +376,7 @@
             totalMeasurements++;
           }));
         });
+        Object.freeze(totalMeasurements);
         if (isCirrusLogic) {
 const micCal = `* Impulse Response data saved by REW
 0 // Peak value before normalisation
@@ -8580,7 +8581,7 @@ const micCal = `* Impulse Response data saved by REW
 zip.file("_micCal.txt", micCal);
         }
         console.log(`Please save ${fileName.substring(0, fileName.lastIndexOf('.'))}_extractedMeasurements.zip file when prompted.`);
-        console.info("Save prompt can be cancelled if the original Audyssey measurements are already loaded in REW.");
+        console.info("Checking for measurements...");
         await Promise.all(filePromises.flat());
         try {
           const content = await zip.generateAsync({ type: 'blob' });
@@ -8601,13 +8602,14 @@ zip.file("_micCal.txt", micCal);
           if(isCirrusLogic) (mCount--);
           if (mCount === totalMeasurements) {
             document.getElementById("button2").disabled = false;
-            console.info(`All ${mCount} measurements have now been successfully imported!`);
+            console.infoUpdate(`All ${isCirrusLogic ? mCount + 1 : mCount} measurements have now been successfully imported!`);
             clearInterval(intervalId);
-          } else if (mCount > totalMeasurements) {
-            console.warn(`You have too many measurements in REW! Not ready to start...`);
+          } else {
+            console.infoUpdate(`Expecting ${totalMeasurements} measurements`
+              + (isCirrusLogic ? " and Audyssey microphone calibration file" : "") + ` to be imported into REW...`);
           }
         }
-        const intervalId = setInterval(checkMeasurementCount, 2000);
+        const intervalId = setInterval(checkMeasurementCount, 1000);
       }
       reader.readAsText(file);
       document.getElementById('button1').disabled = true;
@@ -8630,9 +8632,9 @@ zip.file("_micCal.txt", micCal);
       if (isNaN(dist) || dist === 0) {
         dist = parseFloat(channels[flIndex].customDistance);
         if (isNaN(dist) || dist === 0 || dist === null) {
-          console.warn(`No distance found for ${channels[flIndex].commandId}! Defaulting to 3m.`)
+          console.warn(`No distance found for ${channels[flIndex].commandId}! Defaulting to 6m.`)
           console.warn(`To fix: Open ady in MultEQ phone app then -\nSpeaker Detection Results > Change any crossover > Save and then retry.`);
-          dist = 3.00;
+          dist = 6.00;
         }
       }
       return dist;
@@ -8745,7 +8747,7 @@ zip.file("_micCal.txt", micCal);
       console.info("Enjoy your EVO'lved sound!");
     }
     async function addmicCal() {
-      console.info("Applying mic calibration file to measurements...");
+      console.info("Applying Audyssey microphone calibration file to measurements...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       for (let i = 1; i < mCount; i++) {
@@ -8761,6 +8763,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
       }
+      console.infoUpdate("Completed applying Audyssey microphone calibration file to measurements.");
     }
     async function enableRoomCurve() {
       await postSafe(`http://localhost:4735/eq/default-room-curve-settings`, {
@@ -8784,6 +8787,22 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`${baseUrl}/${i}/room-curve-settings`, { addRoomCurve: false }, "Update processed");
       }
     }
+    function logCustomizations() {
+      console.info(`****************************************************************************************************`);
+      console.log("Optimization parameters:")
+      if (targetCurveName === "") {
+        console.info("  No target curve - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
+      } else {
+        console.info(`  Active target curve: ${targetCurveName}.`);
+      }
+      if (movieMode) {
+        console.info("  Movie mode - A1Evo will level and EQ aggressively to prioritize immersion.")
+      } else {
+        console.info("  Standard mode - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
+      }
+      console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
+      console.info(`****************************************************************************************************`);
+    }
     async function bootUp() {
       console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
@@ -8799,13 +8818,18 @@ zip.file("_micCal.txt", micCal);
         await postNext('Smooth', q, { smoothing: "1/48" });
         console.infoUpdate(`${baseMessage} (${q}/${mCount})`);
       }
-      if (isCirrusLogic) {await addmicCal();}
       await console.infoUpdate("Resetting default equalizer to 'Generic/Generic'...");
       await postSafe(`http://localhost:4735/eq/default-equaliser`, { manufacturer: "Generic", model: "Generic" }, "Default equaliser changed");
       const firstTitle = measurements[1].title;
+      let previousTitle = "";
       console.infoUpdate(`Checking measurement names, indices and sorting...`);
       for (let i = 1; i <= mCount; i++) {
         const title = measurements[i].title;
+        if (previousTitle >= title) {
+          console.error("Measurements must be sorted in REW. To fix: All SPL > Sort (A to Z button).");
+          throw new Error;
+        }
+        previousTitle = title;
         const titleKey = title.replace(/\d+/g, '');
         if (!/^\D+(\d+)?$/.test(titleKey)) {
           console.error(`Speaker name ${titleKey} does not end with a numeric index.`);
@@ -8859,6 +8883,7 @@ zip.file("_micCal.txt", micCal);
         console.error('There seems to be a problem with REW installation!');
         throw new Error;
       }
+      if (isCirrusLogic) {await addmicCal();} // only apply if all sanity checks pass
       const tcResponse = await fetch('http://localhost:4735/eq/house-curve');
       if (tcResponse.ok) {
         const target = await tcResponse.json();
@@ -8867,13 +8892,11 @@ zip.file("_micCal.txt", micCal);
           targetCurveName = targetCurvePath.replace(/^.*[\\/]/, '').split(".")[0];
           Object.freeze(targetCurveName);
           Object.freeze(targetCurvePath);
-          console.info(`Active target curve: ${targetCurveName}`);
           await disableRoomCurve();
           await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, "House curve set");
         }
         else {
           targetCurveName = "";
-          console.log("No target curve chosen - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ!");
           await enableRoomCurve();
         }
         await fetchSafe('target-level', 1, 75.0);
@@ -8903,6 +8926,7 @@ zip.file("_micCal.txt", micCal);
           throw new Error();
         }
       }
+      logCustomizations();
       return;
     }
     function getDelayHeadroom(startIdx, endIdx) {
@@ -9129,7 +9153,28 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`${baseUrl}/${i}/target-settings`, { shape: "None" }, "Update processed");
       }
     }
+    function sanityCheckSpeakerTrims() {
+      // if a speaker is too sensitive or not sensitive enough, it may end up outside +/-12dB
+      const minSpeakerTrim = Math.min(...customLevel.slice(1, nSpeakers + 1));
+      const maxSpeakerTrim = Math.max(...customLevel.slice(1, nSpeakers + 1));
+      let offset = 0;
+      if (minSpeakerTrim < -12 && maxSpeakerTrim < 12) {
+        const requiredOffset = -12 - minSpeakerTrim;
+        offset = Math.min(requiredOffset, 12 - maxSpeakerTrim); // limited by maxSpeakerTrim
+      }
+      else if (maxSpeakerTrim > 12 && minSpeakerTrim > -12) {
+        const requiredOffset = 12 - maxSpeakerTrim;
+        offset = Math.max(requiredOffset, -12 - minSpeakerTrim); // limited by minSpeakerTrim
+      }
+      if (offset != 0) {
+        console.warn(`Trims are being shifted by ${offset}dB to best stay within hardware limits!`)
+        for (let i = 1; i <= nSpeakers + nSubs; i++) {
+          customLevel[i] += offset;
+        }
+      }
+    }
     function finalizeTrims() {
+      sanityCheckSpeakerTrims();
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " trims:")
       for (let i = 1; i <= nSpeakers; i++) {
         const customLevelOriginal = customLevel[i];
@@ -9353,7 +9398,7 @@ zip.file("_micCal.txt", micCal);
         distMinSub = Math.min(distLoSub, distHiSub);
       }
       if (distMinSub < 0) {
-        console.warn("Speaker distances will be shifted to accommodate the required subwoofer delay!");
+        console.warn(`Distances are being shifted by ${Math.abs(distMinSub).toFixed(2)}m to accommodate the required subwoofer delay!`);
         console.info("This adjustment will ONLY improve overall sound quality.");
         console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
         for (let i = 1; i <= nSpeakers + nSubs; i++) {
@@ -27766,7 +27811,7 @@ zip.file("_micCal.txt", micCal);
       });
     }
     async function fetch_mREW(indice = null, method = 'GET', _body = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       let body;
       let requestUrl;
       if (indice === null) { requestUrl = baseUrl; } else { requestUrl = baseUrl + `/${indice}` };
@@ -27790,7 +27835,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postNext(processName, indices, parameters = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       let requestUrl;
       let body;
       if (Array.isArray(indices)) {
@@ -27846,7 +27891,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postSafe(requestUrl, parameters, message) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const fetchData = async () => {
         const response = await fetch(requestUrl, {
           method: 'POST',
@@ -27878,7 +27923,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postDelete(indice) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const mDeleted = `Measurement ${indice} deleted`
       while (true) {
         try {
@@ -27901,7 +27946,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function fetchSafe(extUrl, indice, parameters = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const requestUrl = `${baseUrl}/${indice}/${extUrl}`;
       let options;
       if (parameters === null) {
@@ -27932,7 +27977,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function postAlign(processName, frequency = null) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const requestUrl = `http://localhost:4735/alignment-tool/command`;
       const body = { command: processName };
       if (frequency != null) {
@@ -27998,7 +28043,7 @@ zip.file("_micCal.txt", micCal);
       }
     }
     async function fetchAlign(extUrl) {
-      await new Promise(resolve => setTimeout(resolve, rewDelay));
+      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       try {
         const requestUrl = `http://localhost:4735/alignment-tool/${extUrl}`;
         const response = await fetch(requestUrl, {
@@ -28054,7 +28099,7 @@ zip.file("_micCal.txt", micCal);
       const originalWarn = console.warn;
       console.warn = function (...args) {
         const warningMessage = args.join(' ');
-        const warningEntry = `<div class="warning">${new Date().toLocaleTimeString()} [WARNING!] ${warningMessage}</div>`;
+        const warningEntry = `<div class="warning">${new Date().toLocaleTimeString()} [**WARNING**] ${warningMessage}</div>`;
         logContainer.insertAdjacentHTML('beforeend', warningEntry);
         scrollToBottom();
         originalWarn.apply(console, args);
@@ -28081,7 +28126,7 @@ zip.file("_micCal.txt", micCal);
       const originalLog = console.log;
       console.log = function (...args) {
         const logMessage = args.join(' ');
-        const logEntry = `<div class="log">${new Date().toLocaleTimeString()} [IMPORTANT!] ${logMessage}</div>`;
+        const logEntry = `<div class="log">${new Date().toLocaleTimeString()} [*IMPORTANT*] ${logMessage}</div>`;
         logContainer.insertAdjacentHTML('beforeend', logEntry);
         scrollToBottom();
         originalLog.apply(console, args);
@@ -28089,7 +28134,7 @@ zip.file("_micCal.txt", micCal);
       const originalError = console.error;
       console.error = function (...args) {
         const errorMessage = args.join(' ');
-        const errorEntry = `<div class="error">${new Date().toLocaleTimeString()} [ERROR!] ${errorMessage}</div>`;
+        const errorEntry = `<div class="error">${new Date().toLocaleTimeString()} [***ERROR***] ${errorMessage}</div>`;
         logContainer.insertAdjacentHTML('beforeend', errorEntry);
         scrollToBottom();
         originalError.apply(console, args);
