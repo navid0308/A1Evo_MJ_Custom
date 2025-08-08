@@ -8713,10 +8713,10 @@ zip.file("_micCal.txt", micCal);
       await enableBlock();
       await bootUp();
       await groundWorks();
-      finalizeTrims();
       await calculateRolloffs();
       await calculateSubBandwidth();
       await generateFilters();
+      finalizeTrims();
       await optimizeSubDelay();
       finalizeDistances();
       await finalizeXO();
@@ -27834,8 +27834,8 @@ zip.file("_micCal.txt", micCal);
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      downloadLink.download = getadyName(fileName, "_" + (movieMode ? "Mov_" : "")
-                                                    + (dialogueBoost ? "Dial_" : "")
+      downloadLink.download = getadyName(fileName, "_" + (movieMode ? "MV_" : "")
+                                                    + (dialogueBoost ? "DB_" : "")
                                                     + swInvMsg + `${tcName}_`
                                                     + `A1EvoMJC_${timestamp}.ady`);
       downloadLink.style.display = "none";
