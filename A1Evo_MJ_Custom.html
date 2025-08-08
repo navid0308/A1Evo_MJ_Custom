@@ -9159,8 +9159,8 @@ zip.file("_micCal.txt", micCal);
             "enabled": true,
             "isAuto": true,
             "frequency": 1500,
-            "gaindB": 1.5,
-            "q": 0.15
+            "gaindB": 1.4,
+            "q": 0.5
           }]
         }, "Filters set");
         }
@@ -9177,9 +9177,9 @@ zip.file("_micCal.txt", micCal);
         const offset = await getALOffset(filterIdx, isSub);
         await postNext('Add SPL offset', filterIdx, { offset: offset });
         if (commandId[i] === "C" && dialogueBoost) {
-          customLevel[i] += 1.5; // needs to be 1.445810657708756 for exact dialogue boost but this should be close
+          customLevel[i] += 1; // needs to be 1.0680983403186106 for exact dialogue boost but this should be close
         }
-        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB ${(commandId[i] === "C" && dialogueBoost) ?  "<+1.5dB added for dialogue boost>" : ""}`);
+        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB ${(commandId[i] === "C" && dialogueBoost) ?  "<+1dB added for dialogue boost>" : ""}`);
       }
       // clean up EQ params
       for (let i = nChannels + 1; i <= nChannels * 3; i++) {
