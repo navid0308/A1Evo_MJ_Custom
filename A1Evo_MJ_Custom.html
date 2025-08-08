@@ -9179,8 +9179,7 @@ zip.file("_micCal.txt", micCal);
         if (commandId[i] === "C" && dialogueBoost) {
           customLevel[i] += 1.5; // needs to be 1.445810657708756 for exact dialogue boost but this should be close
         }
-        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`
-                            + (commandId[i] === "C" && dialogueBoost) ? " | +1.5dB added for Dialogue Boost." : "");
+        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB ${(commandId[i] === "C" && dialogueBoost) ?  "<+1.5dB added for dialogue boost>" : ""}`);
       }
       // clean up EQ params
       for (let i = nChannels + 1; i <= nChannels * 3; i++) {
