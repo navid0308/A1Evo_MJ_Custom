@@ -9111,8 +9111,8 @@ zip.file("_micCal.txt", micCal);
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
-      const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
-      return Math.round(offset * 2) / 2;
+      const offset = -1 * fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
+      return offset;
     }
     async function generateFilters() {
       console.log(`Generating min. phase EQ filters...`);
@@ -9159,8 +9159,8 @@ zip.file("_micCal.txt", micCal);
             "enabled": true,
             "isAuto": true,
             "frequency": 1500,
-            "gaindB": 3,
-            "q": 0.3
+            "gaindB": 1.5,
+            "q": 0.15
           }]
         }, "Filters set");
         }
@@ -9175,15 +9175,12 @@ zip.file("_micCal.txt", micCal);
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
         // auto-level offset
         const offset = await getALOffset(filterIdx, isSub);
-        if (isSub) {
-          for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
-            customLevel[j] += offset;
-          }
+        await postNext('Add SPL offset', filterIdx, { offset: offset });
+        if (commandId[i] === "C" && dialogueBoost) {
+          customLevel[i] += 1.5; // needs to be 1.445810657708756 for exact dialogue boost but this should be close
         }
-        else {
-          customLevel[i] += offset;
-        }
-        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset}dB`);
+        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`
+                            + (commandId[i] === "C" && dialogueBoost) ? " | +1.5dB added for Dialogue Boost." : "");
       }
       // clean up EQ params
       for (let i = nChannels + 1; i <= nChannels * 3; i++) {
