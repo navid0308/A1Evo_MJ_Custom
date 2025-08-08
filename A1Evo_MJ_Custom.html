@@ -259,14 +259,19 @@
   <div class="customization-options">
     <small>
       <label>
-        <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
-        Avoid subwoofer polarity inversion
-        <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
-      </label>
-      <label>
         <input type="checkbox" id="movieMode" onchange="updateCheckboxStates()">
         Movie mode
         <span class="explanation">This mode levels and EQs more aggressively to prioritize immersion over the natural sound of your speakers.</span>
+      </label>
+      <label>
+        <input type="checkbox" id="dialogueBoost" onchange="updateCheckboxStates()">
+        Dialogue boost
+        <span class="explanation">Emphasizes the vocal region of the center speaker.</span>
+      </label>
+      <label>
+        <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
+        Avoid subwoofer polarity inversion
+        <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
     </small>
   </div>
@@ -296,10 +301,10 @@
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
-    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
+    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter = true;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
-    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0;
+    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueBoost = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [];
@@ -342,6 +347,9 @@
         subLoDelay = Infinity;
         subHiDelay = -Infinity;
         jsonData.detectedChannels.forEach(channel => {
+          if (channel.commandId && channel.commandId === "C") {
+            noCenter = false;
+          }
           if (channel.commandId && channel.commandId.startsWith("SW")) {
             swChannelCount++;
             subLoTrim = Math.min(subLoTrim, parseFloat(channel.trimAdjustment));
@@ -350,6 +358,7 @@
             subHiDelay = Math.max(subHiDelay, parseFloat(channel.delayAdjustment));
           }
         });
+        Object.freeze(noCenter);
         Object.freeze(swChannelCount);
         subLoTrim = -12 + Math.abs(subLoTrim);
         subHiTrim = 12 - Math.abs(subHiTrim);
@@ -362,7 +371,7 @@
         flDist = getFLDistance(jsonData.detectedChannels);
         Object.freeze(flDist);
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
-        updateCheckboxStates(); // if no subwoofer, disable avoid subwoofer polarity inversion option
+        updateCheckboxStates();
         let totalMeasurements = 0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
@@ -8673,19 +8682,26 @@ zip.file("_micCal.txt", micCal);
       runOptimizer();
     }
     function updateCheckboxStates() {
-      if (noSub) {
+      if (noCenter) { // if no center, disable dialogue boost
+        document.getElementById('dialogueBoost').checked = false;
+        document.getElementById('dialogueBoost').disabled = true;
+      }
+      if (noSub) { // if no subwoofer, disable avoid subwoofer polarity inversion option
         document.getElementById('noInversion').checked = false;
         document.getElementById('noInversion').disabled = true;
       }
-      noInversion = document.getElementById('noInversion').checked;
       movieMode = document.getElementById('movieMode').checked;
+      dialogueBoost = document.getElementById('dialogueBoost').checked;
+      noInversion = document.getElementById('noInversion').checked;
     }
     function lockOptions() {
       updateCheckboxStates(); // final sanity check
-      document.getElementById('noInversion').disabled = true;
-      Object.freeze(noInversion);
       document.getElementById('movieMode').disabled = true;
       Object.freeze(movieMode);
+      document.getElementById('dialogueBoost').disabled = true;
+      Object.freeze(dialogueBoost);
+      document.getElementById('noInversion').disabled = true;
+      Object.freeze(noInversion);
     }
     async function runOptimizer() {
       const startTime = performance.now();
@@ -8800,6 +8816,7 @@ zip.file("_micCal.txt", micCal);
       } else {
         console.info("  Standard mode - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
       }
+      console.info(`  Dialogue boost enabled: ${dialogueBoost ? "Yes" : "No"}.`);
       console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
       console.info(`****************************************************************************************************`);
     }
@@ -9133,6 +9150,19 @@ zip.file("_micCal.txt", micCal);
         catch (error) {
           // not really an issue if it fails
           console.debug(`${commandId[i]} could not be equalized!`);
+        }
+        if (commandId[i] === "C" && dialogueBoost) {
+          await postSafe(`${baseUrl}/${i}/filters`, {
+          filters: [{
+            "index": 20, // need to make sure it's available
+            "type": "PK",
+            "enabled": true,
+            "isAuto": true,
+            "frequency": 1500,
+            "gaindB": 3,
+            "q": 0.3
+          }]
+        }, "Filters set");
         }
         // generate filters
         const filter = await postNext('Generate filters measurement', i);
@@ -27797,7 +27827,10 @@ zip.file("_micCal.txt", micCal);
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      downloadLink.download = getadyName(fileName, (movieMode ? "_Movie_" : "_") + swInvMsg + `${tcName}_` + `A1EvoMJC_${timestamp}.ady`);
+      downloadLink.download = getadyName(fileName, "_" + (movieMode ? "Mov_" : "")
+                                                    + (dialogueBoost ? "Dial_" : "")
+                                                    + swInvMsg + `${tcName}_`
+                                                    + `A1EvoMJC_${timestamp}.ady`);
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
       downloadLink.click();
