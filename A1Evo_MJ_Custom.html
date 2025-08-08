@@ -9111,8 +9111,8 @@ zip.file("_micCal.txt", micCal);
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
-      const offset = -1 * fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
-      return offset;
+      const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
+      return Math.round(offset * 2) / 2;
     }
     async function generateFilters() {
       console.log(`Generating min. phase EQ filters...`);
@@ -9175,8 +9175,15 @@ zip.file("_micCal.txt", micCal);
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
         // auto-level offset
         const offset = await getALOffset(filterIdx, isSub);
-        await postNext('Add SPL offset', filterIdx, { offset: offset });
-        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`);
+        if (isSub) {
+          for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
+            customLevel[j] += offset;
+          }
+        }
+        else {
+          customLevel[i] += offset;
+        }
+        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset}dB`);
       }
       // clean up EQ params
       for (let i = nChannels + 1; i <= nChannels * 3; i++) {
