@@ -264,8 +264,8 @@
         <span class="explanation">This mode levels and EQs more aggressively to prioritize immersion over the natural sound of your speakers.</span>
       </label>
       <label>
-        <input type="checkbox" id="dialogueBoost" onchange="updateCheckboxStates()">
-        Dialogue boost
+        <input type="checkbox" id="dialogueEnhancer" onchange="updateCheckboxStates()">
+        Dialogue enhancer
         <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
       </label>
       <label>
@@ -302,9 +302,9 @@
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter = true;
-    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
+    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false, dynamicBassFill = 0;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
-    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueBoost = false;
+    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [];
@@ -8682,24 +8682,24 @@ zip.file("_micCal.txt", micCal);
       runOptimizer();
     }
     function updateCheckboxStates() {
-      if (noCenter) { // if no center, disable dialogue boost
-        document.getElementById('dialogueBoost').checked = false;
-        document.getElementById('dialogueBoost').disabled = true;
+      if (noCenter) { // if no center, disable dialogue enhancer
+        document.getElementById('dialogueEnhancer').checked = false;
+        document.getElementById('dialogueEnhancer').disabled = true;
       }
       if (noSub) { // if no subwoofer, disable avoid subwoofer polarity inversion option
         document.getElementById('noInversion').checked = false;
         document.getElementById('noInversion').disabled = true;
       }
       movieMode = document.getElementById('movieMode').checked;
-      dialogueBoost = document.getElementById('dialogueBoost').checked;
+      dialogueEnhancer = document.getElementById('dialogueEnhancer').checked;
       noInversion = document.getElementById('noInversion').checked;
     }
     function lockOptions() {
       updateCheckboxStates(); // final sanity check
       document.getElementById('movieMode').disabled = true;
       Object.freeze(movieMode);
-      document.getElementById('dialogueBoost').disabled = true;
-      Object.freeze(dialogueBoost);
+      document.getElementById('dialogueEnhancer').disabled = true;
+      Object.freeze(dialogueEnhancer);
       document.getElementById('noInversion').disabled = true;
       Object.freeze(noInversion);
     }
@@ -8816,7 +8816,7 @@ zip.file("_micCal.txt", micCal);
       } else {
         console.info("  Standard mode - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
       }
-      console.info(`  Dialogue boost enabled: ${dialogueBoost ? "Yes" : "No"}.`);
+      console.info(`  Dialogue enhancer enabled: ${dialogueEnhancer ? "Yes" : "No"}.`);
       console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
       console.info(`****************************************************************************************************`);
     }
@@ -9098,15 +9098,8 @@ zip.file("_micCal.txt", micCal);
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
-      const dynamicBassFilldB = await getDynamicBassFillOfFinalSubdB();
-      if (dynamicBassFilldB != 0) {
-        console.warn(`***Adding ${dynamicBassFilldB}dB dynamic bass fill to compensate for dips!***`);
-        for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-          customLevel[i] += dynamicBassFilldB;
-          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - dynamicBassFilldB}dB → ${customLevel[i]}dB`);
-        }
-        await postNext('Add SPL offset', nChannels, { offset: dynamicBassFilldB });
-      }
+      dynamicBassFill = await getDynamicBassFillOfFinalSub();
+      Object.freeze(dynamicBassFill);
     }
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
@@ -9119,7 +9112,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
-        await fetchSafe('target-level', i, 75.0);
+        await fetchSafe('target-level', i, 75.0 - (isSub ? dynamicBassFill : 0));
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`${baseUrl}/${i}/target-settings`, {
           shape: isSub ? "Subwoofer" : "Full range",
@@ -9151,7 +9144,7 @@ zip.file("_micCal.txt", micCal);
           // not really an issue if it fails
           console.debug(`${commandId[i]} could not be equalized!`);
         }
-        if (commandId[i] === "C" && dialogueBoost) {
+        if (commandId[i] === "C" && dialogueEnhancer) {
           await postSafe(`${baseUrl}/${i}/filters`, {
           filters: [{
             "index": 20, // need to make sure it's available
@@ -9175,11 +9168,19 @@ zip.file("_micCal.txt", micCal);
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
         // auto-level offset
         const offset = await getALOffset(filterIdx, isSub);
+        await postNext('Add SPL offset', eqResponseIdx, { offset: offset });
         await postNext('Add SPL offset', filterIdx, { offset: offset });
-        if (commandId[i] === "C" && dialogueBoost) {
-          customLevel[i] += 1; // needs to be 1.0680983403186106 for exact dialogue boost but this should be close
+        if (commandId[i] === "C" && dialogueEnhancer) {
+          customLevel[i] += 1; // needs to be 1.0680983403186106 for exact dialogue enhancer but this should be close
         }
-        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB ${(commandId[i] === "C" && dialogueBoost) ?  "<+1dB added for dialogue boost>" : ""}`);
+        let updateMsg = `${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`;
+        if (commandId[i] === "C" && dialogueEnhancer) {
+          updateMsg += " <+1dB added for dialogue enhancer>";
+        }
+        else if (isSub) {
+          updateMsg += ` <${dynamicBassFill.toFixed(2)}dB dynamic bass fill added>`;
+        }
+        console.infoUpdate(updateMsg);
       }
       // clean up EQ params
       for (let i = nChannels + 1; i <= nChannels * 3; i++) {
@@ -9656,7 +9657,7 @@ zip.file("_micCal.txt", micCal);
       const finalTrim = await getTrim(idx, startFreq, endFreq);
       return finalTrim;
     }
-    async function getDynamicBassFillOfFinalSubdB() {
+    async function getDynamicBassFillOfFinalSub() {
       const startFreq = Math.round(await getLow3dBPoint(nChannels, 20, 120));
       const endFreq = Math.round(await getHigh3dBPoint(nChannels, 20, 120));
       const subFreqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', nChannels);
@@ -9667,8 +9668,8 @@ zip.file("_micCal.txt", micCal);
       for (let i = 0; i < arrayLength; i++) {
         totalDips += Math.min(subArray[i] - targetArray[i], 0);
       }
-      const dynamicBassFill = Math.round(-2 * (totalDips / arrayLength)) / 2; // round to nearest 0.5
-      return dynamicBassFill;
+      const averageDip = totalDips / arrayLength;
+      return -1 * averageDip;
     }
     async function alignVol2MLP(indices, mlpIdx) {
       if (indices.length <= 1) { return; }
@@ -27839,7 +27840,7 @@ zip.file("_micCal.txt", micCal);
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
       downloadLink.download = getadyName(fileName, "_" + (movieMode ? "MV_" : "")
-                                                    + (dialogueBoost ? "DB_" : "")
+                                                    + (dialogueEnhancer ? "DE_" : "")
                                                     + swInvMsg + `${tcName}_`
                                                     + `A1EvoMJC_${timestamp}.ady`);
       downloadLink.style.display = "none";
