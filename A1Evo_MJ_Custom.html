@@ -8713,10 +8713,10 @@ zip.file("_micCal.txt", micCal);
       await enableBlock();
       await bootUp();
       await groundWorks();
-      finalizeTrims();
       await calculateRolloffs();
       await calculateSubBandwidth();
       await generateFilters();
+      finalizeTrims();
       await optimizeSubDelay();
       finalizeDistances();
       await finalizeXO();
@@ -9033,7 +9033,7 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using the MLP measurement
         if (title[count].startsWith("SW")) {
-          customLevel[count] = await getTrim(i, 30, 80);
+          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getSubTrim(i);
         }
         else {
           customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
@@ -9098,7 +9098,7 @@ zip.file("_micCal.txt", micCal);
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
-      const dynamicBassFilldB = await getDynamicBassFillOfFinalSubdB();
+      const dynamicBassFilldB = await getDynamicBassFill(nChannels);
       if (dynamicBassFilldB != 0) {
         console.warn(`***Adding ${dynamicBassFilldB}dB dynamic bass fill to compensate for dips!***`);
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
@@ -9111,8 +9111,8 @@ zip.file("_micCal.txt", micCal);
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
-      const offset = -1 * fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
-      return offset;
+      const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
+      return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
     async function generateFilters() {
       console.log(`Generating min. phase EQ filters...`);
@@ -9173,10 +9173,22 @@ zip.file("_micCal.txt", micCal);
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
         const eqResponseName = `${commandId[i]}-equalized`;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
-        // auto-level offset
+        // auto-level offset & log
+        let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
         const offset = await getALOffset(filterIdx, isSub);
-        await postNext('Add SPL offset', filterIdx, { offset: offset });
-        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`);
+        if (offset != 0) {
+          const customLevelOriginal = customLevel[i];
+          if(isSub) {
+            for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
+              customLevel[j] += offset;
+            }
+          }
+          else {
+            customLevel[i] += offset;
+          }
+          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${offset}dB)`;
+        }
+        console.infoUpdate(logUpdate);
       }
       // clean up EQ params
       for (let i = nChannels + 1; i <= nChannels * 3; i++) {
@@ -9249,7 +9261,7 @@ zip.file("_micCal.txt", micCal);
       }
       return xo;
     }
-    async function getLow3dBPoint(idx, start=10, end=320) {
+    async function getLow3dBPoint(idx, start=10, end=320, offset=0) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9258,12 +9270,12 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = start;
       for (let i = 0; i < arrLength; i++) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
-    async function getHigh3dBPoint(idx, start=10, end=320) {
+    async function getHigh3dBPoint(idx, start=10, end=320, offset=0) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9272,7 +9284,7 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = end;
       for (let i = arrLength - 1; i >= 0; i--) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        if (((rpArray[i] - offset) - tcArray[i]) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
@@ -9588,7 +9600,7 @@ zip.file("_micCal.txt", micCal);
         mSec[i] -= IROffset;
       }
       // offset volume from combining subwoofers
-      const volAdjust = parseFloat(await getTrim(nChannels, 30, 80));
+      const volAdjust = parseFloat(await getSubTrim(nChannels));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
@@ -9645,10 +9657,18 @@ zip.file("_micCal.txt", micCal);
       const offset = targetSPL - freqSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
-    async function getDynamicBassFillOfFinalSubdB() {
-      const startFreq = Math.round(await getLow3dBPoint(nChannels, 20, 120));
-      const endFreq = Math.round(await getHigh3dBPoint(nChannels, 20, 120));
-      const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', nChannels);
+    async function getSubTrim(idx) {
+      // level final subwoofer using it's bandwidth, limit to 20-120hz
+      const initialTrim = await getTrim(idx, 30, 80);
+      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120, initialTrim));
+      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120, initialTrim));
+      const finalTrim = await getTrim(idx, startFreq, endFreq);
+      return finalTrim;
+    }
+    async function getDynamicBassFill(idx) {
+      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120));
+      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120));
+      const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const subArray = response2array(subFreqResponse, startFreq, endFreq);
       const targetArray = response2array(targetResponse, startFreq, endFreq);
       const arrayLength = Math.min(subArray.length, targetArray.length);
