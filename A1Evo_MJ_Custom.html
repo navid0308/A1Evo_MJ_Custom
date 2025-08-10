@@ -302,7 +302,7 @@
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter = true;
-    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false, dynamicBassFill = 0;
+    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
@@ -8713,10 +8713,10 @@ zip.file("_micCal.txt", micCal);
       await enableBlock();
       await bootUp();
       await groundWorks();
+      finalizeTrims();
       await calculateRolloffs();
       await calculateSubBandwidth();
       await generateFilters();
-      finalizeTrims();
       await optimizeSubDelay();
       finalizeDistances();
       await finalizeXO();
@@ -9098,8 +9098,15 @@ zip.file("_micCal.txt", micCal);
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
-      dynamicBassFill = await getDynamicBassFillOfFinalSub();
-      Object.freeze(dynamicBassFill);
+      const dynamicBassFilldB = await getDynamicBassFillOfFinalSubdB();
+      if (dynamicBassFilldB != 0) {
+        console.warn(`***Adding ${dynamicBassFilldB}dB dynamic bass fill to compensate for dips!***`);
+        for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+          customLevel[i] += dynamicBassFilldB;
+          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - dynamicBassFilldB}dB → ${customLevel[i]}dB`);
+        }
+        await postNext('Add SPL offset', nChannels, { offset: dynamicBassFilldB });
+      }
     }
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
@@ -9112,7 +9119,7 @@ zip.file("_micCal.txt", micCal);
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
-        await fetchSafe('target-level', i, 75.0 - (isSub ? dynamicBassFill : 0));
+        await fetchSafe('target-level', i, 75.0);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`${baseUrl}/${i}/target-settings`, {
           shape: isSub ? "Subwoofer" : "Full range",
@@ -9125,8 +9132,8 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: m3dBPoints[i][0],
           endFrequency: m3dBPoints[i][1],
-          individualMaxBoostdB: movieMode ? 3 : 0,
-          overallMaxBoostdB: movieMode ? 1 : 0,
+          individualMaxBoostdB: movieMode ? (isSub ? 6 : 3) : 0,
+          overallMaxBoostdB: movieMode ? (isSub ? 3 : 1) : 0,
           flatnessTargetdB: 1,
           allowNarrowFiltersBelow200Hz: true,
           varyQAbove200Hz: false,
@@ -9152,7 +9159,7 @@ zip.file("_micCal.txt", micCal);
             "enabled": true,
             "isAuto": true,
             "frequency": 1500,
-            "gaindB": 1.4,
+            "gaindB": 1.5,
             "q": 0.5
           }]
         }, "Filters set");
@@ -9168,20 +9175,8 @@ zip.file("_micCal.txt", micCal);
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
         // auto-level offset
         const offset = await getALOffset(filterIdx, isSub);
-        await postNext('Add SPL offset', eqResponseIdx, { offset: offset });
         await postNext('Add SPL offset', filterIdx, { offset: offset });
-        if (commandId[i] === "C" && dialogueEnhancer) {
-          customLevel[i] += 1; // needs to be 1.0680983403186106 for exact dialogue enhancer but this should be close
-        }
-        let updateMsg = `${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`;
-        if (commandId[i] === "C" && dialogueEnhancer) {
-          await postNext('Add SPL offset', eqResponseIdx, { offset: 1 });
-          updateMsg += " <+1dB added for dialogue enhancer>";
-        }
-        else if (isSub) {
-          updateMsg += ` <${dynamicBassFill.toFixed(2)}dB dynamic bass fill added>`;
-        }
-        console.infoUpdate(updateMsg);
+        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`);
       }
       // clean up EQ params
       for (let i = nChannels + 1; i <= nChannels * 3; i++) {
@@ -9254,7 +9249,7 @@ zip.file("_micCal.txt", micCal);
       }
       return xo;
     }
-    async function getLow3dBPoint(idx, start=10, end=320, offset=0) {
+    async function getLow3dBPoint(idx, start=10, end=320) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9263,12 +9258,12 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = start;
       for (let i = 0; i < arrLength; i++) {
-        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
+        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
-    async function getHigh3dBPoint(idx, start=10, end=320, offset=0) {
+    async function getHigh3dBPoint(idx, start=10, end=320) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9277,7 +9272,7 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = end;
       for (let i = arrLength - 1; i >= 0; i--) {
-        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
+        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
@@ -9650,10 +9645,10 @@ zip.file("_micCal.txt", micCal);
       const offset = targetSPL - freqSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
-    async function getDynamicBassFillOfFinalSub() {
+    async function getDynamicBassFillOfFinalSubdB() {
       const startFreq = Math.round(await getLow3dBPoint(nChannels, 20, 120));
       const endFreq = Math.round(await getHigh3dBPoint(nChannels, 20, 120));
-      const subFreqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', nChannels);
+      const subFreqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', nChannels);
       const subArray = response2array(subFreqResponse, startFreq, endFreq);
       const targetArray = response2array(targetResponse, startFreq, endFreq);
       const arrayLength = Math.min(subArray.length, targetArray.length);
@@ -9661,8 +9656,8 @@ zip.file("_micCal.txt", micCal);
       for (let i = 0; i < arrayLength; i++) {
         totalDips += Math.min(subArray[i] - targetArray[i], 0);
       }
-      const averageDip = totalDips / arrayLength;
-      return -1 * averageDip;
+      const dynamicBassFill = Math.round(-2 * (totalDips / arrayLength)) / 2; // round to nearest 0.5
+      return dynamicBassFill;
     }
     async function alignVol2MLP(indices, mlpIdx) {
       if (indices.length <= 1) { return; }
