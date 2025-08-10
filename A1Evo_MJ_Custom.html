@@ -9112,7 +9112,7 @@ zip.file("_micCal.txt", micCal);
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
       const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
-      return Math.round(offset * 2) / 2; // round to nearest 0.5
+      return offset;
     }
     async function generateFilters() {
       console.log(`Generating min. phase EQ filters...`);
@@ -9164,29 +9164,34 @@ zip.file("_micCal.txt", micCal);
           }]
         }, "Filters set");
         }
-        // generate filters
+        // generate filters & auto level it
         const filter = await postNext('Generate filters measurement', i);
         const filterIdx = Object.keys(filter.results)[0];
         const filterName = `${commandId[i]}-filters`;
         await fetch_mREW(filterIdx, 'PUT', { title: filterName });
-        const eqResponse = await postNext('Generate predicted measurement', i);
+        const ALOffset = await getALOffset(filterIdx, isSub);
+        await postNext('Add SPL offset', filterIdx, { offset: -ALOffset });
+        // generate predicted equalized response using the auto leveled filter
+        // note: using AL-ed filter helps sanity check that AL comp works as expected on predicted results
+        const eqResponse = await postNext('Arithmetic', [i, filterIdx], {function: "A * B"});
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
         const eqResponseName = `${commandId[i]}-equalized`;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
-        // auto-level offset & log
+        // compensate equalized response & trims for auto level
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const offset = await getALOffset(filterIdx, isSub);
-        if (offset != 0) {
+        const ALTrimOffset = Math.round(ALOffset * 2) / 2; //round to nearest 0.5
+        if (ALTrimOffset != 0) {
+          await postNext('Add SPL offset', eqResponseIdx, { offset: ALTrimOffset });
           const customLevelOriginal = customLevel[i];
           if(isSub) {
             for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
-              customLevel[j] += offset;
+              customLevel[j] += ALTrimOffset;
             }
           }
           else {
-            customLevel[i] += offset;
+            customLevel[i] += ALTrimOffset;
           }
-          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${offset}dB)`;
+          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${ALTrimOffset}dB)`;
         }
         console.infoUpdate(logUpdate);
       }
