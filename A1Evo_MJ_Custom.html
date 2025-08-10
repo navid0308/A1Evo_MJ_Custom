@@ -9033,7 +9033,7 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using the MLP measurement
         if (title[count].startsWith("SW")) {
-          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getFinalSubTrim(i);
+          customLevel[count] = await getTrim(i, 30, 80);
         }
         else {
           customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
@@ -9125,8 +9125,8 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: m3dBPoints[i][0],
           endFrequency: m3dBPoints[i][1],
-          individualMaxBoostdB: movieMode ? (isSub ? 6 : 3) : 0,
-          overallMaxBoostdB: movieMode ? (isSub ? 3 : 1) : 0,
+          individualMaxBoostdB: movieMode ? 3 : 0,
+          overallMaxBoostdB: movieMode ? 1 : 0,
           flatnessTargetdB: 1,
           allowNarrowFiltersBelow200Hz: true,
           varyQAbove200Hz: false,
@@ -9175,6 +9175,7 @@ zip.file("_micCal.txt", micCal);
         }
         let updateMsg = `${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`;
         if (commandId[i] === "C" && dialogueEnhancer) {
+          await postNext('Add SPL offset', eqResponseIdx, { offset: 1 });
           updateMsg += " <+1dB added for dialogue enhancer>";
         }
         else if (isSub) {
@@ -9592,7 +9593,7 @@ zip.file("_micCal.txt", micCal);
         mSec[i] -= IROffset;
       }
       // offset volume from combining subwoofers
-      const volAdjust = parseFloat(await getFinalSubTrim(nChannels));
+      const volAdjust = parseFloat(await getTrim(nChannels, 30, 80));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
@@ -9648,14 +9649,6 @@ zip.file("_micCal.txt", micCal);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
-    }
-    async function getFinalSubTrim(idx) {
-      // level final subwoofer using it's bandwidth, limit to 20-120hz
-      const initialTrim = await getTrim(idx, 30, 80);
-      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120, initialTrim));
-      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120, initialTrim));
-      const finalTrim = await getTrim(idx, startFreq, endFreq);
-      return finalTrim;
     }
     async function getDynamicBassFillOfFinalSub() {
       const startFreq = Math.round(await getLow3dBPoint(nChannels, 20, 120));
