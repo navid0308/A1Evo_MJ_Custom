@@ -9648,7 +9648,7 @@ zip.file("_micCal.txt", micCal);
     async function getDynamicBassFillOfFinalSubdB() {
       const startFreq = Math.round(await getLow3dBPoint(nChannels, 20, 120));
       const endFreq = Math.round(await getHigh3dBPoint(nChannels, 20, 120));
-      const subFreqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', nChannels);
+      const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', nChannels);
       const subArray = response2array(subFreqResponse, startFreq, endFreq);
       const targetArray = response2array(targetResponse, startFreq, endFreq);
       const arrayLength = Math.min(subArray.length, targetArray.length);
