@@ -9033,10 +9033,10 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using the MLP measurement
         if (title[count].startsWith("SW")) {
-          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getSubTrim(i);
+          customLevel[count] = await getSubTrim(i);
         }
         else {
-          customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
+          customLevel[count] = await getSpeakerTrim(i);
         }
         // level match all other positions to MLP & average
         await alignVol2MLP(indices, i);
@@ -9662,8 +9662,19 @@ zip.file("_micCal.txt", micCal);
       const offset = targetSPL - freqSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
+    async function getSpeakerTrim(idx) {
+      if (movieMode) {
+        const movieTrim = await getTrim(idx, 250, 10000);
+        return movieTrim;
+      }
+      else {
+        const stdTrim = await getTrim(250, 4000);
+        return stdTrim;
+      }
+      return;
+    }
     async function getSubTrim(idx) {
-      // level final subwoofer using it's bandwidth, limit to 20-120hz
+      // level subwoofer using it's bandwidth, limit to 20-120hz
       const initialTrim = await getTrim(idx, 30, 80);
       const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120, initialTrim));
       const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120, initialTrim));
@@ -9687,10 +9698,10 @@ zip.file("_micCal.txt", micCal);
     async function alignVol2MLP(indices, mlpIdx) {
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
-      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getTrim(mlpIdx, 30, 80) : await getTrim(mlpIdx, 500, 2000);
+      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getSubTrim(mlpIdx) : await getSpeakerTrim(mlpIdx);
       for (let i = 0; i < indices.length; i++) {
         if (indices[i] === mlpIdx) { continue; }
-        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getTrim(indices[i], 30, 80) : await getTrim(indices[i], 500, 2000);
+        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
         const volAdjust = parseFloat(idxVolume - mlpVolume);
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
