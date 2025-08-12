@@ -9181,7 +9181,8 @@ zip.file("_micCal.txt", micCal);
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
         const ALTrimOffset = Math.round(ALOffset * 2) / 2; //round to nearest 0.5
         if (ALTrimOffset != 0) {
-          await postNext('Add SPL offset', eqResponseIdx, { offset: ALTrimOffset });
+          await postNext('Add SPL offset', i, { offset: ALTrimOffset }); // offset "o" for auto-level
+          await postNext('Add SPL offset', eqResponseIdx, { offset: ALTrimOffset }); // offset "-equalized" for auto-level
           const customLevelOriginal = customLevel[i];
           if(isSub) {
             for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
@@ -9576,12 +9577,12 @@ zip.file("_micCal.txt", micCal);
       let currSubIdx = nSpeakers + 1;
       let cmdIds = commandId[currSubIdx];
       let minDelay = 0, maxDelay = 0;
-      let startFreq = Math.round(await getLow3dBPoint(currSubIdx));
-      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx));
+      let startFreq = Math.round(await getLow3dBPoint(currSubIdx, 20, 120));
+      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx, 20, 120));
       for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
         console.log(`Aligning ${commandId[i]} to ${cmdIds}...`);
-        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i)));
-        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i)));
+        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i, 20, 120)));
+        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i, 20, 120)));
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i, startFreq, endFreq);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
