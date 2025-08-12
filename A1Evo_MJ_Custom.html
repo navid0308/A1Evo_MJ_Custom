@@ -9577,12 +9577,12 @@ zip.file("_micCal.txt", micCal);
       let currSubIdx = nSpeakers + 1;
       let cmdIds = commandId[currSubIdx];
       let minDelay = 0, maxDelay = 0;
-      let startFreq = Math.round(await getLow3dBPoint(currSubIdx, 20, 120));
-      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx, 20, 120));
+      let startFreq = Math.round(await getLow3dBPoint(currSubIdx));
+      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx));
       for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
         console.log(`Aligning ${commandId[i]} to ${cmdIds}...`);
-        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i, 20, 120)));
-        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i, 20, 120)));
+        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i)));
+        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i)));
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i, startFreq, endFreq);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
