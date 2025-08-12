@@ -259,14 +259,19 @@
   <div class="customization-options">
     <small>
       <label>
-        <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
-        Avoid subwoofer polarity inversion
-        <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
-      </label>
-      <label>
         <input type="checkbox" id="movieMode" onchange="updateCheckboxStates()">
         Movie mode
         <span class="explanation">This mode levels and EQs more aggressively to prioritize immersion over the natural sound of your speakers.</span>
+      </label>
+      <label>
+        <input type="checkbox" id="dialogueEnhancer" onchange="updateCheckboxStates()">
+        Dialogue enhancer
+        <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
+      </label>
+      <label>
+        <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
+        Avoid subwoofer polarity inversion
+        <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
     </small>
   </div>
@@ -296,10 +301,10 @@
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
-    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs;
+    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter = true;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
     let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
-    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0;
+    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [];
@@ -342,6 +347,9 @@
         subLoDelay = Infinity;
         subHiDelay = -Infinity;
         jsonData.detectedChannels.forEach(channel => {
+          if (channel.commandId && channel.commandId === "C") {
+            noCenter = false;
+          }
           if (channel.commandId && channel.commandId.startsWith("SW")) {
             swChannelCount++;
             subLoTrim = Math.min(subLoTrim, parseFloat(channel.trimAdjustment));
@@ -350,6 +358,7 @@
             subHiDelay = Math.max(subHiDelay, parseFloat(channel.delayAdjustment));
           }
         });
+        Object.freeze(noCenter);
         Object.freeze(swChannelCount);
         subLoTrim = -12 + Math.abs(subLoTrim);
         subHiTrim = 12 - Math.abs(subHiTrim);
@@ -362,7 +371,7 @@
         flDist = getFLDistance(jsonData.detectedChannels);
         Object.freeze(flDist);
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
-        updateCheckboxStates(); // if no subwoofer, disable avoid subwoofer polarity inversion option
+        updateCheckboxStates();
         let totalMeasurements = 0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
@@ -8673,19 +8682,26 @@ zip.file("_micCal.txt", micCal);
       runOptimizer();
     }
     function updateCheckboxStates() {
-      if (noSub) {
+      if (noCenter) { // if no center, disable dialogue enhancer
+        document.getElementById('dialogueEnhancer').checked = false;
+        document.getElementById('dialogueEnhancer').disabled = true;
+      }
+      if (noSub) { // if no subwoofer, disable avoid subwoofer polarity inversion option
         document.getElementById('noInversion').checked = false;
         document.getElementById('noInversion').disabled = true;
       }
-      noInversion = document.getElementById('noInversion').checked;
       movieMode = document.getElementById('movieMode').checked;
+      dialogueEnhancer = document.getElementById('dialogueEnhancer').checked;
+      noInversion = document.getElementById('noInversion').checked;
     }
     function lockOptions() {
       updateCheckboxStates(); // final sanity check
-      document.getElementById('noInversion').disabled = true;
-      Object.freeze(noInversion);
       document.getElementById('movieMode').disabled = true;
       Object.freeze(movieMode);
+      document.getElementById('dialogueEnhancer').disabled = true;
+      Object.freeze(dialogueEnhancer);
+      document.getElementById('noInversion').disabled = true;
+      Object.freeze(noInversion);
     }
     async function runOptimizer() {
       const startTime = performance.now();
@@ -8697,10 +8713,10 @@ zip.file("_micCal.txt", micCal);
       await enableBlock();
       await bootUp();
       await groundWorks();
-      finalizeTrims();
       await calculateRolloffs();
       await calculateSubBandwidth();
       await generateFilters();
+      finalizeTrims();
       await optimizeSubDelay();
       finalizeDistances();
       await finalizeXO();
@@ -8800,6 +8816,7 @@ zip.file("_micCal.txt", micCal);
       } else {
         console.info("  Standard mode - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
       }
+      console.info(`  Dialogue enhancer enabled: ${dialogueEnhancer ? "Yes" : "No"}.`);
       console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
       console.info(`****************************************************************************************************`);
     }
@@ -9016,10 +9033,10 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using the MLP measurement
         if (title[count].startsWith("SW")) {
-          customLevel[count] = await getTrim(i, 30, 80);
+          customLevel[count] = await getSubTrim(i);
         }
         else {
-          customLevel[count] = movieMode ? await getTrim(i, 250, 10000) : await getTrim(i, 250, 4000);
+          customLevel[count] = await getSpeakerTrim(i);
         }
         // level match all other positions to MLP & average
         await alignVol2MLP(indices, i);
@@ -9081,7 +9098,7 @@ zip.file("_micCal.txt", micCal);
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
-      const dynamicBassFilldB = await getDynamicBassFillOfFinalSubdB();
+      const dynamicBassFilldB = await getDynamicBassFill(nChannels);
       if (dynamicBassFilldB != 0) {
         console.warn(`***Adding ${dynamicBassFilldB}dB dynamic bass fill to compensate for dips!***`);
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
@@ -9094,7 +9111,7 @@ zip.file("_micCal.txt", micCal);
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
-      const offset = -1 * fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
+      const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
       return offset;
     }
     async function generateFilters() {
@@ -9134,19 +9151,50 @@ zip.file("_micCal.txt", micCal);
           // not really an issue if it fails
           console.debug(`${commandId[i]} could not be equalized!`);
         }
-        // generate filters
+        if (commandId[i] === "C" && dialogueEnhancer) {
+          await postSafe(`${baseUrl}/${i}/filters`, {
+          filters: [{
+            "index": 20, // need to make sure it's available
+            "type": "PK",
+            "enabled": true,
+            "isAuto": true,
+            "frequency": 1500,
+            "gaindB": 1.5,
+            "q": 0.5
+          }]
+        }, "Filters set");
+        }
+        // generate filters & auto level it
         const filter = await postNext('Generate filters measurement', i);
         const filterIdx = Object.keys(filter.results)[0];
         const filterName = `${commandId[i]}-filters`;
         await fetch_mREW(filterIdx, 'PUT', { title: filterName });
-        const eqResponse = await postNext('Generate predicted measurement', i);
+        const ALOffset = await getALOffset(filterIdx, isSub);
+        await postNext('Add SPL offset', filterIdx, { offset: -ALOffset });
+        // generate predicted equalized response using the auto leveled filter
+        // note: using AL-ed filter helps sanity check that AL comp works as expected on predicted results
+        const eqResponse = await postNext('Arithmetic', [i, filterIdx], {function: "A * B"});
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
         const eqResponseName = `${commandId[i]}-equalized`;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
-        // auto-level offset
-        const offset = await getALOffset(filterIdx, isSub);
-        await postNext('Add SPL offset', filterIdx, { offset: offset });
-        console.infoUpdate(`${commandId[i].padStart(3, ".")} - equalized → auto-level offset: ${offset.toFixed(2)}dB`);
+        // compensate equalized response & trims for auto level
+        let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
+        const ALTrimOffset = Math.round(ALOffset * 2) / 2; //round to nearest 0.5
+        if (ALTrimOffset != 0) {
+          await postNext('Add SPL offset', i, { offset: ALTrimOffset }); // offset "o" for auto-level
+          await postNext('Add SPL offset', eqResponseIdx, { offset: ALTrimOffset }); // offset "-equalized" for auto-level
+          const customLevelOriginal = customLevel[i];
+          if(isSub) {
+            for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
+              customLevel[j] += ALTrimOffset;
+            }
+          }
+          else {
+            customLevel[i] += ALTrimOffset;
+          }
+          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${ALTrimOffset}dB)`;
+        }
+        console.infoUpdate(logUpdate);
       }
       // clean up EQ params
       for (let i = nChannels + 1; i <= nChannels * 3; i++) {
@@ -9219,7 +9267,7 @@ zip.file("_micCal.txt", micCal);
       }
       return xo;
     }
-    async function getLow3dBPoint(idx, start=10, end=320) {
+    async function getLow3dBPoint(idx, start=10, end=320, offset=0) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9228,12 +9276,12 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = start;
       for (let i = 0; i < arrLength; i++) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
-    async function getHigh3dBPoint(idx, start=10, end=320) {
+    async function getHigh3dBPoint(idx, start=10, end=320, offset=0) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9242,7 +9290,7 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = end;
       for (let i = arrLength - 1; i >= 0; i--) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
@@ -9526,15 +9574,16 @@ zip.file("_micCal.txt", micCal);
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
     async function directional2standard() {
+      // limit evaluation frequency to core subwoofer range of 20-120hz
       let currSubIdx = nSpeakers + 1;
       let cmdIds = commandId[currSubIdx];
       let minDelay = 0, maxDelay = 0;
-      let startFreq = Math.round(await getLow3dBPoint(currSubIdx));
-      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx));
+      let startFreq = Math.round(await getLow3dBPoint(currSubIdx, 20, 120));
+      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx, 20, 120));
       for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
         console.log(`Aligning ${commandId[i]} to ${cmdIds}...`);
-        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i)));
-        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i)));
+        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i, 20, 120)));
+        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i, 20, 120)));
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i, startFreq, endFreq);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
@@ -9558,7 +9607,7 @@ zip.file("_micCal.txt", micCal);
         mSec[i] -= IROffset;
       }
       // offset volume from combining subwoofers
-      const volAdjust = parseFloat(await getTrim(nChannels, 30, 80));
+      const volAdjust = parseFloat(await getSubTrim(nChannels));
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
@@ -9615,10 +9664,29 @@ zip.file("_micCal.txt", micCal);
       const offset = targetSPL - freqSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
-    async function getDynamicBassFillOfFinalSubdB() {
-      const startFreq = Math.round(await getLow3dBPoint(nChannels, 20, 120));
-      const endFreq = Math.round(await getHigh3dBPoint(nChannels, 20, 120));
-      const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', nChannels);
+    async function getSpeakerTrim(idx) {
+      if (movieMode) {
+        const movieTrim = await getTrim(idx, 250, 10000);
+        return movieTrim;
+      }
+      else {
+        const stdTrim = await getTrim(idx, 250, 4000);
+        return stdTrim;
+      }
+      return;
+    }
+    async function getSubTrim(idx) {
+      // level subwoofer using it's bandwidth, limit to 20-120hz
+      const initialTrim = await getTrim(idx, 30, 80);
+      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120, initialTrim));
+      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120, initialTrim));
+      const finalTrim = await getTrim(idx, startFreq, endFreq);
+      return finalTrim;
+    }
+    async function getDynamicBassFill(idx) {
+      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120));
+      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120));
+      const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const subArray = response2array(subFreqResponse, startFreq, endFreq);
       const targetArray = response2array(targetResponse, startFreq, endFreq);
       const arrayLength = Math.min(subArray.length, targetArray.length);
@@ -9632,10 +9700,10 @@ zip.file("_micCal.txt", micCal);
     async function alignVol2MLP(indices, mlpIdx) {
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
-      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getTrim(mlpIdx, 30, 80) : await getTrim(mlpIdx, 500, 2000);
+      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getSubTrim(mlpIdx) : await getSpeakerTrim(mlpIdx);
       for (let i = 0; i < indices.length; i++) {
         if (indices[i] === mlpIdx) { continue; }
-        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getTrim(indices[i], 30, 80) : await getTrim(indices[i], 500, 2000);
+        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
         const volAdjust = parseFloat(idxVolume - mlpVolume);
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
@@ -9661,7 +9729,7 @@ zip.file("_micCal.txt", micCal);
         const delayB = parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         if (maxSum < tempMagSum) {
@@ -9709,7 +9777,7 @@ zip.file("_micCal.txt", micCal);
         const delayB = parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         if (maxSum < tempMagSum) {
@@ -27797,7 +27865,10 @@ zip.file("_micCal.txt", micCal);
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      downloadLink.download = getadyName(fileName, (movieMode ? "_Movie_" : "_") + swInvMsg + `${tcName}_` + `A1EvoMJC_${timestamp}.ady`);
+      downloadLink.download = getadyName(fileName, "_" + (movieMode ? "MV_" : "")
+                                                    + (dialogueEnhancer ? "DE_" : "")
+                                                    + swInvMsg + `${tcName}_`
+                                                    + `A1EvoMJC_${timestamp}.ady`);
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
       downloadLink.click();
