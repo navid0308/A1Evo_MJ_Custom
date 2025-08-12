@@ -9574,6 +9574,7 @@ zip.file("_micCal.txt", micCal);
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
     async function directional2standard() {
+      // limit evaluation frequency to core subwoofer range of 20-120hz
       let currSubIdx = nSpeakers + 1;
       let cmdIds = commandId[currSubIdx];
       let minDelay = 0, maxDelay = 0;
