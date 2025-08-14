@@ -9033,8 +9033,7 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using the MLP measurement
         if (title[count].startsWith("SW")) {
-          // 30-80hz works better for level matching directional subwoofers
-          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getSubTrim(i);
+          customLevel[count] = await getSubTrim(i);
         }
         else {
           customLevel[count] = await getSpeakerTrim(i);
@@ -9278,7 +9277,7 @@ zip.file("_micCal.txt", micCal);
       }
       return xo;
     }
-    async function getLow3dBPoint(idx, start=10, end=320, offset=0) {
+    async function getLow3dBPoint(idx, start=10, end=320) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9287,12 +9286,12 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = start;
       for (let i = 0; i < arrLength; i++) {
-        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
+        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
-    async function getHigh3dBPoint(idx, start=10, end=320, offset=0) {
+    async function getHigh3dBPoint(idx, start=10, end=320) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -9301,7 +9300,7 @@ zip.file("_micCal.txt", micCal);
       // find -3dB point
       let rolloff = end;
       for (let i = arrLength - 1; i >= 0; i--) {
-        if (((rpArray[i] + offset) - tcArray[i]) >= -3) { break; }
+        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
@@ -9687,12 +9686,9 @@ zip.file("_micCal.txt", micCal);
       return;
     }
     async function getSubTrim(idx) {
-      // level subwoofer using it's bandwidth, limit to 20-120hz
-      const initialTrim = await getTrim(idx, 30, 80);
-      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120, initialTrim));
-      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120, initialTrim));
-      const finalTrim = await getTrim(idx, startFreq, endFreq);
-      return finalTrim;
+      // no need to overcomplicate since dynamic bass fill exists
+      const subTrim = await getTrim(idx, 30, 80);
+      return subTrim;
     }
     async function getDynamicBassFill(idx) {
       const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120));
