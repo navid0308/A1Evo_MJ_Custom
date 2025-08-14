@@ -9033,7 +9033,8 @@ zip.file("_micCal.txt", micCal);
         if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
         // trim determination using the MLP measurement
         if (title[count].startsWith("SW")) {
-          customLevel[count] = await getSubTrim(i);
+          // 30-80hz works better for level matching directional subwoofers
+          customLevel[count] = bassMode === "Directional" ? await getTrim(i, 30, 80) : await getSubTrim(i);
         }
         else {
           customLevel[count] = await getSpeakerTrim(i);
@@ -9320,7 +9321,7 @@ zip.file("_micCal.txt", micCal);
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPoint(idx);
-        m3dBPoints[i] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k
+        m3dBPoints[i] = [Math.round(rolloff), movieMode ? 10000 : 20000]; // audy mic generally garbage past 10k and messes with high shelf in MV
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -9328,7 +9329,7 @@ zip.file("_micCal.txt", micCal);
         }
         customCrossover[i] = initialXO;
         if (!singleChannel) {
-          m3dBPoints[i + 1] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k
+          m3dBPoints[i + 1] = [Math.round(rolloff), movieMode ? 10000 : 20000]; // audy mic generally garbage past 10k and messes with high shelf in MV
           customCrossover[i + 1] = initialXO;
           i++;
           await postDelete(idx); // cleanup
