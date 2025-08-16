@@ -259,11 +259,6 @@
   <div class="customization-options">
     <small>
       <label>
-        <input type="checkbox" id="movieMode" onchange="updateCheckboxStates()">
-        Movie mode
-        <span class="explanation">This mode levels and EQs more aggressively to prioritize immersion over the natural sound of your speakers.</span>
-      </label>
-      <label>
         <input type="checkbox" id="dialogueEnhancer" onchange="updateCheckboxStates()">
         Dialogue enhancer
         <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
@@ -302,8 +297,8 @@
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter = true;
-    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, movieMode = false;
-    let bassMode = "Standard", noSub = false, swInvMsg = "", subLoTrim, subHiTrim, subLoDelay, subHiDelay;
+    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "";
+    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
@@ -8690,14 +8685,11 @@ zip.file("_micCal.txt", micCal);
         document.getElementById('noInversion').checked = false;
         document.getElementById('noInversion').disabled = true;
       }
-      movieMode = document.getElementById('movieMode').checked;
       dialogueEnhancer = document.getElementById('dialogueEnhancer').checked;
       noInversion = document.getElementById('noInversion').checked;
     }
     function lockOptions() {
       updateCheckboxStates(); // final sanity check
-      document.getElementById('movieMode').disabled = true;
-      Object.freeze(movieMode);
       document.getElementById('dialogueEnhancer').disabled = true;
       Object.freeze(dialogueEnhancer);
       document.getElementById('noInversion').disabled = true;
@@ -8749,7 +8741,7 @@ zip.file("_micCal.txt", micCal);
           });
       }
       console.info(`****************************************************************************************************`);
-      console.log(`'A1Evo MJ Custom' optimization completed successfully in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
+      console.log(`Optimization completed successfully in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
       console.warn("'Allow' download(s) when prompted to save the final optimized .ady file.");
       console.info("When prompted, save the .ady file to your PC and transfer it to your phone/tablet.");
       console.info("Next, import the calibration into the MultEQ Editor App & transfer it to your AV receiver.");
@@ -8810,11 +8802,6 @@ zip.file("_micCal.txt", micCal);
         console.info("  No target curve - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
       } else {
         console.info(`  Active target curve: ${targetCurveName}.`);
-      }
-      if (movieMode) {
-        console.info("  Movie mode - A1Evo will level and EQ aggressively to prioritize immersion.")
-      } else {
-        console.info("  Standard mode - A1Evo will EQ minimally to preserve the natural sound of your speakers.")
       }
       console.info(`  Dialogue enhancer enabled: ${dialogueEnhancer ? "Yes" : "No"}.`);
       console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
@@ -9142,17 +9129,17 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: m3dBPoints[i][0],
           endFrequency: m3dBPoints[i][1],
-          individualMaxBoostdB: movieMode ? (isSub ? 6 : 3) : 0,
-          overallMaxBoostdB: movieMode ? (isSub ? 3 : 1) : 0,
+          individualMaxBoostdB: isSub ? 6 : 3,
+          overallMaxBoostdB: isSub ? 3 : 1,
           flatnessTargetdB: 1,
           allowNarrowFiltersBelow200Hz: true,
           varyQAbove200Hz: false,
-          allowLowShelf: movieMode && isSub,
-          lowShelfMin: -3,
-          lowShelfMax: 3,
-          allowHighShelf: movieMode && !isSub,
-          highShelfMin: -3,
-          highShelfMax: 3
+          allowLowShelf: isSub,
+          lowShelfMin: -6,
+          lowShelfMax: 6,
+          allowHighShelf: !isSub,
+          highShelfMin: -6,
+          highShelfMax: 6
         }, "Update processed");
         try {
           await postNext('Match target', i);
@@ -9320,7 +9307,7 @@ zip.file("_micCal.txt", micCal);
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPoint(idx);
-        m3dBPoints[i] = [Math.round(rolloff), movieMode ? 10000 : 20000]; // audy mic generally garbage past 10k and messes with high shelf in MV
+        m3dBPoints[i] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k and messes with high shelf
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -9328,7 +9315,7 @@ zip.file("_micCal.txt", micCal);
         }
         customCrossover[i] = initialXO;
         if (!singleChannel) {
-          m3dBPoints[i + 1] = [Math.round(rolloff), movieMode ? 10000 : 20000]; // audy mic generally garbage past 10k and messes with high shelf in MV
+          m3dBPoints[i + 1] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k and messes with high shelf
           customCrossover[i + 1] = initialXO;
           i++;
           await postDelete(idx); // cleanup
@@ -9674,18 +9661,10 @@ zip.file("_micCal.txt", micCal);
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
     async function getSpeakerTrim(idx) {
-      if (movieMode) {
-        const movieTrim = await getTrim(idx, 250, 10000);
-        return movieTrim;
-      }
-      else {
-        const stdTrim = await getTrim(idx, 250, 4000);
-        return stdTrim;
-      }
-      return;
+      const spTrim = await getTrim(idx, 500, 2000);
+      return spTrim;
     }
     async function getSubTrim(idx) {
-      // no need to overcomplicate since dynamic bass fill exists
       const subTrim = await getTrim(idx, 30, 80);
       return subTrim;
     }
@@ -27871,8 +27850,7 @@ zip.file("_micCal.txt", micCal);
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      downloadLink.download = getadyName(fileName, "_" + (movieMode ? "MV_" : "")
-                                                    + (dialogueEnhancer ? "DE_" : "")
+      downloadLink.download = getadyName(fileName, "_" + (dialogueEnhancer ? "DE_" : "")
                                                     + swInvMsg + `${tcName}_`
                                                     + `A1EvoMJC_${timestamp}.ady`);
       downloadLink.style.display = "none";
