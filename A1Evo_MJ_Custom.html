@@ -8705,7 +8705,7 @@ zip.file("_micCal.txt", micCal);
       await enableBlock();
       await bootUp();
       await groundWorks();
-      await calculateRolloffs();
+      await calculateSpeakerRolloffs();
       await calculateSubBandwidth();
       await generateFilters();
       finalizeTrims();
@@ -9264,35 +9264,35 @@ zip.file("_micCal.txt", micCal);
       }
       return xo;
     }
-    async function getLow3dBPoint(idx, start=10, end=320) {
+    async function getLowRolloffPoint(idx, start=10, end=320, maxDrop=-6) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
       const octave = Math.pow(2, 1/96);
-      // find -3dB point
+      // find freq where output is above maxDrop from TC
       let rolloff = start;
       for (let i = 0; i < arrLength; i++) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        if ((rpArray[i] - tcArray[i]) >= maxDrop) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
-    async function getHigh3dBPoint(idx, start=10, end=320) {
+    async function getHighRolloffPoint(idx, start=10, end=320, maxDrop=-6) {
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
       const octave = Math.pow(2, 1/96);
-      // find -3dB point
+      // find freq where output is above maxDrop from TC
       let rolloff = end;
       for (let i = arrLength - 1; i >= 0; i--) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
+        if ((rpArray[i] - tcArray[i]) >= maxDrop) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
     }
-    async function calculateRolloffs() {
+    async function calculateSpeakerRolloffs() {
       console.log("Calculating speaker -3dB points from target curve...");
       const measurements = await fetch_mREW();
       for (let i = 1; i <= nSpeakers; i++) {
@@ -9306,8 +9306,8 @@ zip.file("_micCal.txt", micCal);
           const pairAvg = await postNext('Magn plus phase average', [i, i + 1]); // do not use VA. it unfairly benefits single channel speakers
           idx = Object.keys(pairAvg.results)[0];
         }
-        const rolloff = await getLow3dBPoint(idx);
-        m3dBPoints[i] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k and messes with high shelf
+        const rolloff = await getLowRolloffPoint(idx, undefined, undefined, -3);
+        m3dBPoints[i] = [Math.round(rolloff), 10000]; // measurements generally garbage past 10k and messes with high shelf
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -9315,7 +9315,7 @@ zip.file("_micCal.txt", micCal);
         }
         customCrossover[i] = initialXO;
         if (!singleChannel) {
-          m3dBPoints[i + 1] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k and messes with high shelf
+          m3dBPoints[i + 1] = [Math.round(rolloff), 10000]; // measurements generally garbage past 10k and messes with high shelf
           customCrossover[i + 1] = initialXO;
           i++;
           await postDelete(idx); // cleanup
@@ -9326,12 +9326,12 @@ zip.file("_micCal.txt", micCal);
     }
     async function calculateSubBandwidth() {
       if (noSub) { return; } // no need to go further without subwoofer
-      console.log("Calculating subwoofer -3dB points from target curve...")
-      // find low freq -3dB point & set minXO
-      const subLowFreq = await getLow3dBPoint(nChannels);
+      console.log("Calculating subwoofer -6dB points from target curve...")
+      // find low freq -6dB point & set minXO
+      const subLowFreq = await getLowRolloffPoint(nChannels);
       minXO = findNearestXO(2 * subLowFreq);
-      // find high freq -3dB point and set maxXO
-      const subHighFreq = await getHigh3dBPoint(nChannels);
+      // find high freq -6dB point and set maxXO
+      const subHighFreq = await getHighRolloffPoint(nChannels);
       maxXO = findNearestXO(subHighFreq);
       if (minXO >= maxXO) {
         minXO = maxXO;
@@ -9574,12 +9574,12 @@ zip.file("_micCal.txt", micCal);
       let currSubIdx = nSpeakers + 1;
       let cmdIds = commandId[currSubIdx];
       let minDelay = 0, maxDelay = 0;
-      let startFreq = Math.round(await getLow3dBPoint(currSubIdx));
-      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx));
+      let startFreq = Math.round(await getLowRolloffPoint(currSubIdx));
+      let endFreq = Math.round(await getHighRolloffPoint(currSubIdx));
       for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
         console.log(`Aligning ${commandId[i]} to ${cmdIds}...`);
-        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i)));
-        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i)));
+        startFreq = Math.min(startFreq, Math.round(await getLowRolloffPoint(i)));
+        endFreq = Math.max(endFreq, Math.round(await getHighRolloffPoint(i)));
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i, startFreq, endFreq);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
@@ -9669,8 +9669,8 @@ zip.file("_micCal.txt", micCal);
       return subTrim;
     }
     async function getDynamicBassFill(idx) {
-      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120));
-      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120));
+      const startFreq = Math.round(await getLowRolloffPoint(idx, 20, 120));
+      const endFreq = Math.round(await getHighRolloffPoint(idx, 20, 120));
       const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const subArray = response2array(subFreqResponse, startFreq, endFreq);
       const targetArray = response2array(targetResponse, startFreq, endFreq);
