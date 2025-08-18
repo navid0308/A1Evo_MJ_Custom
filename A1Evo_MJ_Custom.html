@@ -9661,12 +9661,10 @@ zip.file("_micCal.txt", micCal);
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
     async function getSpeakerTrim(idx) {
-      // lower midrange through to upper midrange
-      const spTrim = await getTrim(idx, 250, 4000);
+      const spTrim = await getTrim(idx, 500, 2000);
       return spTrim;
     }
     async function getSubTrim(idx) {
-      // core subwoofer frequency range
       const subTrim = await getTrim(idx, 30, 80);
       return subTrim;
     }
