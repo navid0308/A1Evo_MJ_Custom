@@ -9129,8 +9129,8 @@ zip.file("_micCal.txt", micCal);
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: m3dBPoints[i][0],
           endFrequency: m3dBPoints[i][1],
-          individualMaxBoostdB: isSub ? 6 : 3,
-          overallMaxBoostdB: isSub ? 3 : 1,
+          individualMaxBoostdB: 6,
+          overallMaxBoostdB: 3,
           flatnessTargetdB: 1,
           allowNarrowFiltersBelow200Hz: true,
           varyQAbove200Hz: false,
