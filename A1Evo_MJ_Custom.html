@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.0.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -296,7 +296,7 @@
       "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
-    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter = true;
+    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "";
     let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
@@ -304,7 +304,6 @@
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [];
     const m3dBPoints = {};
-    const version = "PureEQ v1";
 
     function extractAdy(event) {
       console.info("Initializing A1 Evo MJ Custom...");
@@ -338,6 +337,7 @@
         Object.freeze(noSub);
         bassMode = jsonData.subwooferMode;
         Object.freeze(bassMode);
+        noCenter = true;
         subLoTrim = Infinity;
         subHiTrim = -Infinity;
         subLoDelay = Infinity;
@@ -606,7 +606,6 @@
       }
       console.info(`  Dialogue enhancer enabled: ${dialogueEnhancer ? "Yes" : "No"}.`);
       console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
-      console.info(`  MJC Version: ${version}`)
       console.info(`****************************************************************************************************`);
     }
     async function bootUp() {
@@ -1332,7 +1331,9 @@
       for (let i = 1; i <= nSpeakers; i++) {
         console.infoUpdate(`Generating final output for channel - ${commandId[i]}`);
         const isLarge = customCrossover[i] === "L";
-        const finalResponseName = commandId[i] + (isLarge ? "final-Large" : `final-${customCrossover[i]}hz-xo`);
+        let finalResponseName = commandId[i] + "final";
+        finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
+        finalResponseName += isLarge ? "-Large" : `-${customCrossover[i]}hz-xo`;
         const eqSpeaker = nChannels + 2 * i;
         const spWithHPF = await genSpeaker(eqSpeaker, customCrossover[i]);
         const spWithHPFIdx = (isLarge ? nChannels * 3 + i : Object.keys(spWithHPF.results)[0]);
