@@ -337,6 +337,8 @@
         Object.freeze(noSub);
         bassMode = jsonData.subwooferMode;
         Object.freeze(bassMode);
+        const spCmdIds = [];
+        const swCmdIds = [];
         noCenter = true;
         subLoTrim = Infinity;
         subHiTrim = -Infinity;
@@ -347,13 +349,22 @@
             noCenter = false;
           }
           if (channel.commandId && channel.commandId.startsWith("SW")) {
+            swCmdIds.push(channel.commandId);
             swChannelCount++;
             subLoTrim = Math.min(subLoTrim, parseFloat(channel.trimAdjustment));
             subHiTrim = Math.max(subHiTrim, parseFloat(channel.trimAdjustment));
             subLoDelay = Math.min(subLoDelay, parseFloat(channel.delayAdjustment));
             subHiDelay = Math.max(subHiDelay, parseFloat(channel.delayAdjustment));
           }
+          else {
+            spCmdIds.push(channel.commandId);
+          }
         });
+        spCmdIds.sort();
+        swCmdIds.sort();
+        commandId.push(...spCmdIds);
+        commandId.push(...swCmdIds);
+        commandId.unshift(undefined); // start at 1
         Object.freeze(noCenter);
         Object.freeze(swChannelCount);
         subLoTrim = -12 + Math.abs(subLoTrim);
@@ -630,7 +641,6 @@
     async function bootUp() {
       console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
-      const titles = {}; let titleIndices = {};
       let mCount = Object.keys(measurements).length;
       let isAudy = true;
       if (mCount > 0) {
@@ -649,77 +659,53 @@
       }
       await console.infoUpdate("Resetting default equalizer to 'Generic/Generic'...");
       await postSafe(`http://localhost:4735/eq/default-equaliser`, { manufacturer: "Generic", model: "Generic" }, "Default equaliser changed");
-      const firstTitle = measurements[1].title;
-      let previousTitle = "";
       console.infoUpdate(`Checking measurement names, indices and sorting...`);
-      for (let i = 1; i <= mCount; i++) {
-        const title = measurements[i].title;
-        if (previousTitle >= title) {
-          console.error("Measurements must be sorted in REW. To fix: All SPL > Sort (A to Z button).");
-          throw new Error;
-        }
-        previousTitle = title;
-        const titleKey = title.replace(/\d+/g, '');
-        if (!/^\D+(\d+)?$/.test(titleKey)) {
-          console.error(`Speaker name ${titleKey} does not end with a numeric index.`);
-          throw new Error;
-        }
-        if (!titles[titleKey]) {
-          titles[titleKey] = true;
-          titleIndices[titleKey] = [];
-        }
-        const matchResult = title.match(/\d+/);
-        if (matchResult && matchResult.length > 0) {
-          titleIndices[titleKey].push(parseInt(matchResult[0]));
-        } else {
-          console.error(`No indices found in speaker name: ${title}`);
-          throw new Error;
-        }
+      let previousTitle = "";
+      const cmdIdMeasurements = {};
+      for (let i = 1; i < commandId.length; i++) {
+        cmdIdMeasurements[commandId[i]] = [];
       }
-      let mPos = 0;
-      nSpeakers = 0;
-      nSubs = 0;
-      for (const titleKey in titleIndices) {
-        const indices = titleIndices[titleKey];
-        // first check for same # positions across channels
-        if (mPos === 0) {
-          // initilize - assuming sorted, no chance of SW/SWMIX being first
-          mPos = indices.length;
-          Object.freeze(mPos);
+      for (let i = 1; i <= mCount; i++) {
+        // check sorting
+        if (previousTitle === "") {
+          previousTitle = measurements[i].title;
         }
         else {
-          // for directional SW, it's a 2-D indices list
-          if (titleKey.startsWith("SW") && bassMode === "Directional") {
-            for (let i = 0; i < indices.length; i++) {
-              if (mPos != indices[i].length) {
-                console.error("Inconsistent # of measurements - all channels must have the same number of measurements!");
-                throw new Error;
-              }
-            }
+          if (previousTitle >= measurements[i].title) {
+            console.error("Measurements must be sorted in REW. To fix: All SPL > Sort (A to Z button).");
+            throw new Error;
           }
-          // for everything else, 1-D indices list
           else {
-            if (mPos != indices.length) {
-              console.error("Inconsistent # of measurements - all channels must have the same number of measurements!");
-              throw new Error;
-            }
+            previousTitle = measurements[i].title;
           }
         }
-        // find channel, speaker & subwoofer counts
-        if (titleKey.startsWith("SW")) {
-          if (bassMode === "Directional") {
-            // count # of directional subs
-            for (let i = 0; i < titleIndices[titleKey].length; i++) {
-              swIdx = String(titleIndices[titleKey][i]);
-              if (swIdx.length === 2 && swIdx.endsWith("0")) {
-                nSubs++;
-              }
-            }
+        // sanity check
+        const key = measurements[i].title.replace(/\d+/g, '');
+        if (!/^\D+(\d+)?$/.test(key)) {
+          console.error(`Speaker name ${key} does not end with a numeric index.`);
+          throw new Error;
+        }
+        // group measurements by commandIds
+        let cmdId = "";
+        for (let j = 1; j < commandId.length; j++) {
+          if (measurements[i].title.startsWith(commandId[j])) {
+            cmdId = commandId[j];
+            break;
           }
-          else {
-            // for standard bass, audyssey always 'sees' one virtual sub
-            nSubs = 1;
-          }
+        }
+        cmdIdMeasurements[cmdId].push(i);
+      }
+      const mPos = cmdIdMeasurements["FL"].length;
+      nSpeakers = 0;
+      nSubs = 0;
+      for (cmdId in cmdIdMeasurements) {
+        const indices = cmdIdMeasurements[cmdId];
+        if (mPos != indices.length) {
+          console.error(`${cmdId} has different number of measurements compared to FL! Expected: ${mPos} Actual: ${indices.length}`);
+          throw new Error;
+        }
+        if (cmdId.startsWith("SW")) {
+          nSubs++;
         }
         else {
           nSpeakers++;
@@ -727,7 +713,7 @@
       }
       Object.freeze(nSpeakers);
       Object.freeze(nSubs);
-      nChannels = Object.keys(titles).length;
+      nChannels = nSpeakers + Math.min(nSubs, 1); // dir2std will ALWAYS result in 1 final subwoofer
       Object.freeze(nChannels);
       const rewVersion = await fetch(`http://localhost:4735/version`);
       if (rewVersion.ok) {
@@ -764,22 +750,6 @@
       else {
         console.error(`Failed to fetch target curve, please make sure to have started REW API server! HTTP status code: ${tcResponse.status}.`);
         throw new Error;
-      }
-      const indicesCounts = Object.values(titleIndices).map(indices => indices.length);
-      const isIndicesEqual = indicesCounts.every(count => count === indicesCounts[0]);
-      if (!isIndicesEqual) {
-        const problemG = [];
-        for (const [titleKey, indices] of Object.entries(titleIndices)) {
-          if (indices.length !== indicesCounts[0]) {
-            problemG.push(titleKey);
-          }
-        }
-        if (problemG.some(group => group.startsWith('SW')) && bassMode === "Directional") {
-          console.info(`'Directional bass' mode with '${nSubs}' subwoofers detected!`);
-        } else {
-          console.error('Speaker names have different numbers of indices.');
-          throw new Error();
-        }
       }
       logCustomizations();
       return;
@@ -852,6 +822,7 @@
         if (name.startsWith("SW")) {await postDelete(i);}
       }
       const micPositions = mCount / (nSpeakers + nSubs);
+      if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       console.log(`Optimizing speaker volume & time alignment using <${micPositions}> different microphone positions...`);
@@ -896,9 +867,6 @@
       console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
-      }
-      for (let i = 1; i <= nSpeakers + nSubs; i++) {
-        commandId[i] = title[i].slice(0, -1);
       }
       console.infoUpdate("Time aligning speakers...");
       // align speakers but leave subwoofers alone. ANY align command messes up subwoofer IR alignment
