@@ -1156,7 +1156,7 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPointFromTC(idx);
-        m3dBPoints[i] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k and messes with high shelf
+        m3dBPoints[i] = [Math.round(rolloff), 12500]; // audy mic generally garbage past 10k and messes with high shelf
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -1164,7 +1164,7 @@
         }
         customCrossover[i] = initialXO;
         if (!singleChannel) {
-          m3dBPoints[i + 1] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k and messes with high shelf
+          m3dBPoints[i + 1] = [Math.round(rolloff), 12500]; // audy mic generally garbage past 10k and messes with high shelf
           customCrossover[i + 1] = initialXO;
           i++;
           await postDelete(idx); // cleanup
