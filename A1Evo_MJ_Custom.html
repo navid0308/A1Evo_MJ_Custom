@@ -363,7 +363,13 @@
         spCmdIds.sort();
         swCmdIds.sort();
         commandId.push(...spCmdIds);
-        commandId.push(...swCmdIds);
+        if (bassMode === "Directional") {
+          commandId.push(...swCmdIds);
+        }
+        else if (swCmdIds.length != 0) {
+          // standard bass only needs one entry of SW1/SWMIX
+          commandId.push(swCmdIds[0]);
+        }
         commandId.unshift(undefined); // start at 1
         Object.freeze(noCenter);
         Object.freeze(swChannelCount);
