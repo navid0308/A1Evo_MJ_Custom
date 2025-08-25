@@ -935,7 +935,9 @@
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
-        await fetchSafe('target-level', i, 75.0);
+        // line up speaker response to target similar to REW, but don't affect subwoofer
+        const tcLevelOffset = isSub ? 0 : await getTrim(i, 200, 2000);
+        await fetchSafe('target-level', i, 75.0 - tcLevelOffset);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`${baseUrl}/${i}/target-settings`, {
           shape: isSub ? "Subwoofer" : "Full range",
@@ -993,22 +995,22 @@
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
         const eqResponseName = `${commandId[i]}-equalized`;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
-        // compensate equalized response & trims for auto level
+        // compensate equalized response & trims for auto level as well as tc level offset
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const ALTrimOffset = Math.round(ALOffset * 2) / 2; //round to nearest 0.5
-        if (ALTrimOffset != 0) {
-          await postNext('Add SPL offset', i, { offset: ALTrimOffset }); // offset "o" for auto-level
-          await postNext('Add SPL offset', eqResponseIdx, { offset: ALTrimOffset }); // offset "-equalized" for auto-level
+        const trimOffset = tcLevelOffset + Math.round(ALOffset * 2) / 2; //round to nearest 0.5
+        if (trimOffset != 0) {
+          await postNext('Add SPL offset', i, { offset: trimOffset }); // offset "o"
+          await postNext('Add SPL offset', eqResponseIdx, { offset: trimOffset }); // offset "-equalized"
           const customLevelOriginal = customLevel[i];
           if(isSub) {
             for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
-              customLevel[j] += ALTrimOffset;
+              customLevel[j] += trimOffset;
             }
           }
           else {
-            customLevel[i] += ALTrimOffset;
+            customLevel[i] += trimOffset;
           }
-          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${ALTrimOffset}dB)`;
+          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
         console.infoUpdate(logUpdate);
       }
