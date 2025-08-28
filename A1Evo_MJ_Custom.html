@@ -640,8 +640,12 @@
       } else {
         console.info(`  Active target curve: ${targetCurveName}.`);
       }
-      console.info(`  Dialogue enhancer enabled: ${dialogueEnhancer ? "Yes" : "No"}.`);
-      console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
+      if (!noCenter) {
+        console.info(`  Dialogue enhancer enabled: ${dialogueEnhancer ? "Yes" : "No"}.`);
+      }
+      if (!noSub) {
+        console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
+      }
       console.info(`****************************************************************************************************`);
     }
     async function bootUp() {
