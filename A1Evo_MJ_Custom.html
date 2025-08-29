@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.0.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -337,6 +337,8 @@
         Object.freeze(noSub);
         bassMode = jsonData.subwooferMode;
         Object.freeze(bassMode);
+        const spCmdIds = [];
+        const swCmdIds = [];
         noCenter = true;
         subLoTrim = Infinity;
         subHiTrim = -Infinity;
@@ -347,13 +349,28 @@
             noCenter = false;
           }
           if (channel.commandId && channel.commandId.startsWith("SW")) {
+            swCmdIds.push(channel.commandId);
             swChannelCount++;
             subLoTrim = Math.min(subLoTrim, parseFloat(channel.trimAdjustment));
             subHiTrim = Math.max(subHiTrim, parseFloat(channel.trimAdjustment));
             subLoDelay = Math.min(subLoDelay, parseFloat(channel.delayAdjustment));
             subHiDelay = Math.max(subHiDelay, parseFloat(channel.delayAdjustment));
           }
+          else {
+            spCmdIds.push(channel.commandId);
+          }
         });
+        spCmdIds.sort();
+        swCmdIds.sort();
+        commandId.push(...spCmdIds);
+        if (bassMode === "Directional") {
+          commandId.push(...swCmdIds);
+        }
+        else if (swCmdIds.length != 0) {
+          // standard bass only needs one entry of SW1/SWMIX
+          commandId.push(swCmdIds[0]);
+        }
+        commandId.unshift(undefined); // start at 1
         Object.freeze(noCenter);
         Object.freeze(swChannelCount);
         subLoTrim = -12 + Math.abs(subLoTrim);
@@ -404,14 +421,27 @@
         const checkMeasurementCount = async () => {
           const measurements = await fetch_mREW();
           let mCount = Object.keys(measurements).length;
-          if(isCirrusLogic) (mCount--);
-          if (mCount === totalMeasurements) {
+          let isAudy = true;
+          if (mCount > 0) {
+            isAudy = await checkIfAudyMeasurement();
+          }
+          if(isCirrusLogic && isAudy) (mCount--);
+          if (mCount === totalMeasurements && isAudy) {
             document.getElementById("button2").disabled = false;
             console.infoUpdate(`All ${isCirrusLogic ? mCount + 1 : mCount} measurements have now been successfully imported!`);
             clearInterval(intervalId);
-          } else {
+          }
+          else if (mCount > 0 && !isAudy) {
+            document.getElementById("button2").disabled = false;
+            console.infoUpdate("Skipping measurement count check "
+              + (isCirrusLogic ? "and ignoring Audy mic cal " : "")
+              + "- manual measurements detected!");
+            clearInterval(intervalId);
+          }
+          else {
             console.infoUpdate(`Expecting ${totalMeasurements} measurements`
-              + (isCirrusLogic ? " and Audyssey microphone calibration file" : "") + ` to be imported into REW...`);
+              + (isCirrusLogic ? " and Audy mic cal file" : "")
+              + ` to be imported into REW...`);
           }
         }
         const intervalId = setInterval(checkMeasurementCount, 1000);
@@ -424,6 +454,12 @@
       const dotIndex = fileName.lastIndexOf(".");
       const modifiedName = fileName.substring(0, dotIndex) + suffix;
       return modifiedName;
+    }
+    async function checkIfAudyMeasurement() {
+      const response = await fetchSafe('impulse-response', 1);
+      const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
+      const totalSamples = bytes.length / 4;
+      return (totalSamples === 16384);
     }
     function getFLDistance(channels) {
       let flIndex = 0;
@@ -604,17 +640,25 @@
       } else {
         console.info(`  Active target curve: ${targetCurveName}.`);
       }
-      console.info(`  Dialogue enhancer enabled: ${dialogueEnhancer ? "Yes" : "No"}.`);
-      console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
+      if (!noCenter) {
+        console.info(`  Dialogue enhancer enabled: ${dialogueEnhancer ? "Yes" : "No"}.`);
+      }
+      if (!noSub) {
+        console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
+      }
       console.info(`****************************************************************************************************`);
     }
     async function bootUp() {
       console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
-      const titles = {}; let titleIndices = {};
       let mCount = Object.keys(measurements).length;
+      let isAudy = true;
+      if (mCount > 0) {
+        isAudy = await checkIfAudyMeasurement();
+      }
+      Object.freeze(isAudy);
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
-      if (isCirrusLogic) {mCount--;};
+      if (isCirrusLogic && isAudy) {mCount--;};
       let baseMessage = "Resetting IR windows, EQ type, target shape and smoothing for all measurements..."
       for (let q = 1; q <= mCount; q++) {
         await postSafe(`${baseUrl}/${q}/ir-windows`, { leftWindowType: "Rectangular", rightWindowType: "Rectangular" }, "Update processed");
@@ -625,51 +669,53 @@
       }
       await console.infoUpdate("Resetting default equalizer to 'Generic/Generic'...");
       await postSafe(`http://localhost:4735/eq/default-equaliser`, { manufacturer: "Generic", model: "Generic" }, "Default equaliser changed");
-      const firstTitle = measurements[1].title;
-      let previousTitle = "";
       console.infoUpdate(`Checking measurement names, indices and sorting...`);
-      for (let i = 1; i <= mCount; i++) {
-        const title = measurements[i].title;
-        if (previousTitle >= title) {
-          console.error("Measurements must be sorted in REW. To fix: All SPL > Sort (A to Z button).");
-          throw new Error;
-        }
-        previousTitle = title;
-        const titleKey = title.replace(/\d+/g, '');
-        if (!/^\D+(\d+)?$/.test(titleKey)) {
-          console.error(`Speaker name ${titleKey} does not end with a numeric index.`);
-          throw new Error;
-        }
-        if (!titles[titleKey]) {
-          titles[titleKey] = true;
-          titleIndices[titleKey] = [];
-        }
-        const matchResult = title.match(/\d+/);
-        if (matchResult && matchResult.length > 0) {
-          titleIndices[titleKey].push(parseInt(matchResult[0]));
-        } else {
-          console.error(`No indices found in speaker name: ${title}`);
-          throw new Error;
-        }
+      let previousTitle = "";
+      const cmdIdMeasurements = {};
+      for (let i = 1; i < commandId.length; i++) {
+        cmdIdMeasurements[commandId[i]] = [];
       }
+      for (let i = 1; i <= mCount; i++) {
+        // check sorting
+        if (previousTitle === "") {
+          previousTitle = measurements[i].title;
+        }
+        else {
+          if (previousTitle >= measurements[i].title) {
+            console.error("Measurements must be sorted in REW. To fix: All SPL > Sort (A to Z button).");
+            throw new Error;
+          }
+          else {
+            previousTitle = measurements[i].title;
+          }
+        }
+        // sanity check
+        const key = measurements[i].title.replace(/\d+/g, '');
+        if (!/^\D+(\d+)?$/.test(key)) {
+          console.error(`Speaker name ${key} does not end with a numeric index.`);
+          throw new Error;
+        }
+        // group measurements by commandIds
+        let cmdId = "";
+        for (let j = 1; j < commandId.length; j++) {
+          if (measurements[i].title.startsWith(commandId[j])) {
+            cmdId = commandId[j];
+            break;
+          }
+        }
+        cmdIdMeasurements[cmdId].push(i);
+      }
+      const mPos = cmdIdMeasurements["FL"].length;
       nSpeakers = 0;
       nSubs = 0;
-      for (const titleKey in titleIndices) {
-        const indices = titleIndices[titleKey];
-        if (indices[0] != Math.min(...indices)) {
-          console.error(`MLP measurement needs to be the first measurement for ${titleKey} channel!`);
+      for (cmdId in cmdIdMeasurements) {
+        const indices = cmdIdMeasurements[cmdId];
+        if (mPos != indices.length) {
+          console.error(`${cmdId} has different number of measurements compared to FL! Expected: ${mPos} Actual: ${indices.length}`);
           throw new Error;
         }
-        if (titleKey === "SWMIX") {
-          nSubs = 1;
-        }
-        else if (titleKey.startsWith("SW")) {
-          for (let i = 0; i < titleIndices[titleKey].length; i++) {
-            swIdx = String(titleIndices[titleKey][i]);
-            if (swIdx.length === 2 && swIdx.endsWith("0")) {
-              nSubs++;
-            }
-          }
+        if (cmdId.startsWith("SW")) {
+          nSubs++;
         }
         else {
           nSpeakers++;
@@ -677,7 +723,7 @@
       }
       Object.freeze(nSpeakers);
       Object.freeze(nSubs);
-      nChannels = Object.keys(titles).length;
+      nChannels = nSpeakers + Math.min(nSubs, 1); // dir2std will ALWAYS result in 1 final subwoofer
       Object.freeze(nChannels);
       const rewVersion = await fetch(`http://localhost:4735/version`);
       if (rewVersion.ok) {
@@ -688,7 +734,7 @@
         console.error('There seems to be a problem with REW installation!');
         throw new Error;
       }
-      if (isCirrusLogic) {await addmicCal();} // only apply if all sanity checks pass
+      if (isCirrusLogic && isAudy) {await addmicCal();} // only apply if all sanity checks pass
       const tcResponse = await fetch('http://localhost:4735/eq/house-curve');
       if (tcResponse.ok) {
         const target = await tcResponse.json();
@@ -714,22 +760,6 @@
       else {
         console.error(`Failed to fetch target curve, please make sure to have started REW API server! HTTP status code: ${tcResponse.status}.`);
         throw new Error;
-      }
-      const indicesCounts = Object.values(titleIndices).map(indices => indices.length);
-      const isIndicesEqual = indicesCounts.every(count => count === indicesCounts[0]);
-      if (!isIndicesEqual) {
-        const problemG = [];
-        for (const [titleKey, indices] of Object.entries(titleIndices)) {
-          if (indices.length !== indicesCounts[0]) {
-            problemG.push(titleKey);
-          }
-        }
-        if (problemG.some(group => group.startsWith('SW')) && bassMode === "Directional") {
-          console.info(`'Directional bass' mode with '${nSubs}' subwoofers detected!`);
-        } else {
-          console.error('Speaker names have different numbers of indices.');
-          throw new Error();
-        }
       }
       logCustomizations();
       return;
@@ -802,6 +832,7 @@
         if (name.startsWith("SW")) {await postDelete(i);}
       }
       const micPositions = mCount / (nSpeakers + nSubs);
+      if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       console.log(`Optimizing speaker volume & time alignment using <${micPositions}> different microphone positions...`);
@@ -846,9 +877,6 @@
       console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
-      }
-      for (let i = 1; i <= nSpeakers + nSubs; i++) {
-        commandId[i] = title[i].slice(0, -1);
       }
       console.infoUpdate("Time aligning speakers...");
       // align speakers but leave subwoofers alone. ANY align command messes up subwoofer IR alignment
@@ -917,7 +945,9 @@
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
-        await fetchSafe('target-level', i, 75.0);
+        // line up speaker response to target similar to REW, but don't affect subwoofer
+        const tcLevelOffset = isSub ? 0 : await getTrim(i, 200, 2000);
+        await fetchSafe('target-level', i, 75.0 - tcLevelOffset);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`${baseUrl}/${i}/target-settings`, {
           shape: isSub ? "Subwoofer" : "Full range",
@@ -975,22 +1005,22 @@
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
         const eqResponseName = `${commandId[i]}-equalized`;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
-        // compensate equalized response & trims for auto level
+        // compensate equalized response & trims for auto level as well as tc level offset
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const ALTrimOffset = Math.round(ALOffset * 2) / 2; //round to nearest 0.5
-        if (ALTrimOffset != 0) {
-          await postNext('Add SPL offset', i, { offset: ALTrimOffset }); // offset "o" for auto-level
-          await postNext('Add SPL offset', eqResponseIdx, { offset: ALTrimOffset }); // offset "-equalized" for auto-level
+        const trimOffset = tcLevelOffset + Math.round(ALOffset * 2) / 2; //round to nearest 0.5
+        if (trimOffset != 0) {
+          await postNext('Add SPL offset', i, { offset: trimOffset }); // offset "o"
+          await postNext('Add SPL offset', eqResponseIdx, { offset: trimOffset }); // offset "-equalized"
           const customLevelOriginal = customLevel[i];
           if(isSub) {
             for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
-              customLevel[j] += ALTrimOffset;
+              customLevel[j] += trimOffset;
             }
           }
           else {
-            customLevel[i] += ALTrimOffset;
+            customLevel[i] += trimOffset;
           }
-          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${ALTrimOffset}dB)`;
+          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
         console.infoUpdate(logUpdate);
       }
@@ -1065,13 +1095,41 @@
       }
       return xo;
     }
-    async function getLow3dBPoint(idx, start=10, end=320) {
+    async function getAbsLow3dBPointForSub(idx, start=10, end=320) {
+      // finds low -3dB point from mean SPL between 30-80hz
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const subArray = response2array(response, 30, 80);
+      const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
+      const rpArray = response2array(response, start, end);
+      const octave = Math.pow(2, 1/96);
+      let rolloff = start;
+      for (let i = 0; i < rpArray.length; i++) {
+        if ((rpArray[i] - subSPL) >= -3) { break; }
+        rolloff *= octave;
+      }
+      return Math.min(rolloff, end);
+    }
+    async function getAbsHigh3dBPointForSub(idx, start=10, end=320) {
+      // finds high -3dB point from mean SPL between 30-80hz
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const subArray = response2array(response, 30, 80);
+      const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
+      const rpArray = response2array(response, start, end);
+      const octave = Math.pow(2, 1/96);
+      let rolloff = end;
+      for (let i = rpArray.length - 1; i >= 0; i--) {
+        if ((rpArray[i] - subSPL) >= -3) { break; }
+        rolloff /= octave;
+      }
+      return Math.max(rolloff, start);
+    }
+    async function getLow3dBPointFromTC(idx, start=10, end=320) {
+      // finds low -3dB point from target
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
       const octave = Math.pow(2, 1/96);
-      // find -3dB point
       let rolloff = start;
       for (let i = 0; i < arrLength; i++) {
         if ((rpArray[i] - tcArray[i]) >= -3) { break; }
@@ -1079,13 +1137,13 @@
       }
       return Math.min(rolloff, end);
     }
-    async function getHigh3dBPoint(idx, start=10, end=320) {
+    async function getHigh3dBPointFromTC(idx, start=10, end=320) {
+      // finds high -3dB point from target
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
       const octave = Math.pow(2, 1/96);
-      // find -3dB point
       let rolloff = end;
       for (let i = arrLength - 1; i >= 0; i--) {
         if ((rpArray[i] - tcArray[i]) >= -3) { break; }
@@ -1107,8 +1165,8 @@
           const pairAvg = await postNext('Magn plus phase average', [i, i + 1]); // do not use VA. it unfairly benefits single channel speakers
           idx = Object.keys(pairAvg.results)[0];
         }
-        const rolloff = await getLow3dBPoint(idx);
-        m3dBPoints[i] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k and messes with high shelf
+        const rolloff = await getLow3dBPointFromTC(idx);
+        m3dBPoints[i] = [Math.round(rolloff), 12500]; // audy mic generally garbage past 10k and messes with high shelf
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -1116,7 +1174,7 @@
         }
         customCrossover[i] = initialXO;
         if (!singleChannel) {
-          m3dBPoints[i + 1] = [Math.round(rolloff), 10000]; // audy mic generally garbage past 10k and messes with high shelf
+          m3dBPoints[i + 1] = [Math.round(rolloff), 12500]; // audy mic generally garbage past 10k and messes with high shelf
           customCrossover[i + 1] = initialXO;
           i++;
           await postDelete(idx); // cleanup
@@ -1129,10 +1187,10 @@
       if (noSub) { return; } // no need to go further without subwoofer
       console.log("Calculating subwoofer -3dB points from target curve...")
       // find low freq -3dB point & set minXO
-      const subLowFreq = await getLow3dBPoint(nChannels);
+      const subLowFreq = await getLow3dBPointFromTC(nChannels);
       minXO = findNearestXO(2 * subLowFreq);
       // find high freq -3dB point and set maxXO
-      const subHighFreq = await getHigh3dBPoint(nChannels);
+      const subHighFreq = await getHigh3dBPointFromTC(nChannels);
       maxXO = findNearestXO(subHighFreq);
       if (minXO >= maxXO) {
         minXO = maxXO;
@@ -1377,12 +1435,12 @@
       let currSubIdx = nSpeakers + 1;
       let cmdIds = commandId[currSubIdx];
       let minDelay = 0, maxDelay = 0;
-      let startFreq = Math.round(await getLow3dBPoint(currSubIdx));
-      let endFreq = Math.round(await getHigh3dBPoint(currSubIdx));
+      let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
+      let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
       for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
         console.log(`Aligning ${commandId[i]} to ${cmdIds}...`);
-        startFreq = Math.min(startFreq, Math.round(await getLow3dBPoint(i)));
-        endFreq = Math.max(endFreq, Math.round(await getHigh3dBPoint(i)));
+        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(i)));
+        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(i)));
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i, startFreq, endFreq);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
@@ -1457,7 +1515,7 @@
     async function getTrim(idx, start, end) {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
@@ -1472,8 +1530,8 @@
       return subTrim;
     }
     async function getDynamicBassFill(idx) {
-      const startFreq = Math.round(await getLow3dBPoint(idx, 20, 120));
-      const endFreq = Math.round(await getHigh3dBPoint(idx, 20, 120));
+      const startFreq = Math.round(await getLow3dBPointFromTC(idx, 20, 120));
+      const endFreq = Math.round(await getHigh3dBPointFromTC(idx, 20, 120));
       const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const subArray = response2array(subFreqResponse, startFreq, endFreq);
       const targetArray = response2array(targetResponse, startFreq, endFreq);
