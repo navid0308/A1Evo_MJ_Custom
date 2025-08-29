@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1151,6 +1151,27 @@
       }
       return Math.max(rolloff, start);
     }
+    async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
+      // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
+      const rpArray = response2array(response, start, end);
+      const octave = Math.pow(2, 1/96);
+      let checkFreq = start;
+      let rolloff = checkFreq;
+      let lowestSPL = rpArray[0];
+      for (let i = 0; i < rpArray.length; i++) {
+        if (rpArray[i] < lowestSPL) {
+          lowestSPL = rpArray[i];
+          rolloff = checkFreq;
+        }
+        // if HF peak exceeds lowest point by 3dB, set roll-off before that peak
+        if (rpArray[i] - lowestSPL >= 3) {
+          break;
+        }
+        checkFreq *= octave;
+      }
+      return Math.min(rolloff, end);
+    }
     async function calculateRolloffs() {
       console.log("Calculating speaker -3dB points from target curve...");
       const measurements = await fetch_mREW();
@@ -1166,7 +1187,9 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPointFromTC(idx);
-        m3dBPoints[i] = [Math.round(rolloff), 12500]; // audy mic generally garbage past 10k and messes with high shelf
+        const rolloffHF = await getSpeakerHFRolloff(i); // speaker specific, not pair specific
+        //console.error(rolloff.toFixed(2), rolloffHF.toFixed(2));
+        m3dBPoints[i] = [Math.round(rolloff), Math.round(rolloffHF)];
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -1174,7 +1197,9 @@
         }
         customCrossover[i] = initialXO;
         if (!singleChannel) {
-          m3dBPoints[i + 1] = [Math.round(rolloff), 12500]; // audy mic generally garbage past 10k and messes with high shelf
+          const rolloffHFR = await getSpeakerHFRolloff(i + 1); // speaker specific, not pair specific
+          //console.error(rolloff.toFixed(2), rolloffHFR.toFixed(2));
+          m3dBPoints[i + 1] = [Math.round(rolloff), Math.round(rolloffHFR)];
           customCrossover[i + 1] = initialXO;
           i++;
           await postDelete(idx); // cleanup
