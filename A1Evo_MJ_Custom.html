@@ -831,7 +831,7 @@
         if (indices.length > 1) {
           await postNext('Cross corr align', indices);
         }
-        mSec[i] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
+        mSec[i] = parseFloat(measurements[indices[0]].cumulativeIRShiftSeconds);
         title[i] = commandId[i] + "o";
         // trim determination using the MLP measurement
         if (title[i].startsWith("SW")) {
@@ -841,7 +841,7 @@
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
         // level match all other positions to MLP & average
-        await alignVol2MLP(indices, indices[0]);
+        await alignVol2MLP(indices, indices[0]); // idx 0 is MLP since everything's sorted
         if (indices.length === 1) {
           await postSafe(`${baseUrl}/${i}/command`, {command: "Response copy" }, "Completed"); // nothing to average
         }
