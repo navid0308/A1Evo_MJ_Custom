@@ -990,7 +990,6 @@
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
         const trimOffset = tcLevelOffset + Math.round(ALOffset * 2) / 2; //round to nearest 0.5
         if (trimOffset != 0) {
-          await postNext('Add SPL offset', i, { offset: trimOffset }); // offset "o"
           await postNext('Add SPL offset', eqResponseIdx, { offset: trimOffset }); // offset "-equalized"
           const customLevelOriginal = customLevel[i];
           if(isSub) {
