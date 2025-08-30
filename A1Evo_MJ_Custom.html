@@ -695,9 +695,11 @@
           throw new Error;
         }
         // group measurements by commandIds
+        const idxLength = measurements[i].title.length - key.length - (key === "SW" ? 1 : 0);
+        const mCmdId = measurements[i].title.slice(0, measurements[i].title.length - idxLength);
         let cmdId = "";
         for (let j = 1; j < commandId.length; j++) {
-          if (measurements[i].title.startsWith(commandId[j])) {
+          if (mCmdId === commandId[j]) {
             cmdId = commandId[j];
             break;
           }
