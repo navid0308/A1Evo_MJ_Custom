@@ -704,6 +704,10 @@
             break;
           }
         }
+        if (cmdId === "") { // REW measurement does not match a channel in the ady
+          console.error(`Measurement #${i} '${measurements[i].title}' does not match up to any channel in the ady!`);
+          throw new Error;
+        }
         cmdIdMeasurements[cmdId].push(i);
       }
       const mPos = cmdIdMeasurements["FL"].length;
