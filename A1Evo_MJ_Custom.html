@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -303,7 +303,7 @@
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [];
-    const m3dBPoints = {};
+    const m3dBPoints = {}, cmdIdMeasurements = {};
 
     function extractAdy(event) {
       console.info("Initializing A1 Evo MJ Custom...");
@@ -671,7 +671,6 @@
       await postSafe(`http://localhost:4735/eq/default-equaliser`, { manufacturer: "Generic", model: "Generic" }, "Default equaliser changed");
       console.infoUpdate(`Checking measurement names, indices and sorting...`);
       let previousTitle = "";
-      const cmdIdMeasurements = {};
       for (let i = 1; i < commandId.length; i++) {
         cmdIdMeasurements[commandId[i]] = [];
       }
@@ -696,12 +695,18 @@
           throw new Error;
         }
         // group measurements by commandIds
+        const idxLength = measurements[i].title.length - key.length - (key === "SW" ? 1 : 0);
+        const mCmdId = measurements[i].title.slice(0, measurements[i].title.length - idxLength);
         let cmdId = "";
         for (let j = 1; j < commandId.length; j++) {
-          if (measurements[i].title.startsWith(commandId[j])) {
+          if (mCmdId === commandId[j]) {
             cmdId = commandId[j];
             break;
           }
+        }
+        if (cmdId === "") { // REW measurement does not match a channel in the ady
+          console.error(`Measurement #${i} '${measurements[i].title}' does not match up to any channel in the ady!`);
+          throw new Error;
         }
         cmdIdMeasurements[cmdId].push(i);
       }
@@ -819,60 +824,42 @@
     }
     async function groundWorks() {
       let measurements = await fetch_mREW();
-      let mCount = Object.keys(measurements).length;
-      // move sub measurements to the bottom of the list in REW
-      for (let i = 1; i <= mCount; i++) {
-        const name = measurements[i].title;
-        if (name.startsWith("SW")) {
-          await postSafe(`${baseUrl}/${i}/command`, { command: "Response copy" }, "Completed");
-        }
-      }
-      for (let i = mCount; i >= 1; i--) {
-        const name = measurements[i].title;
-        if (name.startsWith("SW")) {await postDelete(i);}
-      }
-      const micPositions = mCount / (nSpeakers + nSubs);
+      const mCount = Object.keys(measurements).length;
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
-      console.log(`Optimizing speaker volume & time alignment using <${micPositions}> different microphone positions...`);
+      console.log(`Optimizing spatial averaging, volume & time alignment...`);
       console.info(`Starting...`);
-      measurements = await fetch_mREW();
-      mCount = Object.keys(measurements).length;
-      let count = 1;
       let title = {};
-      for (let i = 1; i <= mCount; i += micPositions) {
-        console.infoUpdate(`Computing optimal spatial averaging configuration for speaker #${(i - 1) / micPositions + 1}`)
-        const indices = Array.from({length: micPositions }, (_, j) => i + j);
-        if (micPositions > 1) {
+      for (let i = 1; i < commandId.length; i++) {
+        const indices = cmdIdMeasurements[commandId[i]];
+        console.infoUpdate(`Processing channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
+        if (indices.length > 1) {
           await postNext('Cross corr align', indices);
         }
-        mSec[count] = parseFloat(measurements[i].cumulativeIRShiftSeconds);
-        title[count] = measurements[i].title.slice(0, -1) + "o";
-        if (title[count].startsWith("SW")) { title[count] = title[count].slice(0, -6) + "o"; }
+        mSec[i] = parseFloat(measurements[indices[0]].cumulativeIRShiftSeconds);
+        title[i] = commandId[i] + "o";
         // trim determination using the MLP measurement
-        if (title[count].startsWith("SW")) {
-          customLevel[count] = await getSubTrim(i);
+        if (title[i].startsWith("SW")) {
+          customLevel[i] = await getSubTrim(indices[0]);
         }
         else {
-          customLevel[count] = await getSpeakerTrim(i);
+          customLevel[i] = await getSpeakerTrim(indices[0]);
         }
         // level match all other positions to MLP & average
-        await alignVol2MLP(indices, i);
-        if (micPositions === 1) {
-          await postSafe(`${baseUrl}/${i}/command`, {command: "Response copy" }, "Completed"); // nothing to average
+        await alignVol2MLP(indices, indices[0]); // idx 0 is MLP since everything's sorted
+        if (indices.length === 1) {
+          await postSafe(`${baseUrl}/${indices[0]}/command`, {command: "Response copy" }, "Completed"); // nothing to average
         }
         else {
           await postNext('Magn plus phase average', indices); // do not use VA, it reduces SPL!
         }
         // the "o" measurement
-        const idx = mCount + count;
-        await fetch_mREW(idx, 'PUT', { title: title[count] });
+        const idx = mCount + i;
+        await fetch_mREW(idx, 'PUT', { title: title[i] });
         // align "o" measurement to target curve
-        let volAdjust = parseFloat(customLevel[count]);
+        let volAdjust = parseFloat(customLevel[i]);
         await postNext('Add SPL offset', idx, { offset: volAdjust });
-        // go to next channel
-        count++;
       }
       console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i >= 1; i--) {
@@ -893,7 +880,7 @@
       for (let i = 1; i <= nSpeakers; i++) {
         mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - IRStartDelay);
       }
-      console.infoUpdate("Completed averaging, volume & time alignment!");
+      console.infoUpdate("Completed spatial averaging, volume & time alignment!");
       // no need to go further without subwoofer
       if (noSub) { return; }
       // remove audyssey IR start delay from subwoofers
@@ -1009,7 +996,6 @@
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
         const trimOffset = tcLevelOffset + Math.round(ALOffset * 2) / 2; //round to nearest 0.5
         if (trimOffset != 0) {
-          await postNext('Add SPL offset', i, { offset: trimOffset }); // offset "o"
           await postNext('Add SPL offset', eqResponseIdx, { offset: trimOffset }); // offset "-equalized"
           const customLevelOriginal = customLevel[i];
           if(isSub) {
@@ -1151,6 +1137,30 @@
       }
       return Math.max(rolloff, start);
     }
+    async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
+      // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const rpArray = response2array(response, start, end);
+      const tcArray = response2array(targetResponse, start, end);
+      const arrLength = Math.min(rpArray.length, tcArray.length);
+      const octave = Math.pow(2, 1/96);
+      let checkFreq = start;
+      let rolloff = checkFreq;
+      let lowestSPL = rpArray[0];
+      for (let i = 0; i < arrLength; i++) {
+        if (rpArray[i] < lowestSPL) {
+          lowestSPL = rpArray[i];
+          rolloff = checkFreq;
+        }
+        // if HF peak exceeds lowest point by 3dB, set roll-off before that peak
+        // also if HF drops below target by 3dB, stop there otherwise high shelf will fail
+        if ((rpArray[i] - lowestSPL >= 3) || (rpArray[i] - tcArray[i] <= -3)) {
+          break;
+        }
+        checkFreq *= octave;
+      }
+      return Math.min(rolloff, end);
+    }
     async function calculateRolloffs() {
       console.log("Calculating speaker -3dB points from target curve...");
       const measurements = await fetch_mREW();
@@ -1166,7 +1176,8 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPointFromTC(idx);
-        m3dBPoints[i] = [Math.round(rolloff), 12500]; // audy mic generally garbage past 10k and messes with high shelf
+        const rolloffHF = await getSpeakerHFRolloff(i); // speaker specific, not pair specific
+        m3dBPoints[i] = [Math.round(rolloff), Math.round(rolloffHF)];
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -1174,7 +1185,8 @@
         }
         customCrossover[i] = initialXO;
         if (!singleChannel) {
-          m3dBPoints[i + 1] = [Math.round(rolloff), 12500]; // audy mic generally garbage past 10k and messes with high shelf
+          const rolloffHFR = await getSpeakerHFRolloff(i + 1); // speaker specific, not pair specific
+          m3dBPoints[i + 1] = [Math.round(rolloff), Math.round(rolloffHFR)];
           customCrossover[i + 1] = initialXO;
           i++;
           await postDelete(idx); // cleanup
