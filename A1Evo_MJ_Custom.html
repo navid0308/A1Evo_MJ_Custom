@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -787,15 +787,8 @@
     function getDelayRangeOf(thisDelay, startIdx, endIdx) {
       const [maxNegative, maxPositive] = getDelayHeadroom(startIdx, endIdx);
       const delayms = thisDelay * 1000;
-      let loDelay = Infinity, hiDelay = -Infinity;
-      if (thisDelay < 0) {
-        loDelay = maxNegative - delayms;
-        hiDelay = maxPositive;
-      }
-      else {
-        loDelay = maxNegative;
-        hiDelay = maxPositive - delayms;
-      }
+      const loDelay = maxNegative - delayms;
+      const hiDelay = maxPositive - delayms;
       if (loDelay > hiDelay) {
         console.error("Ran out of delay range!");
         throw new Error;
@@ -803,7 +796,7 @@
       return [loDelay, hiDelay];
     }
     function getDelayRangeOfFinalSub() {
-      let [loDelay, hiDelay] = getDelayRangeOf(mSec[nChannels]);
+      let [loDelay, hiDelay] = getDelayRangeOf(mSec[nChannels], 1, nSpeakers);
       // directional subwoofer delay(s)
       if (bassMode === "Directional") {
         const loDelaySub = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
@@ -812,7 +805,7 @@
         [, hiDelay] = getDelayRangeOf(hiDelaySub, 1, nSpeakers);
       }
       // standard bass relative delay(s)
-      else {
+      else if (subLoDelay != 0 || subHiDelay != 0) {
         [loDelay, ] = getDelayRangeOf(mSec[nChannels] + subLoDelay, 1, nSpeakers);
         [, hiDelay] = getDelayRangeOf(mSec[nChannels] + subHiDelay, 1, nSpeakers);
       }
@@ -858,8 +851,7 @@
         const idx = mCount + i;
         await fetch_mREW(idx, 'PUT', { title: title[i] });
         // align "o" measurement to target curve
-        let volAdjust = parseFloat(customLevel[i]);
-        await postNext('Add SPL offset', idx, { offset: volAdjust });
+        await postNext('Add SPL offset', idx, { offset: customLevel[i] });
       }
       console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i >= 1; i--) {
@@ -1476,7 +1468,7 @@
         mSec[i] -= IROffset;
       }
       // offset volume from combining subwoofers
-      const volAdjust = parseFloat(await getSubTrim(nChannels));
+      const volAdjust = await getSubTrim(nChannels);
       if (volAdjust === 0) { return; } // nothing more to do
       await postNext('Add SPL offset', nChannels, { offset: volAdjust });
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
@@ -1562,7 +1554,7 @@
       for (let i = 0; i < indices.length; i++) {
         if (indices[i] === mlpIdx) { continue; }
         const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
-        const volAdjust = parseFloat(idxVolume - mlpVolume);
+        const volAdjust = idxVolume - mlpVolume;
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
     }
