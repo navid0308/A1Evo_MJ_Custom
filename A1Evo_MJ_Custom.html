@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -830,7 +830,7 @@
         if (indices.length > 1) {
           await postNext('Cross corr align', indices);
         }
-        mSec[i] = parseFloat(measurements[indices[0]].cumulativeIRShiftSeconds);
+        mSec[i] = 0; // should be 0 but manual measurements have slight IR drift which the normalization takes care of
         title[i] = commandId[i] + "o";
         // trim determination using the MLP measurement
         if (title[i].startsWith("SW")) {
@@ -862,12 +862,11 @@
       const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
       await postNext('Time align', spIndices);
       measurements = await fetch_mREW();
-      // calculate audyssey IR start delay
+      // keep relative delays for time alignment & normalize speaker IRs to t=0
       let totalIRShift = 0;
       for (let i = 1; i <= nSpeakers; i++) {
         totalIRShift += parseFloat(measurements[i].cumulativeIRShiftSeconds);
       }
-      // determine relative delays and remove audyssey IR start delay
       const IRStartDelay = totalIRShift / nSpeakers;
       for (let i = 1; i <= nSpeakers; i++) {
         mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - IRStartDelay);
@@ -875,7 +874,7 @@
       console.infoUpdate("Completed spatial averaging, volume & time alignment!");
       // no need to go further without subwoofer
       if (noSub) { return; }
-      // remove audyssey IR start delay from subwoofers
+      // shift subwoofer IRs by the same offset used to normalize speaker IRs
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         await postNext('Offset t=0', i, {offset: IRStartDelay, unit: "seconds"});
       }
