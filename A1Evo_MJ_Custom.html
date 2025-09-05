@@ -715,6 +715,10 @@
       nSubs = 0;
       for (cmdId in cmdIdMeasurements) {
         const indices = cmdIdMeasurements[cmdId];
+        if (indices.length === 0) {
+          console.error(`${cmdId} exists in the ady but no measurements are found for this channel in REW!`);
+          throw new Error;
+        }
         if (mPos != indices.length) {
           console.error(`${cmdId} has different number of measurements compared to FL! Expected: ${mPos} Actual: ${indices.length}`);
           throw new Error;
