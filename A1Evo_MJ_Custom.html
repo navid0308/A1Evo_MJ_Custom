@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.1.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.2.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -843,8 +843,6 @@
         else {
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
-        // level match all other positions to MLP & average
-        await alignVol2MLP(indices, indices[0]); // idx 0 is MLP since everything's sorted
         if (indices.length === 1) {
           await postSafe(`${baseUrl}/${indices[0]}/command`, {command: "Response copy" }, "Completed"); // nothing to average
         }
@@ -855,7 +853,8 @@
         const idx = mCount + i;
         await fetch_mREW(idx, 'PUT', { title: title[i] });
         // align "o" measurement to target curve
-        await postNext('Add SPL offset', idx, { offset: customLevel[i] });
+        const volAdjust = title[i].startsWith("SW") ? await getSubTrim(idx) : await getSpeakerTrim(idx);
+        await postNext('Add SPL offset', idx, { offset: volAdjust });
       }
       console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i >= 1; i--) {
@@ -1549,17 +1548,6 @@
       }
       const dynamicBassFill = Math.round(-2 * (totalDips / arrayLength)) / 2; // round to nearest 0.5
       return dynamicBassFill;
-    }
-    async function alignVol2MLP(indices, mlpIdx) {
-      if (indices.length <= 1) { return; }
-      const measurements = await fetch_mREW();
-      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getSubTrim(mlpIdx) : await getSpeakerTrim(mlpIdx);
-      for (let i = 0; i < indices.length; i++) {
-        if (indices[i] === mlpIdx) { continue; }
-        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
-        const volAdjust = idxVolume - mlpVolume;
-        await postNext('Add SPL offset', indices[i], { offset: volAdjust });
-      }
     }
     async function align4system(ind1, ind2, xo) {
       const start = Math.round(xo / 2), end = Math.round(xo * 2);
