@@ -926,8 +926,8 @@
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
-        // line up speaker response to target similar to REW, but don't affect subwoofer
-        const tcLevelOffset = isSub ? 0 : await getTrim(i, 200, 2000);
+        // line up speaker response to target similar to REW, but don't affect subwoofer - already using DBF
+        const tcLevelOffset = isSub ? 0 : await getTrim(i, 200, 2000, "Var");
         await fetchSafe('target-level', i, 75.0 - tcLevelOffset);
         await postNext('Smooth', i, { smoothing: "Var" });
         await postSafe(`${baseUrl}/${i}/target-settings`, {
@@ -1518,10 +1518,10 @@
       const meanOfSquares = sumOfSquares / arrayLength;
       return Math.sqrt(meanOfSquares);
     }
-    async function getTrim(idx, start, end) {
+    async function getTrim(idx, start, end, smoothing="1%2F1") {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const freqResponse = await fetchSafe(`frequency-response?smoothing=${smoothing}&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       const offset = targetSPL - freqSPL;
