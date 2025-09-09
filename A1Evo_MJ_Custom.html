@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.2.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.2.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -843,6 +843,9 @@
         else {
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
+        // attempt to fix android volume bug where measurements are off by +/-6dB
+        await fixVolBug(indices);
+        // average
         if (indices.length === 1) {
           await postSafe(`${baseUrl}/${indices[0]}/command`, {command: "Response copy" }, "Completed"); // nothing to average
         }
@@ -1548,6 +1551,25 @@
       }
       const dynamicBassFill = Math.round(-2 * (totalDips / arrayLength)) / 2; // round to nearest 0.5
       return dynamicBassFill;
+    }
+    async function fixVolBug(indices) {
+      if (indices.length <= 1) { return; }
+      const measurements = await fetch_mREW();
+      const mlpIdx = indices[0];
+      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getSubTrim(mlpIdx) : await getSpeakerTrim(mlpIdx);
+      for (let i = 0; i < indices.length; i++) {
+        if (indices[i] === mlpIdx) { continue; }
+        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
+        const delta = mlpVolume - idxVolume;
+        if (delta > 5) {
+          console.warn(`${measurements[indices[i]].title} shifted by -6dB due to a known MultEQ volume bug.`);
+          await postNext('Add SPL offset', indices[i], { offset: -6 });
+        }
+        else if (delta < -5) {
+          console.warn(`${measurements[indices[i]].title} shifted by 6dB due to a known MultEQ volume bug.`);
+          await postNext('Add SPL offset', indices[i], { offset: 6 });
+        }
+      }
     }
     async function align4system(ind1, ind2, xo) {
       const start = Math.round(xo / 2), end = Math.round(xo * 2);
