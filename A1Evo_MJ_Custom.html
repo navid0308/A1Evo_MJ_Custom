@@ -297,7 +297,7 @@
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
-    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "";
+    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
     let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
@@ -421,7 +421,7 @@
         const checkMeasurementCount = async () => {
           const measurements = await fetch_mREW();
           let mCount = Object.keys(measurements).length;
-          let isAudy = true;
+          isAudy = true;
           if (mCount > 0) {
             isAudy = await checkIfAudyMeasurement();
           }
@@ -652,7 +652,7 @@
       console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      let isAudy = true;
+      isAudy = true;
       if (mCount > 0) {
         isAudy = await checkIfAudyMeasurement();
       }
@@ -844,7 +844,7 @@
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
         // attempt to fix android volume bug where measurements are off by +/-6dB
-        if (isCirrusLogic) {
+        if (isCirrusLogic && isAudy) {
           await fixVolBug(indices);
         }
         // average
