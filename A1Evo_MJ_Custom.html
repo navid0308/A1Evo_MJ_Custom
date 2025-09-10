@@ -749,7 +749,7 @@
         const target = await tcResponse.json();
         targetCurvePath = String(target);
         if (target && targetCurvePath) {
-          targetCurveName = targetCurvePath.replace(/^.*[\\/]/, '').split(".")[0];
+          targetCurveName = targetCurvePath.replace(/^.*[\\/]/, '').split(".txt")[0];
           Object.freeze(targetCurveName);
           Object.freeze(targetCurvePath);
           await disableRoomCurve();
