@@ -1562,14 +1562,11 @@
       for (let i = 0; i < indices.length; i++) {
         if (indices[i] === mlpIdx) { continue; }
         const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
-        const delta = mlpVolume - idxVolume;
-        if (delta > 5) {
-          console.warn(`${measurements[indices[i]].title} shifted by -6dB due to a known MultEQ volume bug.`);
-          await postNext('Add SPL offset', indices[i], { offset: -6 });
-        }
-        else if (delta < -5) {
-          console.warn(`${measurements[indices[i]].title} shifted by 6dB due to a known MultEQ volume bug.`);
-          await postNext('Add SPL offset', indices[i], { offset: 6 });
+        const delta = idxVolume - mlpVolume;
+        if (Math.abs(delta) > 5) {
+          const correction = Math.round(delta / 6) * 6;
+          console.warn(`${measurements[indices[i]].title} shifted by ${correction}dB due to a known MultEQ volume bug.`);
+          await postNext('Add SPL offset', indices[i], { offset: correction });
         }
       }
     }
