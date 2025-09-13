@@ -843,7 +843,7 @@
         else {
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
-        // attempt to fix android volume bug where measurements are off by +/-6dB
+        // attempt to fix android volume bug where measurements are off by multiples of +/-6dB
         if (isCirrusLogic && isAudy) {
           await fixVolBug(indices);
         }
