@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.2.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.2.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -297,7 +297,7 @@
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
-    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "";
+    let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
     let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
@@ -421,7 +421,7 @@
         const checkMeasurementCount = async () => {
           const measurements = await fetch_mREW();
           let mCount = Object.keys(measurements).length;
-          let isAudy = true;
+          isAudy = true;
           if (mCount > 0) {
             isAudy = await checkIfAudyMeasurement();
           }
@@ -652,7 +652,7 @@
       console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      let isAudy = true;
+      isAudy = true;
       if (mCount > 0) {
         isAudy = await checkIfAudyMeasurement();
       }
@@ -749,7 +749,7 @@
         const target = await tcResponse.json();
         targetCurvePath = String(target);
         if (target && targetCurvePath) {
-          targetCurveName = targetCurvePath.replace(/^.*[\\/]/, '').split(".")[0];
+          targetCurveName = targetCurvePath.replace(/^.*[\\/]/, '').split(".txt")[0];
           Object.freeze(targetCurveName);
           Object.freeze(targetCurvePath);
           await disableRoomCurve();
@@ -843,6 +843,11 @@
         else {
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
+        // attempt to fix android volume bug where measurements are off by multiples of +/-6dB
+        if (isCirrusLogic && isAudy) {
+          await fixVolBug(indices);
+        }
+        // average
         if (indices.length === 1) {
           await postSafe(`${baseUrl}/${indices[0]}/command`, {command: "Response copy" }, "Completed"); // nothing to average
         }
@@ -1548,6 +1553,22 @@
       }
       const dynamicBassFill = Math.round(-2 * (totalDips / arrayLength)) / 2; // round to nearest 0.5
       return dynamicBassFill;
+    }
+    async function fixVolBug(indices) {
+      if (indices.length <= 1) { return; }
+      const measurements = await fetch_mREW();
+      const mlpIdx = indices[0];
+      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getSubTrim(mlpIdx) : await getSpeakerTrim(mlpIdx);
+      for (let i = 0; i < indices.length; i++) {
+        if (indices[i] === mlpIdx) { continue; }
+        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
+        const delta = idxVolume - mlpVolume;
+        if (Math.abs(delta) > 5) {
+          const correction = Math.round(delta / 6) * 6;
+          console.warn(`${measurements[indices[i]].title} shifted by ${correction}dB due to a known MultEQ volume bug.`);
+          await postNext('Add SPL offset', indices[i], { offset: correction });
+        }
+      }
     }
     async function align4system(ind1, ind2, xo) {
       const start = Math.round(xo / 2), end = Math.round(xo * 2);
