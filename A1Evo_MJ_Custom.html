@@ -825,16 +825,44 @@
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
-      console.log(`Optimizing spatial averaging, volume & time alignment...`);
-      console.info(`Starting...`);
+      console.log("Optimizing spatial averaging, volume & time alignment...");
+      console.info("Starting...");
+      console.infoUpdate("Time aligning speakers...");
+      const mlpSPIndices = [];
+      const mlpSWIndices = [];
+      for (let i = 1; i < commandId.length; i++) {
+        if (commandId[i].startsWith("SW")) {
+          mlpSWIndices.push(cmdIdMeasurements[commandId[i]][0]);
+        }
+        else {
+          mlpSPIndices.push(cmdIdMeasurements[commandId[i]][0]);
+        }
+        mSec[i] = 0; // initialize
+      }
+      await postNext('Time align', mlpSPIndices);
+      measurements = await fetch_mREW();
+      // keep relative delays for time alignment & normalize speaker IRs to t=0
+      let totalIRShift = 0;
+      for (let i = 0; i < mlpSPIndices.length; i++) {
+        totalIRShift += parseFloat(measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds);
+      }
+      const IRStartDelay = totalIRShift / nSpeakers;
+      for (let i = 0; i < mlpSPIndices.length; i++) {
+        mSec[i + 1] = IRStartDelay - parseFloat(measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds);
+      }
+      // shift subwoofer IRs by the same offset used to normalize speaker IRs
+      for (let i = 0; i < mlpSWIndices.length; i++) {
+        await postNext('Offset t=0', mlpSWIndices[i], {offset: IRStartDelay, unit: "seconds"});
+      }
+      console.infoUpdate("Completed time alignment!");
       let title = {};
       for (let i = 1; i < commandId.length; i++) {
         const indices = cmdIdMeasurements[commandId[i]];
-        console.infoUpdate(`Processing channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
+        console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
         if (indices.length > 1) {
           await postNext('Cross corr align', indices);
         }
-        mSec[i] = 0; // should be 0 but manual measurements have slight IR drift which the normalization takes care of
+        //mSec[i] = 0; // should be 0 but manual measurements have slight IR drift which the normalization takes care of
         title[i] = commandId[i] + "o";
         // trim determination using the MLP measurement
         if (title[i].startsWith("SW")) {
@@ -865,27 +893,9 @@
       for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
       }
-      console.infoUpdate("Time aligning speakers...");
-      // align speakers but leave subwoofers alone. ANY align command messes up subwoofer IR alignment
-      const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
-      await postNext('Time align', spIndices);
-      measurements = await fetch_mREW();
-      // keep relative delays for time alignment & normalize speaker IRs to t=0
-      let totalIRShift = 0;
-      for (let i = 1; i <= nSpeakers; i++) {
-        totalIRShift += parseFloat(measurements[i].cumulativeIRShiftSeconds);
-      }
-      const IRStartDelay = totalIRShift / nSpeakers;
-      for (let i = 1; i <= nSpeakers; i++) {
-        mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - IRStartDelay);
-      }
       console.infoUpdate("Completed spatial averaging, volume & time alignment!");
       // no need to go further without subwoofer
       if (noSub) { return; }
-      // shift subwoofer IRs by the same offset used to normalize speaker IRs
-      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        await postNext('Offset t=0', i, {offset: IRStartDelay, unit: "seconds"});
-      }
       if (bassMode === "Directional") {
         console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
         await directional2standard();
@@ -1591,7 +1601,7 @@
         const delayB = parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         if (maxSum < tempMagSum) {
@@ -1639,7 +1649,7 @@
         const delayB = parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         if (maxSum < tempMagSum) {
