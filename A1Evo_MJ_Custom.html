@@ -1521,6 +1521,9 @@
         cmdIds += ` & ${thisSubCmdId}`;
         for (let j = 0; j < swIndices[i].length; j++) {
           await postNext('Offset t=0', swIndices[i][j], {offset: -mSec[nSpeakers + i + 1], unit: "seconds"});
+          if (isInverted) {
+            await postSafe(`${baseUrl}/${swIndices[i][j]}/command`,{command: "Invert"}, "Invert completed");
+          }
         }
       }
       // normalize median subwoofer delay to t=0
