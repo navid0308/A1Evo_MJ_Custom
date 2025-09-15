@@ -903,6 +903,11 @@
       // by this point levels and delays are sorted, just need to combine and level to target
       if (bassMode === "Directional") {
         console.infoUpdate("Generating combined response of directional subwoofers...");
+        for (let i = 0; i < avgSWIndices.length; i++) {
+          if (invertSub[nSpeakers + i + 1]) {
+            await postSafe(`${baseUrl}/${avgSWIndices[i]}/command`,{command: "Invert"}, "Invert completed");
+          }
+        }
         const combinedSW = await postNext('Vector sum', avgSWIndices);
         const combinedSWIdx = Object.keys(combinedSW.results)[0];
         await fetch_mREW(combinedSWIdx, 'PUT', { title: "SW1o" });
@@ -958,7 +963,7 @@
         await postDelete(i);
       }
       console.infoUpdate("Completed spatial averaging, volume & time alignment!");
-      // done with groundworks and log
+      if (noSub) { return; }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
@@ -1522,7 +1527,7 @@
         }
         currSubIdx = sumIndex;
         mSec[nSpeakers + i + 1] += (requiredDelay / 1000);
-        invertSub[i] = isInverted;
+        invertSub[nSpeakers + i + 1] = isInverted;
         cmdIds += ` & ${thisSubCmdId}`;
         await postNext('Offset t=0', swIndices[i], {offset: -mSec[nSpeakers + i + 1], unit: "seconds"});
       }
