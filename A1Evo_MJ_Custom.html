@@ -867,6 +867,36 @@
       }
       console.infoUpdate("Time aligned speakers.");
     }
+    async function initializeSubwoofers() {
+      if (noSub) { return; }
+      if (bassMode === "Directional") {
+        console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
+        await directional2standard();
+        console.warn("Conversion from 'directional bass' mode to 'standard bass' mode completed.")
+      }
+      else {
+        // normalize standard bass subwoofer median IR to t=0
+        const IROffset = (subLoDelay + subHiDelay) / 2;
+        const stdSubMLPIdx = cmdIdMeasurements[commandId[nChannels]][0];
+        await postNext('Offset t=0', stdSubMLPIdx, {offset: IROffset, unit: "seconds"});
+        mSec[nChannels] -= IROffset;
+      }
+      // align combined subwoofer median IR to median IR of speakers
+      // note: this ensures min/max delays are negative/positive, otherwise REW crashes
+      const mlpSWIndices = [];
+      for (let i = 1; i < commandId.length; i++) {
+        if (commandId[i].startsWith("SW")) {
+          mlpSWIndices.push(cmdIdMeasurements[commandId[i]][0]);
+        }
+      }
+      const loSPDelay = Math.min(...mSec.slice(1, nSpeakers + 1));
+      const hiSPDelay = Math.max(...mSec.slice(1, nSpeakers + 1));
+      const medianSPDelay = (loSPDelay + hiSPDelay) / 2;
+      for (let i = 0; i < mlpSWIndices.length; i++) {
+        await postNext('Offset t=0', mlpSWIndices[i], {offset: -medianSPDelay, unit: "seconds"});
+        mSec[nSpeakers + i + 1] += medianSPDelay;
+      }
+    }
     async function spatialAverage() {
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
@@ -901,7 +931,7 @@
         console.infoUpdate(`Spatially averaged channel ${commandId[i]} using ${indices.length} microphone position(s).`);
       }
       // by this point levels and delays are sorted, just need to combine and level to target
-      if (bassMode === "Directional") {
+      if (!noSub && bassMode === "Directional" && nSubs > 1) {
         console.info("Generating combined response of directional subwoofers...");
         for (let i = 0; i < avgSWIndices.length; i++) {
           if (invertSub[nSpeakers + i + 1]) {
@@ -928,35 +958,7 @@
       console.log("Optimizing spatial averaging, volume & time alignment...");
       await initializeTrims();
       await timeAlignSpeakers();
-      if (!noSub) {
-        if (bassMode === "Directional") {
-          console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
-          await directional2standard();
-          console.warn("Conversion from 'directional bass' mode to 'standard bass' mode completed.")
-        }
-        else {
-          // normalize standard bass subwoofer median IR to t=0
-          const IROffset = (subLoDelay + subHiDelay) / 2;
-          const stdSubMLPIdx = cmdIdMeasurements[commandId[nChannels]][0];
-          await postNext('Offset t=0', stdSubMLPIdx, {offset: IROffset, unit: "seconds"});
-          mSec[nChannels] -= IROffset;
-        }
-        // align combined subwoofer median IR to median IR of speakers
-        // note: this ensures min/max delays are negative/positive, otherwise REW crashes
-        const mlpSWIndices = [];
-        for (let i = 1; i < commandId.length; i++) {
-          if (commandId[i].startsWith("SW")) {
-            mlpSWIndices.push(cmdIdMeasurements[commandId[i]][0]);
-          }
-        }
-        const loSPDelay = Math.min(...mSec.slice(1, nSpeakers + 1));
-        const hiSPDelay = Math.max(...mSec.slice(1, nSpeakers + 1));
-        const medianSPDelay = (loSPDelay + hiSPDelay) / 2;
-        for (let i = 0; i < mlpSWIndices.length; i++) {
-          await postNext('Offset t=0', mlpSWIndices[i], {offset: -medianSPDelay, unit: "seconds"});
-          mSec[nSpeakers + i + 1] += medianSPDelay;
-        }
-      }
+      await initializeSubwoofers();
       await spatialAverage();
       console.info("Deleting processed measurements...");
       for (let i = mCount; i > 0; i--) {
@@ -1500,26 +1502,26 @@
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
     async function directional2standard() {
-      // isolate the MLP measurements
+      // isolate the SW measurements
       const swIndices = [];
       for (let i = 1; i < commandId.length; i++) {
         if (commandId[i].startsWith("SW")) {
-          swIndices.push(cmdIdMeasurements[commandId[i]][0]);
+          swIndices.push(cmdIdMeasurements[commandId[i]]);
         }
       }
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      let currSubIdx = swIndices[0];
+      let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
       for (let i = 1; i < swIndices.length; i++) {
-        const thisSubCmdId = measurements[swIndices[i]].title.slice(0, -1);
+        const thisSubCmdId = measurements[swIndices[i][0]].title.slice(0, -1);
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds}...`);
-        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(swIndices[i])));
-        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(swIndices[i])));
+        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(swIndices[i][0])));
+        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(swIndices[i][0])));
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + i + 1], nSpeakers + 1, nSpeakers + nSubs);
-        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, swIndices[i],
+        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, swIndices[i][0],
                                                                                   startFreq, endFreq, loDelay, hiDelay);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
@@ -1529,14 +1531,18 @@
         mSec[nSpeakers + i + 1] += (requiredDelay / 1000);
         invertSub[nSpeakers + i + 1] = isInverted;
         cmdIds += ` & ${thisSubCmdId}`;
-        await postNext('Offset t=0', swIndices[i], {offset: -mSec[nSpeakers + i + 1], unit: "seconds"});
+        for (let j = 0; j < swIndices[i].length; j++) {
+          await postNext('Offset t=0', swIndices[i][j], {offset: -mSec[nSpeakers + i + 1], unit: "seconds"});
+        }
       }
       // normalize median subwoofer delay to t=0
       const loSWDelay = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
       const hiSWDelay = Math.max(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
       const medianSWDelay = (loSWDelay + hiSWDelay) / 2;
       for (let i = 0; i < swIndices.length; i++) {
-        await postNext('Offset t=0', swIndices[i], {offset: medianSWDelay, unit: "seconds"});
+        for (let j = 0; j < swIndices[i].length; j++) {
+          await postNext('Offset t=0', swIndices[i][j], {offset: medianSWDelay, unit: "seconds"});
+        }
         mSec[nSpeakers + i + 1] -= medianSWDelay;
       }
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
