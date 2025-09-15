@@ -883,27 +883,35 @@
       }
       // align combined subwoofer median IR to median IR of speakers
       // note: this ensures min/max delays are negative/positive, otherwise REW crashes
-      const mlpSWIndices = [];
-      for (let i = 1; i < commandId.length; i++) {
+      const SWIndices = [];
+      for (let i = 1; i <= nChannels; i++) {
         if (commandId[i].startsWith("SW")) {
-          mlpSWIndices.push(cmdIdMeasurements[commandId[i]][0]);
+          SWIndices.push(cmdIdMeasurements[commandId[i]]);
         }
+      }
+      // by this point there should only be one combined sub in REW
+      if (SWIndices.length > 1) {
+        console.error("Failed to combine subwoofer(s)!");
+        throw new Error;
       }
       const loSPDelay = Math.min(...mSec.slice(1, nSpeakers + 1));
       const hiSPDelay = Math.max(...mSec.slice(1, nSpeakers + 1));
       const medianSPDelay = (loSPDelay + hiSPDelay) / 2;
-      for (let i = 0; i < mlpSWIndices.length; i++) {
-        await postNext('Offset t=0', mlpSWIndices[i], {offset: -medianSPDelay, unit: "seconds"});
-        mSec[nSpeakers + i + 1] += medianSPDelay;
+      for (let i = 0; i < SWIndices[0].length; i++) {
+        await postNext('Offset t=0', SWIndices[0][i], {offset: -medianSPDelay, unit: "seconds"});
+      }
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+        mSec[i] += medianSPDelay;
       }
     }
     async function spatialAverage() {
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       const avgSWIndices = [];
-      for (let i = 1; i < commandId.length; i++) {
+      console.info("Starting spatial averaging...");
+      for (let i = 1; i <= nChannels; i++) {
         const indices = cmdIdMeasurements[commandId[i]];
-        console.info(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
+        console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
         if (indices.length > 1) {
           await postNext('Cross corr align', indices);
         }
@@ -928,30 +936,15 @@
         if (title.startsWith("SW")) {
           avgSWIndices.push(idx);
         }
-        console.infoUpdate(`Spatially averaged channel ${commandId[i]} using ${indices.length} microphone position(s).`);
       }
-      // by this point levels and delays are sorted, just need to combine and level to target
-      if (!noSub && bassMode === "Directional" && nSubs > 1) {
-        console.info("Generating combined response of directional subwoofers...");
-        for (let i = 0; i < avgSWIndices.length; i++) {
-          if (invertSub[nSpeakers + i + 1]) {
-            await postSafe(`${baseUrl}/${avgSWIndices[i]}/command`,{command: "Invert"}, "Invert completed");
-          }
-        }
-        const combinedSW = await postNext('Vector sum', avgSWIndices);
-        const combinedSWIdx = Object.keys(combinedSW.results)[0];
-        await fetch_mREW(combinedSWIdx, 'PUT', { title: "SW1o" });
-        const volAdjust = await getSubTrim(combinedSWIdx);
-        await postNext('Add SPL offset', combinedSWIdx, { offset: volAdjust });
-        for (let i = avgSWIndices.length - 1; i >= 0; i--) {
-          await postDelete(avgSWIndices[i]);
-        }
-        console.infoUpdate("Generated combined response of directional subwoofers.");
+      console.infoUpdate(`Spatially averaged all channels.`);
+      console.info("Deleting processed measurements...");
+      for (let i = mCount; i > 0; i--) {
+        await postDelete(i);
       }
+      console.infoUpdate("Deleted processed measurements.");
     }
     async function groundWorks() {
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
@@ -960,11 +953,6 @@
       await timeAlignSpeakers();
       await initializeSubwoofers();
       await spatialAverage();
-      console.info("Deleting processed measurements...");
-      for (let i = mCount; i > 0; i--) {
-        await postDelete(i);
-      }
-      console.infoUpdate("Completed spatial averaging, volume & time alignment!");
       if (noSub) { return; }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
@@ -1509,8 +1497,8 @@
           swIndices.push(cmdIdMeasurements[commandId[i]]);
         }
       }
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
+      let measurements = await fetch_mREW();
+      let mCount = Object.keys(measurements).length;
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
@@ -1546,8 +1534,8 @@
         mSec[nSpeakers + i + 1] -= medianSWDelay;
       }
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
+      const volAdjust = await getSubTrim(currSubIdx);
       if (sOs === 300) {
-        const volAdjust = await getSubTrim(currSubIdx);
         if (volAdjust != 0) {
           console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
           for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
@@ -1559,6 +1547,39 @@
       // cleanup all potential alignments
       for (let i = currSubIdx; i > mCount; i--) {
         await postDelete(i);
+      }
+      // combine subs at the individual position level
+      for (let i = 0; i < swIndices[0].length; i++) {
+        const iPosSWIdxs = swIndices.map(row => row[i]);
+        const iPosCombinedSW = await postNext('Vector sum', iPosSWIdxs);
+        const iPosCombinedSWIdx = Object.keys(iPosCombinedSW.results)[0];
+        await fetch_mREW(iPosCombinedSWIdx, 'PUT', { title: `SW1${i}` });
+        await postNext('Add SPL offset', iPosCombinedSWIdx, { offset: volAdjust });
+      }
+      // cleanup individual sub measurements
+      for (let i = swIndices.length - 1; i >= 0; i--) {
+        for (let j = swIndices[i].length - 1; j >= 0; j--) {
+          await postDelete(swIndices[i][j]);
+        }
+      }
+      // update measurement list per channel
+      measurements = await fetch_mREW();
+      mCount = Object.keys(measurements).length;
+      for (let i = 1; i < commandId.length; i++) {
+        cmdIdMeasurements[commandId[i]] = [];
+      }
+      for (let i = 1; i <= mCount; i++) {
+        const key = measurements[i].title.replace(/\d+/g, '');
+        const idxLength = measurements[i].title.length - key.length - (key === "SW" ? 1 : 0);
+        const mCmdId = measurements[i].title.slice(0, measurements[i].title.length - idxLength);
+        let cmdId = "";
+        for (let j = 1; j < commandId.length; j++) {
+          if (mCmdId === commandId[j]) {
+            cmdId = commandId[j];
+            break;
+          }
+        }
+        cmdIdMeasurements[cmdId].push(i);
       }
     }
     function response2array(response, start, end, phase=false) {
