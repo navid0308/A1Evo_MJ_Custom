@@ -890,7 +890,7 @@
         }
       }
       // by this point there should only be one combined sub in REW
-      if (SWIndices.length > 1) {
+      if (SWIndices.length != 1) {
         console.error("Failed to combine subwoofer(s)!");
         throw new Error;
       }
@@ -902,6 +902,10 @@
       }
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         mSec[i] += medianSPDelay;
+      }
+      if (SWIndices[0].length > 1) {
+        const SWStdDev = await calculateSpatialStdDev(SWIndices[0], 30, 80);
+        console.log(`Spatial variation between <${SWIndices[0].length}> ${commandId[nChannels]} microphone position(s): ±${SWStdDev.toFixed(2)}dB`);
       }
     }
     async function spatialAverage() {
@@ -1489,6 +1493,26 @@
       }
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
+    function calculateStdDev(array) {
+      const n = array.length
+      const mean = array.reduce((a, b) => a + b) / n
+      return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
+    }
+    async function calculateSpatialStdDev(indices, start, end) {
+      if (indices.length <= 1) { return 0; }
+      const responseArrays = [];
+      for (let i = 0; i < indices.length; i++) {
+        const freqResponse = await fetchSafe(`frequency-response?smoothing=1%2F6&ppo=96`, indices[i]);
+        const freqArray = response2array(freqResponse, start, end);
+        responseArrays.push(freqArray);
+      }
+      let aggStdDev = 0;
+      for (let i = 0; i < responseArrays[0].length; i++) {
+        const points = responseArrays.map(row => row[i]);
+        aggStdDev += calculateStdDev(points);
+      }
+      return aggStdDev / responseArrays[0].length;
+    }
     async function directional2standard() {
       // isolate the SW measurements
       const swIndices = [];
@@ -1506,10 +1530,11 @@
       for (let i = 1; i < swIndices.length; i++) {
         const thisSubCmdId = measurements[swIndices[i][0]].title.slice(0, -1);
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds}...`);
-        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(swIndices[i][0])));
-        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(swIndices[i][0])));
+        let thisSubIdx = swIndices[i][0];
+        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
+        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + i + 1], nSpeakers + 1, nSpeakers + nSubs);
-        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, swIndices[i][0],
+        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
                                                                                   startFreq, endFreq, loDelay, hiDelay);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
@@ -1526,6 +1551,10 @@
           }
         }
       }
+      // cleanup all potential alignments
+      for (let i = currSubIdx; i > mCount; i--) {
+        await postDelete(i);
+      }
       console.info(`Generating combined subwoofer response(s) for ${swIndices[0].length} microphone position(s)...`);
       // normalize median subwoofer delay to t=0
       const loSWDelay = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
@@ -1537,36 +1566,34 @@
         }
         mSec[nSpeakers + i + 1] -= medianSWDelay;
       }
-      // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
-      const volAdjust = await getSubTrim(currSubIdx);
-      if (sOs === 300) {
-        if (volAdjust != 0) {
-          console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
-          for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-            customLevel[i] += volAdjust;
-            console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
-          }
-        }
-      }
-      // cleanup all potential alignments
-      for (let i = currSubIdx; i > mCount; i--) {
-        await postDelete(i);
-      }
       // combine subs at the individual position level
+      let volAdjust = 0;
       for (let i = 0; i < swIndices[0].length; i++) {
         const iPosSWIdxs = swIndices.map(row => row[i]);
         const iPosCombinedSW = await postNext('Vector sum', iPosSWIdxs);
         const iPosCombinedSWIdx = Object.keys(iPosCombinedSW.results)[0];
         await fetch_mREW(iPosCombinedSWIdx, 'PUT', { title: `SW1${i}` });
+        if (i === 0) {
+          // offset multi-sub gain using MLP measurement
+          volAdjust = await getSubTrim(iPosCombinedSWIdx);
+        }
         await postNext('Add SPL offset', iPosCombinedSWIdx, { offset: volAdjust });
       }
+      console.infoUpdate(`Generated combined subwoofer response(s) and removed individual subwoofer response(s).`);
       // cleanup individual sub measurements
       for (let i = swIndices.length - 1; i >= 0; i--) {
         for (let j = swIndices[i].length - 1; j >= 0; j--) {
           await postDelete(swIndices[i][j]);
         }
       }
-      console.infoUpdate(`Generated combined subwoofer response(s) and removed individual subwoofer response(s).`);
+      // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
+      if (sOs === 300 && volAdjust != 0) {
+        console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
+        for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+          customLevel[i] += volAdjust;
+          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
+        }
+      }
       // update measurement list per channel
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length;
