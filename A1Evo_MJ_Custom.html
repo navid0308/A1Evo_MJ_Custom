@@ -843,31 +843,41 @@
     }
     async function timeAlignSpeakers() {
       console.info("Time aligning speakers...");
-      const mlpSPIndices = [];
-      const mlpSWIndices = [];
+      const SPIndices = [];
+      const SWIndices = [];
       for (let i = 1; i < commandId.length; i++) {
         if (commandId[i].startsWith("SW")) {
-          mlpSWIndices.push(cmdIdMeasurements[commandId[i]][0]);
+          SWIndices.push(cmdIdMeasurements[commandId[i]]);
         }
         else {
-          mlpSPIndices.push(cmdIdMeasurements[commandId[i]][0]);
+          SPIndices.push(cmdIdMeasurements[commandId[i]]);
         }
         mSec[i] = 0; // initialize
       }
-      await postNext('Time align', mlpSPIndices);
-      const measurements = await fetch_mREW();
-      // keep relative delays for time alignment & normalize speaker IRs to t=0
-      let totalIRShift = 0;
+      const mlpSPIndices = SPIndices.map(row => row[0]);
+      // calculate the average IR start delay for normalization
+      let measurements = await fetch_mREW();
+      let IRStartDelay = 0;
       for (let i = 0; i < mlpSPIndices.length; i++) {
-        totalIRShift += parseFloat(measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds);
+        IRStartDelay += measurements[mlpSPIndices[i]].timeOfIRStartSeconds;
       }
-      const IRStartDelay = totalIRShift / nSpeakers;
+      IRStartDelay /= nSpeakers;
+      // time align & normalize speaker IRs
+      await postNext('Time align', mlpSPIndices);
+      measurements = await fetch_mREW();
       for (let i = 0; i < mlpSPIndices.length; i++) {
-        mSec[i + 1] = IRStartDelay - parseFloat(measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds);
+        mlpIRShift = measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds;
+        mSec[i + 1] = IRStartDelay - mlpIRShift;
+        // shift non-MLP positions for consistency - this may be unnecessary but it reduces chance of error later
+        for (j = 1; j < SPIndices[i].length; j++) {
+          await postNext('Offset t=0', SPIndices[i][j], {offset: mlpIRShift, unit: "seconds"});
+        }
       }
       // shift subwoofer IRs by the same offset used to normalize speaker IRs
-      for (let i = 0; i < mlpSWIndices.length; i++) {
-        await postNext('Offset t=0', mlpSWIndices[i], {offset: IRStartDelay, unit: "seconds"});
+      for (let i = 0; i < SWIndices.length; i++) {
+        for (let j = 0; j < SWIndices[i].length; j++) {
+          await postNext('Offset t=0', SWIndices[i][j], {offset: IRStartDelay, unit: "seconds"});
+        }
       }
       console.infoUpdate("Time aligned speakers.");
     }
@@ -1502,7 +1512,7 @@
       if (indices.length <= 1) { return 0; }
       const responseArrays = [];
       for (let i = 0; i < indices.length; i++) {
-        const freqResponse = await fetchSafe(`frequency-response?smoothing=1%2F6&ppo=96`, indices[i]);
+        const freqResponse = await fetchSafe("frequency-response?smoothing=1%2F6&ppo=96", indices[i]);
         const freqArray = response2array(freqResponse, start, end);
         responseArrays.push(freqArray);
       }
@@ -1525,12 +1535,22 @@
       let mCount = Object.keys(measurements).length;
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
+      if (swIndices[0].length > 1) {
+        // use multiple positions 'as is' for better spatial phase representation
+        const currSubAvg = await postNext('Magn plus phase average', swIndices[0]);
+        currSubIdx = Object.keys(currSubAvg.results)[0];
+      }
       let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
       for (let i = 1; i < swIndices.length; i++) {
-        const thisSubCmdId = measurements[swIndices[i][0]].title.slice(0, -1);
-        console.log(`Aligning ${thisSubCmdId} to ${cmdIds}...`);
         let thisSubIdx = swIndices[i][0];
+        const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
+        console.log(`Aligning ${thisSubCmdId} to ${cmdIds}...`);
+        if (swIndices[i].length > 1) {
+          // use multiple positions 'as is' for better spatial phase representation
+          const thisSubAvg = await postNext('Magn plus phase average', swIndices[i]);
+          thisSubIdx = Object.keys(thisSubAvg.results)[0];
+        }
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + i + 1], nSpeakers + 1, nSpeakers + nSubs);
@@ -1718,7 +1738,7 @@
         const delayB = parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         if (maxSum < tempMagSum) {
@@ -1765,7 +1785,7 @@
         const delayB = parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         if (maxSum < tempMagSum) {
