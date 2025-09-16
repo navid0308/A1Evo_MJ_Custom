@@ -834,6 +834,10 @@
         for (j = 0; j < indices.length; j++) {
           await postNext('Add SPL offset', indices[j], { offset: customLevel[i] });
         }
+        // attempt to fix android volume bug where measurements are off by multiples of +/-6dB
+        if (isCirrusLogic && isAudy) {
+          await fixVolBug(indices);
+        }
       }
       console.infoUpdate("Initialized trims.");
     }
@@ -904,8 +908,8 @@
         mSec[i] += medianSPDelay;
       }
       if (SWIndices[0].length > 1) {
-        const SWStdDev = await calculateSpatialStdDev(SWIndices[0], 30, 80);
-        console.log(`Spatial variation between <${SWIndices[0].length}> ${commandId[nChannels]} microphone position(s): ±${SWStdDev.toFixed(2)}dB`);
+        const SWStdDev = await calculateStdDevOfResponses(SWIndices[0], 30, 80);
+        console.log(`${commandId[nChannels]} response variation between <${SWIndices[0].length}> microphone position(s): ±${SWStdDev.toFixed(2)}dB`);
       }
     }
     async function spatialAverage() {
@@ -920,10 +924,6 @@
           await postNext('Cross corr align', indices);
         }
         const title = commandId[i] + "o";
-        // attempt to fix android volume bug where measurements are off by multiples of +/-6dB
-        if (isCirrusLogic && isAudy) {
-          await fixVolBug(indices);
-        }
         // average
         if (indices.length === 1) {
           await postSafe(`${baseUrl}/${indices[0]}/command`, {command: "Response copy" }, "Completed"); // nothing to average
@@ -1498,7 +1498,7 @@
       const mean = array.reduce((a, b) => a + b) / n
       return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
     }
-    async function calculateSpatialStdDev(indices, start, end) {
+    async function calculateStdDevOfResponses(indices, start, end) {
       if (indices.length <= 1) { return 0; }
       const responseArrays = [];
       for (let i = 0; i < indices.length; i++) {
