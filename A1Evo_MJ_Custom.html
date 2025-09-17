@@ -900,8 +900,8 @@
         mSec[i] += medianSPDelay;
       }
       if (SWIndices.length > 1) {
-        const SWStdDev = await calculateStdDevOfResponses(SWIndices, 30, 80);
-        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s): ±${SWStdDev.toFixed(2)}dB`);
+        const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
+        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s): ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
     }
     async function spatialAverage() {
@@ -1485,25 +1485,23 @@
       }
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
-    function calculateStdDev(array) {
-      const n = array.length
-      const mean = array.reduce((a, b) => a + b) / n
-      return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
-    }
-    async function calculateStdDevOfResponses(indices, start, end) {
+    async function calculateMaxDeltaOfResponses(indices, start, end) {
       if (indices.length <= 1) { return 0; }
       const responseArrays = [];
       for (let i = 0; i < indices.length; i++) {
-        const freqResponse = await fetchSafe("frequency-response?smoothing=1%2F6&ppo=96", indices[i]);
+        const freqResponse = await fetchSafe("frequency-response?smoothing=Psy&ppo=96", indices[i]);
         const freqArray = response2array(freqResponse, start, end);
         responseArrays.push(freqArray);
       }
-      let aggStdDev = 0;
+      // find the max difference in SPL across the responses
+      let maxDelta = 0;
       for (let i = 0; i < responseArrays[0].length; i++) {
         const points = responseArrays.map(row => row[i]);
-        aggStdDev += calculateStdDev(points);
+        const minVal = Math.min(...points);
+        const maxVal = Math.max(...points);
+        maxDelta = Math.max(maxVal - minVal, maxDelta);
       }
-      return aggStdDev / responseArrays[0].length;
+      return maxDelta;
     }
     async function directional2standard() {
       // isolate the SW measurements
