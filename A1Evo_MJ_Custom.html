@@ -842,19 +842,19 @@
       console.infoUpdate("Initialized trims.");
     }
     async function timeAlignSpeakers() {
+      // note: only MLP positions are used since non-MLP will be cross corr aligned during spatial average
       console.info("Time aligning speakers...");
-      const SPIndices = [];
-      const SWIndices = [];
+      const mlpSPIndices = [];
+      const mlpSWIndices = [];
       for (let i = 1; i < commandId.length; i++) {
         if (commandId[i].startsWith("SW")) {
-          SWIndices.push(cmdIdMeasurements[commandId[i]]);
+          mlpSWIndices.push(cmdIdMeasurements[commandId[i]][0]);
         }
         else {
-          SPIndices.push(cmdIdMeasurements[commandId[i]]);
+          mlpSPIndices.push(cmdIdMeasurements[commandId[i]][0]);
         }
         mSec[i] = 0; // initialize
       }
-      const mlpSPIndices = SPIndices.map(row => row[0]);
       // calculate the average IR start delay for normalization
       let measurements = await fetch_mREW();
       let IRStartDelay = 0;
@@ -862,22 +862,16 @@
         IRStartDelay += measurements[mlpSPIndices[i]].timeOfIRStartSeconds;
       }
       IRStartDelay /= nSpeakers;
-      // time align & normalize speaker IRs
+      // time align & normalize speaker delayss
       await postNext('Time align', mlpSPIndices);
       measurements = await fetch_mREW();
       for (let i = 0; i < mlpSPIndices.length; i++) {
-        mlpIRShift = measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds;
-        mSec[i + 1] = IRStartDelay - mlpIRShift;
-        // shift non-MLP positions for consistency - this may be unnecessary but it reduces chance of error later
-        for (j = 1; j < SPIndices[i].length; j++) {
-          await postNext('Offset t=0', SPIndices[i][j], {offset: mlpIRShift, unit: "seconds"});
-        }
+        mSec[i + 1] = IRStartDelay - measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds;
       }
-      // shift subwoofer IRs by the same offset used to normalize speaker IRs
-      for (let i = 0; i < SWIndices.length; i++) {
-        for (let j = 0; j < SWIndices[i].length; j++) {
-          await postNext('Offset t=0', SWIndices[i][j], {offset: IRStartDelay, unit: "seconds"});
-        }
+      // shift subwoofer IRs by the same offset used to normalize speaker delays
+      // note: this ensures relative delay of SW compared to speakers stay intact
+      for (let i = 0; i < mlpSWIndices.length; i++) {
+        await postNext('Offset t=0', mlpSWIndices[i], {offset: IRStartDelay, unit: "seconds"});
       }
       console.infoUpdate("Time aligned speakers.");
     }
@@ -897,29 +891,17 @@
       }
       // align combined subwoofer median IR to median IR of speakers
       // note: this ensures min/max delays are negative/positive, otherwise REW crashes
-      const SWIndices = [];
-      for (let i = 1; i <= nChannels; i++) {
-        if (commandId[i].startsWith("SW")) {
-          SWIndices.push(cmdIdMeasurements[commandId[i]]);
-        }
-      }
-      // by this point there should only be one combined sub in REW
-      if (SWIndices.length != 1) {
-        console.error("Failed to combine subwoofer(s)!");
-        throw new Error;
-      }
       const loSPDelay = Math.min(...mSec.slice(1, nSpeakers + 1));
       const hiSPDelay = Math.max(...mSec.slice(1, nSpeakers + 1));
       const medianSPDelay = (loSPDelay + hiSPDelay) / 2;
-      for (let i = 0; i < SWIndices[0].length; i++) {
-        await postNext('Offset t=0', SWIndices[0][i], {offset: -medianSPDelay, unit: "seconds"});
-      }
+      const SWIndices = cmdIdMeasurements[commandId[nChannels]];
+      await postNext('Offset t=0', SWIndices[0], {offset: -medianSPDelay, unit: "seconds"});
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         mSec[i] += medianSPDelay;
       }
-      if (SWIndices[0].length > 1) {
-        const SWStdDev = await calculateStdDevOfResponses(SWIndices[0], 30, 80);
-        console.log(`${commandId[nChannels]} response variation between <${SWIndices[0].length}> microphone position(s): ±${SWStdDev.toFixed(2)}dB`);
+      if (SWIndices.length > 1) {
+        const SWStdDev = await calculateStdDevOfResponses(SWIndices, 30, 80);
+        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s): ±${SWStdDev.toFixed(2)}dB`);
       }
     }
     async function spatialAverage() {
@@ -1535,22 +1517,12 @@
       let mCount = Object.keys(measurements).length;
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
-      if (swIndices[0].length > 1) {
-        // use multiple positions 'as is' for better spatial phase representation
-        const currSubAvg = await postNext('Magn plus phase average', swIndices[0]);
-        currSubIdx = Object.keys(currSubAvg.results)[0];
-      }
       let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
       for (let i = 1; i < swIndices.length; i++) {
         let thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds}...`);
-        if (swIndices[i].length > 1) {
-          // use multiple positions 'as is' for better spatial phase representation
-          const thisSubAvg = await postNext('Magn plus phase average', swIndices[i]);
-          thisSubIdx = Object.keys(thisSubAvg.results)[0];
-        }
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + i + 1], nSpeakers + 1, nSpeakers + nSubs);
@@ -1575,7 +1547,6 @@
       for (let i = currSubIdx; i > mCount; i--) {
         await postDelete(i);
       }
-      console.info(`Generating combined subwoofer response(s) for ${swIndices[0].length} microphone position(s)...`);
       // normalize median subwoofer delay to t=0
       const loSWDelay = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
       const hiSWDelay = Math.max(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
@@ -1587,8 +1558,10 @@
         mSec[nSpeakers + i + 1] -= medianSWDelay;
       }
       // combine subs at the individual position level
+      console.info("Generating combined subwoofer response(s)...");
       let volAdjust = 0;
       for (let i = 0; i < swIndices[0].length; i++) {
+        console.infoUpdate(`Generating combined subwoofer response for position #${i + 1}`);
         const iPosSWIdxs = swIndices.map(row => row[i]);
         const iPosCombinedSW = await postNext('Vector sum', iPosSWIdxs);
         const iPosCombinedSWIdx = Object.keys(iPosCombinedSW.results)[0];
@@ -1599,13 +1572,15 @@
         }
         await postNext('Add SPL offset', iPosCombinedSWIdx, { offset: volAdjust });
       }
-      console.infoUpdate(`Generated combined subwoofer response(s) and removed individual subwoofer response(s).`);
+      console.infoUpdate(`Generated combined subwoofer response(s) for all positions.`);
       // cleanup individual sub measurements
+      console.info("Cleaning up individual subwoofer response(s)...");
       for (let i = swIndices.length - 1; i >= 0; i--) {
         for (let j = swIndices[i].length - 1; j >= 0; j--) {
           await postDelete(swIndices[i][j]);
         }
       }
+      console.infoUpdate("Cleaned up individual subwoofer response(s).");
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
       if (sOs === 300 && volAdjust != 0) {
         console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
