@@ -1588,7 +1588,7 @@
       console.infoUpdate(`Generated combined subwoofer response(s) for all positions.`);
       // cleanup individual sub measurements
       console.info("Cleaning up individual subwoofer response(s)...");
-      const individualSWIndices = swIndices.flat().sort();
+      const individualSWIndices = swIndices.flat().sort(function(a, b) { return a - b; });
       for (let i = individualSWIndices.length - 1; i >= 0; i--) {
         await postDelete(individualSWIndices[i]);
       }
