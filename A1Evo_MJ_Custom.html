@@ -1214,7 +1214,7 @@
         // rolloff determination logic
         let idx = i;
         if (!singleChannel) {
-          const pairAvg = await postNext('Magn plus phase average', [i, i + 1]); // do not use VA. it unfairly benefits single channel speakers
+          const pairAvg = await postNext('Vector average', [i, i + 1]);
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPointFromTC(idx);
@@ -1288,7 +1288,7 @@
       if (initialXOs > 0) { avgInitialXO = initialXOs / eqResults.length; }
       Object.freeze(avgInitialXO);
       console.log(`Calculating optimal subwoofer delay for ALL speakers using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
-      const avgSpeaker = await postNext('Magn plus phase average', Array.from(eqResults)); // same results with RMS & VA since goal is max output
+      const avgSpeaker = await postNext('Vector average', Array.from(eqResults));
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
@@ -1409,7 +1409,7 @@
             await genSpeaker(i, checkXO);
           }
           else {
-            await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
+            await postNext('Vector average', [i, i + 2]);
             await genSpeaker(mCount + 1, checkXO);
             await postDelete(mCount + 1);
           }
