@@ -1218,20 +1218,25 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPointFromTC(idx);
-        const rolloffHF = await getSpeakerHFRolloff(i); // speaker specific, not pair specific
-        m3dBPoints[i] = [Math.round(rolloff), Math.round(rolloffHF)];
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           initialXO = "L";
         }
         customCrossover[i] = initialXO;
+        // used for EQ limits
+        const rolloffLF = await getLow3dBPointFromTC(i); // speaker specific, not pair specific
+        const rolloffHF = await getSpeakerHFRolloff(i); // speaker specific, not pair specific
+        m3dBPoints[i] = [Math.round(rolloffLF), Math.round(rolloffHF)];
         if (!singleChannel) {
-          const rolloffHFR = await getSpeakerHFRolloff(i + 1); // speaker specific, not pair specific
-          m3dBPoints[i + 1] = [Math.round(rolloff), Math.round(rolloffHFR)];
+          // assign initialXO to the right channel of the speaker pair
           customCrossover[i + 1] = initialXO;
-          i++;
           await postDelete(idx); // cleanup
+          // used for EQ limits
+          const rolloffLFR = await getLow3dBPointFromTC(i + 1); // speaker specific, not pair specific
+          const rolloffHFR = await getSpeakerHFRolloff(i + 1); // speaker specific, not pair specific
+          m3dBPoints[i + 1] = [Math.round(rolloffLFR), Math.round(rolloffHFR)];
+          i++;
         }
         const logMessage = initialXO === "L" ? "Large/Full Range" : `Initial XO: ${initialXO}hz`;
         console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → ${logMessage}`);
