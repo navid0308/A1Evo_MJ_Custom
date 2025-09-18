@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.2.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.3.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -819,34 +819,103 @@
       }
       return [loDelay, hiDelay];
     }
-    async function groundWorks() {
-      let measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
-      if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
-      if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
-      if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
-      console.log(`Optimizing spatial averaging, volume & time alignment...`);
-      console.info(`Starting...`);
-      let title = {};
+    async function initializeTrims() {
+      console.info("Initializing trims...");
       for (let i = 1; i < commandId.length; i++) {
         const indices = cmdIdMeasurements[commandId[i]];
-        console.infoUpdate(`Processing channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
-        if (indices.length > 1) {
-          await postNext('Cross corr align', indices);
-        }
-        mSec[i] = 0; // should be 0 but manual measurements have slight IR drift which the normalization takes care of
-        title[i] = commandId[i] + "o";
         // trim determination using the MLP measurement
-        if (title[i].startsWith("SW")) {
+        if (commandId[i].startsWith("SW")) {
           customLevel[i] = await getSubTrim(indices[0]);
         }
         else {
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
+        // shift all measurements for this channel based on trim
+        for (j = 0; j < indices.length; j++) {
+          await postNext('Add SPL offset', indices[j], { offset: customLevel[i] });
+        }
         // attempt to fix android volume bug where measurements are off by multiples of +/-6dB
         if (isCirrusLogic && isAudy) {
           await fixVolBug(indices);
         }
+      }
+      console.infoUpdate("Initialized trims.");
+    }
+    async function timeAlignSpeakers() {
+      // note: only MLP positions are used since non-MLP will be cross corr aligned during spatial average
+      console.info("Time aligning speakers...");
+      const mlpSPIndices = [];
+      const mlpSWIndices = [];
+      for (let i = 1; i < commandId.length; i++) {
+        if (commandId[i].startsWith("SW")) {
+          mlpSWIndices.push(cmdIdMeasurements[commandId[i]][0]);
+        }
+        else {
+          mlpSPIndices.push(cmdIdMeasurements[commandId[i]][0]);
+        }
+        mSec[i] = 0; // initialize
+      }
+      // calculate the average IR start delay for normalization
+      let measurements = await fetch_mREW();
+      let IRStartDelay = 0;
+      for (let i = 0; i < mlpSPIndices.length; i++) {
+        IRStartDelay += measurements[mlpSPIndices[i]].timeOfIRStartSeconds;
+      }
+      IRStartDelay /= nSpeakers;
+      // time align & normalize speaker delayss
+      await postNext('Time align', mlpSPIndices);
+      measurements = await fetch_mREW();
+      for (let i = 0; i < mlpSPIndices.length; i++) {
+        mSec[i + 1] = IRStartDelay - measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds;
+      }
+      // shift subwoofer IRs by the same offset used to normalize speaker delays
+      // note: this ensures relative delay of SW compared to speakers stay intact
+      for (let i = 0; i < mlpSWIndices.length; i++) {
+        await postNext('Offset t=0', mlpSWIndices[i], {offset: IRStartDelay, unit: "seconds"});
+      }
+      console.infoUpdate("Time aligned speakers.");
+    }
+    async function initializeSubwoofers() {
+      if (noSub) { return; }
+      if (bassMode === "Directional") {
+        console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
+        await directional2standard();
+        console.warn("Conversion from 'directional bass' mode to 'standard bass' mode completed.")
+      }
+      else {
+        // normalize standard bass subwoofer median IR to t=0
+        const IROffset = (subLoDelay + subHiDelay) / 2;
+        const stdSubMLPIdx = cmdIdMeasurements[commandId[nChannels]][0];
+        await postNext('Offset t=0', stdSubMLPIdx, {offset: IROffset, unit: "seconds"});
+        mSec[nChannels] -= IROffset;
+      }
+      // align combined subwoofer median IR to median IR of speakers
+      // note: this ensures min/max delays are negative/positive, otherwise REW crashes
+      const loSPDelay = Math.min(...mSec.slice(1, nSpeakers + 1));
+      const hiSPDelay = Math.max(...mSec.slice(1, nSpeakers + 1));
+      const medianSPDelay = (loSPDelay + hiSPDelay) / 2;
+      const SWIndices = cmdIdMeasurements[commandId[nChannels]];
+      await postNext('Offset t=0', SWIndices[0], {offset: -medianSPDelay, unit: "seconds"});
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+        mSec[i] += medianSPDelay;
+      }
+      if (SWIndices.length > 1) {
+        const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
+        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s): ±${(SWMaxDelta / 2).toFixed(2)}dB`);
+      }
+    }
+    async function spatialAverage() {
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length;
+      const avgSWIndices = [];
+      console.info("Starting spatial averaging...");
+      for (let i = 1; i <= nChannels; i++) {
+        const indices = cmdIdMeasurements[commandId[i]];
+        console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
+        if (indices.length > 1) {
+          await postNext('Cross corr align', indices);
+        }
+        const title = commandId[i] + "o";
         // average
         if (indices.length === 1) {
           await postSafe(`${baseUrl}/${indices[0]}/command`, {command: "Response copy" }, "Completed"); // nothing to average
@@ -856,57 +925,31 @@
         }
         // the "o" measurement
         const idx = mCount + i;
-        await fetch_mREW(idx, 'PUT', { title: title[i] });
+        await fetch_mREW(idx, 'PUT', { title: title });
         // align "o" measurement to target curve
-        const volAdjust = title[i].startsWith("SW") ? await getSubTrim(idx) : await getSpeakerTrim(idx);
+        const volAdjust = title.startsWith("SW") ? await getSubTrim(idx) : await getSpeakerTrim(idx);
         await postNext('Add SPL offset', idx, { offset: volAdjust });
+        if (title.startsWith("SW")) {
+          avgSWIndices.push(idx);
+        }
       }
-      console.infoUpdate("Deleting processed measurements...");
-      for (let i = mCount; i >= 1; i--) {
+      console.infoUpdate(`Spatially averaged all channels.`);
+      console.info("Deleting processed measurements...");
+      for (let i = mCount; i > 0; i--) {
         await postDelete(i);
       }
-      console.infoUpdate("Time aligning speakers...");
-      // align speakers but leave subwoofers alone. ANY align command messes up subwoofer IR alignment
-      const spIndices = Array.from({ length: nSpeakers }, (_, j) => j + 1);
-      await postNext('Time align', spIndices);
-      measurements = await fetch_mREW();
-      // keep relative delays for time alignment & normalize speaker IRs to t=0
-      let totalIRShift = 0;
-      for (let i = 1; i <= nSpeakers; i++) {
-        totalIRShift += parseFloat(measurements[i].cumulativeIRShiftSeconds);
-      }
-      const IRStartDelay = totalIRShift / nSpeakers;
-      for (let i = 1; i <= nSpeakers; i++) {
-        mSec[i] -= (parseFloat(measurements[i].cumulativeIRShiftSeconds) - IRStartDelay);
-      }
-      console.infoUpdate("Completed spatial averaging, volume & time alignment!");
-      // no need to go further without subwoofer
+      console.infoUpdate("Deleted processed measurements.");
+    }
+    async function groundWorks() {
+      if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
+      if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
+      if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
+      console.log("Optimizing spatial averaging, volume & time alignment...");
+      await initializeTrims();
+      await timeAlignSpeakers();
+      await initializeSubwoofers();
+      await spatialAverage();
       if (noSub) { return; }
-      // shift subwoofer IRs by the same offset used to normalize speaker IRs
-      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        await postNext('Offset t=0', i, {offset: IRStartDelay, unit: "seconds"});
-      }
-      if (bassMode === "Directional") {
-        console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
-        await directional2standard();
-        console.warn("Conversion from 'directional bass' mode to 'standard bass' mode completed.")
-      }
-      else {
-        // normalize standard bass subwoofer median IR to t=0
-        const IROffset = (subLoDelay + subHiDelay) / 2;
-        await postNext('Offset t=0', nChannels, {offset: IROffset, unit: "seconds"});
-        mSec[nChannels] -= IROffset;
-      }
-      // align final subwoofer median IR to median IR of speakers
-      // note: this ensures min/max delays are negative/positive, otherwise REW crashes
-      const loSPDelay = Math.min(...mSec.slice(1, nSpeakers + 1));
-      const hiSPDelay = Math.max(...mSec.slice(1, nSpeakers + 1));
-      const medianSPDelay = (loSPDelay + hiSPDelay) / 2;
-      await postNext('Offset t=0', nChannels, {offset: -medianSPDelay, unit: "seconds"});
-      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        mSec[i] += medianSPDelay;
-      }
-      // done with groundworks and log
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
@@ -973,7 +1016,7 @@
             "enabled": true,
             "isAuto": true,
             "frequency": 1500,
-            "gaindB": 1.5,
+            "gaindB": 3.0,
             "q": 0.5
           }]
         }, "Filters set");
@@ -1082,7 +1125,7 @@
     }
     async function getAbsLow3dBPointForSub(idx, start=10, end=320) {
       // finds low -3dB point from mean SPL between 30-80hz
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const subArray = response2array(response, 30, 80);
       const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
       const rpArray = response2array(response, start, end);
@@ -1096,7 +1139,7 @@
     }
     async function getAbsHigh3dBPointForSub(idx, start=10, end=320) {
       // finds high -3dB point from mean SPL between 30-80hz
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const subArray = response2array(response, 30, 80);
       const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
       const rpArray = response2array(response, start, end);
@@ -1110,7 +1153,7 @@
     }
     async function getLow3dBPointFromTC(idx, start=10, end=320) {
       // finds low -3dB point from target
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -1124,7 +1167,7 @@
     }
     async function getHigh3dBPointFromTC(idx, start=10, end=320) {
       // finds high -3dB point from target
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -1138,7 +1181,7 @@
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -1175,20 +1218,25 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getLow3dBPointFromTC(idx);
-        const rolloffHF = await getSpeakerHFRolloff(i); // speaker specific, not pair specific
-        m3dBPoints[i] = [Math.round(rolloff), Math.round(rolloffHF)];
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           initialXO = "L";
         }
         customCrossover[i] = initialXO;
+        // used for EQ limits
+        const rolloffLF = await getLow3dBPointFromTC(i); // speaker specific, not pair specific
+        const rolloffHF = await getSpeakerHFRolloff(i); // speaker specific, not pair specific
+        m3dBPoints[i] = [Math.round(rolloffLF), Math.round(rolloffHF)];
         if (!singleChannel) {
-          const rolloffHFR = await getSpeakerHFRolloff(i + 1); // speaker specific, not pair specific
-          m3dBPoints[i + 1] = [Math.round(rolloff), Math.round(rolloffHFR)];
+          // assign initialXO to the right channel of the speaker pair
           customCrossover[i + 1] = initialXO;
-          i++;
           await postDelete(idx); // cleanup
+          // used for EQ limits
+          const rolloffLFR = await getLow3dBPointFromTC(i + 1); // speaker specific, not pair specific
+          const rolloffHFR = await getSpeakerHFRolloff(i + 1); // speaker specific, not pair specific
+          m3dBPoints[i + 1] = [Math.round(rolloffLFR), Math.round(rolloffHFR)];
+          i++;
         }
         const logMessage = initialXO === "L" ? "Large/Full Range" : `Initial XO: ${initialXO}hz`;
         console.info(`${cmdIds} - roll-off: ${rolloff.toFixed(2)}Hz → ${logMessage}`);
@@ -1442,49 +1490,135 @@
       }
       console.infoUpdate("Completed generating final outputs for all channels!");
     }
+    async function calculateMaxDeltaOfResponses(indices, start, end) {
+      if (indices.length <= 1) { return 0; }
+      const responseArrays = [];
+      for (let i = 0; i < indices.length; i++) {
+        const freqResponse = await fetchSafe("frequency-response?smoothing=Psy&ppo=96", indices[i]);
+        const freqArray = response2array(freqResponse, start, end);
+        responseArrays.push(freqArray);
+      }
+      // find the max difference in SPL across the responses
+      let maxDelta = 0;
+      for (let i = 0; i < responseArrays[0].length; i++) {
+        const points = responseArrays.map(row => row[i]);
+        const minVal = Math.min(...points);
+        const maxVal = Math.max(...points);
+        maxDelta = Math.max(maxVal - minVal, maxDelta);
+      }
+      return maxDelta;
+    }
     async function directional2standard() {
-      let currSubIdx = nSpeakers + 1;
-      let cmdIds = commandId[currSubIdx];
-      let minDelay = 0, maxDelay = 0;
+      let measurements = await fetch_mREW();
+      let mCount = Object.keys(measurements).length;
+      // isolate SW commandIds & peak IR times
+      const swCmdIdsWithIRPeak = {};
+      for (let i = 1; i < commandId.length; i++) {
+        if (commandId[i].startsWith("SW")) {
+          const mlpIdx = cmdIdMeasurements[commandId[i]][0];
+          swCmdIdsWithIRPeak[commandId[i]] = measurements[mlpIdx].timeOfIRPeakSeconds;
+        }
+      }
+      // sort subs using peak IR time based on closest to farthest
+      const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
+      console.info(`Alignment order based on IR peak time: ${sortedSwList}`);
+      const swIndices = [];
+      for (let i = 0; i < sortedSwList.length; i++) {
+        swIndices.push(cmdIdMeasurements[sortedSwList[i]]);
+      }
+      let currSubIdx = swIndices[0][0];
+      let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
-      for (let i = nSpeakers + 2; i <= nSpeakers + nSubs; i++) {
-        console.log(`Aligning ${commandId[i]} to ${cmdIds}...`);
-        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(i)));
-        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(i)));
-        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, i, startFreq, endFreq);
+      for (let i = 1; i < swIndices.length; i++) {
+        let thisSubIdx = swIndices[i][0];
+        const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
+        const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
+        console.log(`Aligning ${thisSubCmdId} to ${cmdIds}...`);
+        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
+        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
+        const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
+        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
+                                                                                  startFreq, endFreq, loDelay, hiDelay);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
           throw new Error;
         }
         currSubIdx = sumIndex;
-        mSec[i] += (requiredDelay / 1000);
-        invertSub[i] = isInverted;
-        cmdIds += ` & ${commandId[i]}`;
-        minDelay = Math.min(minDelay, mSec[i]);
-        maxDelay = Math.max(maxDelay, mSec[i]);
+        mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
+        invertSub[nSpeakers + thisSubNumber] = isInverted;
+        cmdIds += ` & ${thisSubCmdId}`;
+        for (let j = 0; j < swIndices[i].length; j++) {
+          await postNext('Offset t=0', swIndices[i][j], {offset: -mSec[nSpeakers + thisSubNumber], unit: "seconds"});
+          if (isInverted) {
+            await postSafe(`${baseUrl}/${swIndices[i][j]}/command`,{command: "Invert"}, "Invert completed");
+          }
+        }
       }
-      for (let i = currSubIdx - 1; i > nSpeakers; i--) {
+      // cleanup all potential alignments
+      for (let i = currSubIdx; i > mCount; i--) {
         await postDelete(i);
       }
-      await fetch_mREW(nChannels, 'PUT', { title: "SW1o" });
-      // normalize directional bass subwoofer median IR to t=0
-      const IROffset = (minDelay + maxDelay) / 2;
-      await postNext('Offset t=0', nChannels, {offset: IROffset, unit: "seconds"});
-      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        mSec[i] -= IROffset;
+      // normalize median subwoofer delay to t=0
+      const loSWDelay = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
+      const hiSWDelay = Math.max(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
+      const medianSWDelay = (loSWDelay + hiSWDelay) / 2;
+      for (let i = 0; i < swIndices.length; i++) {
+        for (let j = 0; j < swIndices[i].length; j++) {
+          await postNext('Offset t=0', swIndices[i][j], {offset: medianSWDelay, unit: "seconds"});
+        }
+        // note: even though subs aren't aligned in order, it's a don't care here since same IR shift applies to all
+        mSec[nSpeakers + i + 1] -= medianSWDelay;
       }
-      // offset volume from combining subwoofers
-      const volAdjust = await getSubTrim(nChannels);
-      if (volAdjust === 0) { return; } // nothing more to do
-      await postNext('Add SPL offset', nChannels, { offset: volAdjust });
+      // combine subs at the individual position level
+      console.info("Generating combined subwoofer response(s)...");
+      let volAdjust = 0;
+      for (let i = 0; i < swIndices[0].length; i++) {
+        console.infoUpdate(`Generating combined subwoofer response for position #${i + 1}`);
+        const iPosSWIdxs = swIndices.map(row => row[i]);
+        const iPosCombinedSW = await postNext('Vector sum', iPosSWIdxs);
+        const iPosCombinedSWIdx = Object.keys(iPosCombinedSW.results)[0];
+        await fetch_mREW(iPosCombinedSWIdx, 'PUT', { title: `SW1${i}` });
+        if (i === 0) {
+          // offset multi-sub gain using MLP measurement
+          volAdjust = await getSubTrim(iPosCombinedSWIdx);
+        }
+        await postNext('Add SPL offset', iPosCombinedSWIdx, { offset: volAdjust });
+      }
+      console.infoUpdate(`Generated combined subwoofer response(s) for all positions.`);
+      // cleanup individual sub measurements
+      console.info("Cleaning up individual subwoofer response(s)...");
+      const individualSWIndices = swIndices.flat().sort(function(a, b) { return a - b; });
+      for (let i = individualSWIndices.length - 1; i >= 0; i--) {
+        await postDelete(individualSWIndices[i]);
+      }
+      console.infoUpdate("Cleaned up individual subwoofer response(s).");
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
-      if (sOs === 300) {
+      if (sOs === 300 && volAdjust != 0) {
         console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           customLevel[i] += volAdjust;
           console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
         }
+      }
+      // update measurement list per channel
+      measurements = await fetch_mREW();
+      mCount = Object.keys(measurements).length;
+      for (let i = 1; i < commandId.length; i++) {
+        cmdIdMeasurements[commandId[i]] = [];
+      }
+      for (let i = 1; i <= mCount; i++) {
+        const key = measurements[i].title.replace(/\d+/g, '');
+        const idxLength = measurements[i].title.length - key.length - (key === "SW" ? 1 : 0);
+        const mCmdId = measurements[i].title.slice(0, measurements[i].title.length - idxLength);
+        let cmdId = "";
+        for (let j = 1; j < commandId.length; j++) {
+          if (mCmdId === commandId[j]) {
+            cmdId = commandId[j];
+            break;
+          }
+        }
+        cmdIdMeasurements[cmdId].push(i);
       }
     }
     function response2array(response, start, end, phase=false) {
@@ -1591,7 +1725,7 @@
         const delayB = parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         if (maxSum < tempMagSum) {
@@ -1616,8 +1750,7 @@
       }
       return [isPossible, requiredDelay, isInverted];
     }
-    async function alignMsub(ind1, ind2, start, end) {
-      const [loDelay, hiDelay] = getDelayRangeOf(mSec[ind2], nSpeakers + 1, nSpeakers + nSubs);
+    async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity, sumIndex = null;
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
@@ -1639,7 +1772,7 @@
         const delayB = parseFloat(await fetchAlign('delay-b'));
         if (noInversion && invertB) { continue; };
 
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         if (maxSum < tempMagSum) {
