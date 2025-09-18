@@ -1504,15 +1504,23 @@
       return maxDelta;
     }
     async function directional2standard() {
-      // isolate the SW measurements
-      const swIndices = [];
-      for (let i = 1; i < commandId.length; i++) {
-        if (commandId[i].startsWith("SW")) {
-          swIndices.push(cmdIdMeasurements[commandId[i]]);
-        }
-      }
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
+      // isolate SW commandIds & peak IR times
+      const swCmdIdsWithIRPeak = {};
+      for (let i = 1; i < commandId.length; i++) {
+        if (commandId[i].startsWith("SW")) {
+          const mlpIdx = cmdIdMeasurements[commandId[i]][0];
+          swCmdIdsWithIRPeak[commandId[i]] = measurements[mlpIdx].timeOfIRPeakSeconds;
+        }
+      }
+      // sort subs using peak IR time based on closest to farthest
+      const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
+      console.info(`Alignment order based on IR peak time: ${sortedSwList}`);
+      const swIndices = [];
+      for (let i = 0; i < sortedSwList.length; i++) {
+        swIndices.push(cmdIdMeasurements[sortedSwList[i]]);
+      }
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
@@ -1520,10 +1528,11 @@
       for (let i = 1; i < swIndices.length; i++) {
         let thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
+        const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds}...`);
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
-        const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + i + 1], nSpeakers + 1, nSpeakers + nSubs);
+        const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
                                                                                   startFreq, endFreq, loDelay, hiDelay);
         if (!isPossible || !sumIndex) {
@@ -1531,11 +1540,11 @@
           throw new Error;
         }
         currSubIdx = sumIndex;
-        mSec[nSpeakers + i + 1] += (requiredDelay / 1000);
-        invertSub[nSpeakers + i + 1] = isInverted;
+        mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
+        invertSub[nSpeakers + thisSubNumber] = isInverted;
         cmdIds += ` & ${thisSubCmdId}`;
         for (let j = 0; j < swIndices[i].length; j++) {
-          await postNext('Offset t=0', swIndices[i][j], {offset: -mSec[nSpeakers + i + 1], unit: "seconds"});
+          await postNext('Offset t=0', swIndices[i][j], {offset: -mSec[nSpeakers + thisSubNumber], unit: "seconds"});
           if (isInverted) {
             await postSafe(`${baseUrl}/${swIndices[i][j]}/command`,{command: "Invert"}, "Invert completed");
           }
@@ -1553,6 +1562,7 @@
         for (let j = 0; j < swIndices[i].length; j++) {
           await postNext('Offset t=0', swIndices[i][j], {offset: medianSWDelay, unit: "seconds"});
         }
+        // note: even though subs aren't aligned in order, it's a don't care here since same IR shift applies to all
         mSec[nSpeakers + i + 1] -= medianSWDelay;
       }
       // combine subs at the individual position level
@@ -1573,10 +1583,9 @@
       console.infoUpdate(`Generated combined subwoofer response(s) for all positions.`);
       // cleanup individual sub measurements
       console.info("Cleaning up individual subwoofer response(s)...");
-      for (let i = swIndices.length - 1; i >= 0; i--) {
-        for (let j = swIndices[i].length - 1; j >= 0; j--) {
-          await postDelete(swIndices[i][j]);
-        }
+      const individualSWIndices = swIndices.flat().sort();
+      for (let i = individualSWIndices.length - 1; i >= 0; i--) {
+        await postDelete(individualSWIndices[i]);
       }
       console.infoUpdate("Cleaned up individual subwoofer response(s).");
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
