@@ -909,6 +909,11 @@
     async function spatialAverage() {
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
+      // move a copy of MLP measurements to the bottom for preserving
+      for (let i = 1; i <= nChannels; i++) {
+        await postSafe(`${baseUrl}/${cmdIdIndices[commandId[i]][0]}/command`, {command: "Response copy" }, "Completed");
+        await fetch_mREW(mCount + i, 'PUT', { title: `${commandId[i]}-mlp` });
+      }
       console.info("Starting spatial averaging...");
       for (let i = 1; i <= nChannels; i++) {
         const indices = cmdIdIndices[commandId[i]];
@@ -925,7 +930,7 @@
           await postNext('Magn plus phase average', indices); // do not use VA, it reduces SPL!
         }
         // the "-avg" measurement
-        const idx = mCount + i;
+        const idx = mCount + nChannels + i;
         await fetch_mREW(idx, 'PUT', { title: title });
         // align "-avg" measurement to target curve
         const volAdjust = title.startsWith("SW") ? await getSubTrim(idx) : await getSpeakerTrim(idx);
@@ -933,24 +938,15 @@
       }
       console.infoUpdate(`Spatially averaged all channels.`);
       console.info("Deleting processed measurements...");
-      const mlpMeasurements = Object.values(cmdIdIndices).map(row => row[0]);
-      const allMeasurements = Object.values(cmdIdIndices).flat().sort(function(a, b) { return a - b; });
-      let count = nChannels;
-      for (let i = allMeasurements.length - 1; i >= 0; i--) {
-        if (mlpMeasurements.includes(allMeasurements[i])) {
-          const title = measurements[allMeasurements[i]].title;
-          const cmdId = title.slice(0, title.length - 1);
-          const mlpName = `${cmdId}-mlp`;
-          await fetch_mREW(allMeasurements[i], 'PUT', { title: mlpName });
-          cmdIdMLPIndices[cmdId] = String(count);
-          cmdIdAVGIndices[cmdId] = String(nChannels + count);
-          count--;
-        }
-        else {
-          await postDelete(allMeasurements[i]);
-        }
+      for (let i = mCount; i > 0; i--) {
+        await postDelete(i);
       }
       console.infoUpdate("Deleted processed measurements.");
+      // at this point 1...nChannels are MLP and nChannels+1...nChannels*2 is spatial average
+      for (let i = 1; i <= nChannels; i++) {
+        cmdIdMLPIndices[commandId[i]] = i;
+        cmdIdAVGIndices[commandId[i]] = i + nChannels;
+      }
     }
     async function groundWorks() {
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
@@ -1306,7 +1302,7 @@
       for (let i = 1; i <= nSpeakers; i++) {
         mlpEQResults.push(cmdIdMLPIndicesEQ[commandId[i]]);
       }
-      const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / customCrossover.length;
+      const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
       console.log(`Optimizing subwoofer delay for ALL speakers at MLP using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
       const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpEQResults)); // same results with RMS & VA since goal is max output
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
@@ -1314,7 +1310,7 @@
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
       const subwooferWithLPF = await genSub(cmdIdMLPIndicesEQ[commandId[nChannels]], avgInitialXO);
       const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
-      let [isPossible, requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx, avgInitialXO);
+      let [isPossible, requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
       // cleanup
       await postDelete(subwooferWithLPFIdx);
       await postDelete(avgSpeakerWithHPFIdx);
@@ -1470,7 +1466,7 @@
       console.info("Starting...");
       // predicted results for MLP first
       for (let i = 1; i <= nSpeakers; i++) {
-        console.infoUpdate(`Generating final output for channel - ${commandId[i]}-mlp...`);
+        console.infoUpdate(`Generating final output for ${commandId[i]}-mlp...`);
         const isLarge = customCrossover[i] === "L";
         let finalResponseName = commandId[i] + "final-mlp";
         finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
@@ -1492,7 +1488,7 @@
         await postDelete(spWithHPFIdx);
       }
       if (!noSub) {
-        console.infoUpdate("Generating final output for channel - LFE-mlp...");
+        console.infoUpdate("Generating final output for LFE-mlp...");
         const eqSub = cmdIdMLPIndicesEQ[commandId[nChannels]];
         const LFEChannel = await genSub(eqSub, 120);
         const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
@@ -1500,7 +1496,7 @@
       }
       // predicted results for AVG
       for (let i = 1; i <= nSpeakers; i++) {
-        console.infoUpdate(`Generating final output for channel - ${commandId[i]}-avg...`);
+        console.infoUpdate(`Generating final output for ${commandId[i]}-avg...`);
         const isLarge = customCrossover[i] === "L";
         let finalResponseName = commandId[i] + "final-avg";
         finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
@@ -1522,7 +1518,7 @@
         await postDelete(spWithHPFIdx);
       }
       if (!noSub) {
-        console.infoUpdate("Generating final output for channel - LFE-avg...");
+        console.infoUpdate("Generating final output for LFE-avg...");
         const eqSub = cmdIdAVGIndicesEQ[commandId[nChannels]];
         const LFEChannel = await genSub(eqSub, 120);
         const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
@@ -1763,8 +1759,7 @@
         }
       }
     }
-    async function align4system(ind1, ind2, xo) {
-      const start = Math.round(xo / 2), end = Math.round(xo * 2);
+    async function align4system(ind1, ind2, start=20, end=250) {
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity;
