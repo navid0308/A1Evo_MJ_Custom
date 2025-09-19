@@ -1409,18 +1409,15 @@
     async function finalizeXO(start=20, end=250) {
       if (noSub) { return; } // no need to go further without subwoofer
       console.log("Finalizing crossover frequencies to best follow the target curve...");
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
-      const targetArray = response2array(targetResponse, start, end);
-      let count = 1;
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
-      for (let i = nChannels + 2; i <= nChannels * 3; i += 2) {
-        if (commandId[count].startsWith("SW")) { continue; }
+      const targetArray = response2array(targetResponse, start, end);
+      const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
+      for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
-        const singleChannel = isSingleChannel(commandId[count]);
-        const cmdIds = (singleChannel ? commandId[count] : `${commandId[count]} & ${commandId[1 + count]}`).padStart(9, ".");
+        const singleChannel = isSingleChannel(commandId[i]);
+        const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         // finalize xo that is closest match to target curve
-        const initialXO = parseFloat(customCrossover[count]);
+        const initialXO = customCrossover[i];
         let bestXO = initialXO, minRmsError = Infinity;
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
@@ -1429,35 +1426,42 @@
           if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(2 * initialXO, maxXO)) { continue; }
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
+          let mlpSPWithHPFIdx;
+          const mlpSPIdx = cmdIdMLPIndicesEQ[commandId[i]];
           if (singleChannel) {
-            await genSpeaker(i, checkXO);
+            const spWithHPF = await genSpeaker(mlpSPIdx, checkXO);
+            mlpSPWithHPFIdx = Object.keys(spWithHPF.results)[0];
           }
           else {
-            await postNext('Magn plus phase average', [i, i + 2]); // do not use VA. it unfairly benefits single channel speakers
-            await genSpeaker(mCount + 1, checkXO);
-            await postDelete(mCount + 1);
+            const mlpSPRIdx = cmdIdMLPIndicesEQ[commandId[i + 1]];
+            const pairSPAvg = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPRIdx]); // do not use VA. it unfairly benefits single channel speakers
+            const pairSPAvgIdx = Object.keys(pairSPAvg.results)[0];
+            await genSpeaker(pairSPAvgIdx, checkXO); // generates to pairSPAvgIdx + 1
+            await postDelete(pairSPAvgIdx);
+            mlpSPWithHPFIdx = pairSPAvgIdx; // pair avg with HPF now has same idx as pair sp avg idx
           }
-          await genSub(mCount, checkXO);
-          await postNext('Arithmetic', [mCount + 1, mCount + 2], { function: "A + B" }); // response using checkXO
+          const mlpSWWithLPF = await genSub(mlpSWIdx, checkXO);
+          const mlpSWWithLPFIdx = Object.keys(mlpSWWithLPF.results)[0];
+          const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
+          const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
           // check RMS error against target curve
-          const checkXOResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', mCount + 3);
+          const checkXOResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', mlpXOResultIdx);
           const checkXOArray = response2array(checkXOResponse, start, end);
           const rmsError = calculateRMSError(checkXOArray, targetArray);
           if (rmsError < minRmsError) {
             minRmsError = rmsError;
             bestXO = checkXO;
           }
-          for (let k = mCount + 3; k > mCount; k--) {
-            await postDelete(k);
-          }
+          // delete in reverse order of creation
+          await postDelete(mlpXOResultIdx);
+          await postDelete(mlpSWWithLPFIdx);
+          await postDelete(mlpSPWithHPFIdx);
         }
-        customCrossover[count] = bestXO;
+        customCrossover[i] = bestXO;
         if (!singleChannel) {
-          customCrossover[1 + count] = bestXO;
-          i += 2;
-          count++;
+          customCrossover[i + 1] = bestXO;
+          i++;
         }
-        count++;
         console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Best XO: ${bestXO}hz`);
       }
     }
@@ -1470,14 +1474,15 @@
         let finalResponseName = commandId[i] + "final";
         finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
         finalResponseName += isLarge ? "-Large" : `-${customCrossover[i]}hz-xo`;
-        const eqSpeaker = nChannels + 2 * i;
+        const eqSpeaker = cmdIdAVGIndicesEQ[commandId[i]];
         const spWithHPF = await genSpeaker(eqSpeaker, customCrossover[i]);
-        const spWithHPFIdx = (isLarge ? nChannels * 3 + i : Object.keys(spWithHPF.results)[0]);
+        const spWithHPFIdx = (isLarge ? nChannels * 5 + i : Object.keys(spWithHPF.results)[0]);
         if (noSub) {
           await fetch_mREW(spWithHPFIdx, 'PUT', { title: finalResponseName });
           continue;
         }
-        const subWithLPF = await genSub(nChannels * 3, customCrossover[i]);
+        const eqSub = cmdIdAVGIndicesEQ[commandId[nChannels]];
+        const subWithLPF = await genSub(eqSub, customCrossover[i]);
         const subWithLPFIdx = Object.keys(subWithLPF.results)[0];
         const finalResponse = await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
         const finalResponseIdx = Object.keys(finalResponse.results)[0];
@@ -1487,12 +1492,13 @@
       }
       if (!noSub) {
         console.infoUpdate("Generating final output for channel - LFE");
-        const LFEChannel = await genSub(nChannels * 3, 120);
+        const eqSub = cmdIdAVGIndicesEQ[commandId[nChannels]];
+        const LFEChannel = await genSub(eqSub, 120);
         const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
         await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-120hz-LPF" });
       }
-      await fetchSafe('target-level', nChannels * 3, 75.0);
-      const targetCurve = await postNext('Generate target measurement', nChannels * 3);
+      await fetchSafe('target-level', nChannels * 5, 75.0);
+      const targetCurve = await postNext('Generate target measurement', nChannels * 5);
       const targetCurveIdx = Object.keys(targetCurve.results)[0];
       const targetName = (targetCurveName === "" ? "TC-DEQ" : targetCurveName) + " @ 75dB";
       await fetch_mREW(targetCurveIdx, 'PUT', { title: targetName });
@@ -1901,7 +1907,8 @@
       const octave = Math.pow(2, 1 / 96);
       for (let i = 1; i <= nSpeakers; i++) {
         const fltArray = [];
-        const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', 2 * i + (nChannels - 1));
+        const fltIdx = cmdIdFilterIndices[commandId[i]];
+        const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', fltIdx);
         const bytes = Uint8Array.from(atob(fltResponse.magnitude), c => c.charCodeAt(0));
         const buffer = bytes.buffer;
         const data = new DataView(buffer);
@@ -1924,7 +1931,8 @@
       }
       if (!noSub) {
         const subArray = [];
-        const subResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nChannels * 3 - 1);
+        const subFilter = cmdIdFilterIndices[commandId[nChannels]];
+        const subResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', subFilter);
         const bytesSub = Uint8Array.from(atob(subResponse.magnitude), c => c.charCodeAt(0));
         const bufferSub = bytesSub.buffer;
         const dataSub = new DataView(bufferSub);
