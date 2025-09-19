@@ -992,6 +992,7 @@
         // line up speaker response to target similar to REW, but don't affect subwoofer - already using DBF
         const tcLevelOffset = isSub ? 0 : await getTrim(avgIdx, 200, 2000, "Var");
         await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
+        await postNext('Smooth', mlpIdx, { smoothing: "Var" });
         await postNext('Smooth', avgIdx, { smoothing: "Var" });
         await postSafe(`${baseUrl}/${avgIdx}/target-settings`, {
           shape: isSub ? "Subwoofer" : "Full range",
