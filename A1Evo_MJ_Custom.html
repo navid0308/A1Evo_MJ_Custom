@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.3.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.4.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -306,7 +306,6 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
-    const cmdIdMLPIndicesFinal = {}, cmdIdAVGIndicesFinal = {};
 
     function extractAdy(event) {
       console.info("Initializing A1 Evo MJ Custom...");
@@ -1468,15 +1467,46 @@
     async function drawResults() {
       console.log("Generating expected final outputs for each channel...");
       console.info("Starting...");
+      // predicted results for MLP first
       for (let i = 1; i <= nSpeakers; i++) {
-        console.infoUpdate(`Generating final output for channel - ${commandId[i]}`);
+        console.infoUpdate(`Generating final output for channel - ${commandId[i]}-avg...`);
         const isLarge = customCrossover[i] === "L";
-        let finalResponseName = commandId[i] + "final";
+        let finalResponseName = commandId[i] + "-mlp-final";
+        finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
+        finalResponseName += isLarge ? "-Large" : `-${customCrossover[i]}hz-xo`;
+        const eqSpeaker = cmdIdMLPIndicesEQ[commandId[i]];
+        const spWithHPF = await genSpeaker(eqSpeaker, customCrossover[i]);
+        const spWithHPFIdx = (isLarge ? nChannels * 5 + i : Object.keys(spWithHPF.results)[0]);
+        if (noSub) {
+          await fetch_mREW(spWithHPFIdx, 'PUT', { title: finalResponseName });
+          continue;
+        }
+        const eqSub = cmdIdMLPIndicesEQ[commandId[nChannels]];
+        const subWithLPF = await genSub(eqSub, customCrossover[i]);
+        const subWithLPFIdx = Object.keys(subWithLPF.results)[0];
+        const finalResponse = await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
+        const finalResponseIdx = Object.keys(finalResponse.results)[0];
+        await fetch_mREW(finalResponseIdx, 'PUT', { title: finalResponseName });
+        await postDelete(subWithLPFIdx);
+        await postDelete(spWithHPFIdx);
+      }
+      if (!noSub) {
+        console.infoUpdate("Generating final output for channel - LFE-mlp...");
+        const eqSub = cmdIdMLPIndicesEQ[commandId[nChannels]];
+        const LFEChannel = await genSub(eqSub, 120);
+        const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
+        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFE-mlp-final-120hz-LPF" });
+      }
+      // predicted results for AVG
+      for (let i = 1; i <= nSpeakers; i++) {
+        console.infoUpdate(`Generating final output for channel - ${commandId[i]}-avg...`);
+        const isLarge = customCrossover[i] === "L";
+        let finalResponseName = commandId[i] + "-avg-final";
         finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
         finalResponseName += isLarge ? "-Large" : `-${customCrossover[i]}hz-xo`;
         const eqSpeaker = cmdIdAVGIndicesEQ[commandId[i]];
         const spWithHPF = await genSpeaker(eqSpeaker, customCrossover[i]);
-        const spWithHPFIdx = (isLarge ? nChannels * 5 + i : Object.keys(spWithHPF.results)[0]);
+        const spWithHPFIdx = (isLarge ? nChannels * 6 + i : Object.keys(spWithHPF.results)[0]);
         if (noSub) {
           await fetch_mREW(spWithHPFIdx, 'PUT', { title: finalResponseName });
           continue;
@@ -1491,11 +1521,11 @@
         await postDelete(spWithHPFIdx);
       }
       if (!noSub) {
-        console.infoUpdate("Generating final output for channel - LFE");
+        console.infoUpdate("Generating final output for channel - LFE-avg...");
         const eqSub = cmdIdAVGIndicesEQ[commandId[nChannels]];
         const LFEChannel = await genSub(eqSub, 120);
         const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
-        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-120hz-LPF" });
+        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFE-avg-final-120hz-LPF" });
       }
       await fetchSafe('target-level', nChannels * 5, 75.0);
       const targetCurve = await postNext('Generate target measurement', nChannels * 5);
