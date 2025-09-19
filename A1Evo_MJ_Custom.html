@@ -1306,7 +1306,7 @@
         mlpEQResults.push(cmdIdMLPIndicesEQ[commandId[i]]);
       }
       const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / customCrossover.length;
-      console.log(`Calculating optimal subwoofer delay for ALL speakers using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
+      console.log(`Optimizing subwoofer delay for ALL speakers at MLP using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
       const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpEQResults)); // same results with RMS & VA since goal is max output
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
@@ -1407,7 +1407,7 @@
     }
     async function finalizeXO(start=20, end=250) {
       if (noSub) { return; } // no need to go further without subwoofer
-      console.log("Finalizing crossover frequencies to best follow the target curve...");
+      console.log("Finalizing crossover frequencies to best follow the target curve at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const targetArray = response2array(targetResponse, start, end);
       const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
@@ -1469,9 +1469,9 @@
       console.info("Starting...");
       // predicted results for MLP first
       for (let i = 1; i <= nSpeakers; i++) {
-        console.infoUpdate(`Generating final output for channel - ${commandId[i]}-avg...`);
+        console.infoUpdate(`Generating final output for channel - ${commandId[i]}-mlp...`);
         const isLarge = customCrossover[i] === "L";
-        let finalResponseName = commandId[i] + "-mlp-final";
+        let finalResponseName = commandId[i] + "final-mlp";
         finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
         finalResponseName += isLarge ? "-Large" : `-${customCrossover[i]}hz-xo`;
         const eqSpeaker = cmdIdMLPIndicesEQ[commandId[i]];
@@ -1495,13 +1495,13 @@
         const eqSub = cmdIdMLPIndicesEQ[commandId[nChannels]];
         const LFEChannel = await genSub(eqSub, 120);
         const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
-        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFE-mlp-final-120hz-LPF" });
+        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-mlp-120hz-LPF" });
       }
       // predicted results for AVG
       for (let i = 1; i <= nSpeakers; i++) {
         console.infoUpdate(`Generating final output for channel - ${commandId[i]}-avg...`);
         const isLarge = customCrossover[i] === "L";
-        let finalResponseName = commandId[i] + "-avg-final";
+        let finalResponseName = commandId[i] + "final-avg";
         finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
         finalResponseName += isLarge ? "-Large" : `-${customCrossover[i]}hz-xo`;
         const eqSpeaker = cmdIdAVGIndicesEQ[commandId[i]];
@@ -1525,7 +1525,7 @@
         const eqSub = cmdIdAVGIndicesEQ[commandId[nChannels]];
         const LFEChannel = await genSub(eqSub, 120);
         const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
-        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFE-avg-final-120hz-LPF" });
+        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-avg-120hz-LPF" });
       }
       await fetchSafe('target-level', nChannels * 5, 75.0);
       const targetCurve = await postNext('Generate target measurement', nChannels * 5);
