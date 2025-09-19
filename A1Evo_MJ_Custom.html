@@ -1768,6 +1768,8 @@
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity;
+      await postNext('Smooth', ind1, { smoothing: "Var" });
+      await postNext('Smooth', ind2, { smoothing: "Var" });
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
@@ -1812,6 +1814,8 @@
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity, sumIndex = null;
+      await postNext('Smooth', ind1, { smoothing: "1/48" });
+      await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
