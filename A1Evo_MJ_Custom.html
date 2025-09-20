@@ -1143,7 +1143,7 @@
     }
     async function getAbsLow3dBPointForSub(idx, start=10, end=320) {
       // finds low -3dB point from mean SPL between 30-80hz
-      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
       const subArray = response2array(response, 30, 80);
       const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
       const rpArray = response2array(response, start, end);
@@ -1157,7 +1157,7 @@
     }
     async function getAbsHigh3dBPointForSub(idx, start=10, end=320) {
       // finds high -3dB point from mean SPL between 30-80hz
-      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
       const subArray = response2array(response, 30, 80);
       const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length;
       const rpArray = response2array(response, start, end);
@@ -1171,7 +1171,7 @@
     }
     async function getLow3dBPointFromTC(idx, start=10, end=320) {
       // finds low -3dB point from target
-      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -1185,7 +1185,7 @@
     }
     async function getHigh3dBPointFromTC(idx, start=10, end=320) {
       // finds high -3dB point from target
-      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -1199,7 +1199,7 @@
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
-      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
