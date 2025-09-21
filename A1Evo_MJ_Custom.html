@@ -598,15 +598,17 @@
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       for (let i = 1; i < mCount; i++) {
+        const name = measurements[i].title;
+        console.infoUpdate(`Applying Audyssey microphone calibration file to ${name}...`);
         const irWindows = await fetchSafe('ir-windows', i);
         const leftW = parseFloat(irWindows.leftWindowWidthms);
         const rightW = parseFloat(irWindows.rightWindowWidthms);
         const refTime = parseFloat(irWindows.refTimems);
         await postNext('Arithmetic', [i, mCount], {function: "A * B"});
         await postSafe(`${baseUrl}/${mCount + i}/ir-windows`, { leftWindowWidthms: leftW, rightWindowWidthms: rightW, refTimems: refTime }, "Update processed");
-        const name = measurements[i].title;
         await fetch_mREW(mCount + i, 'PUT', { title: name });
       }
+      console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i >= 1; i--) {
         await postDelete(i);
       }
@@ -1757,12 +1759,12 @@
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
       const mlpIdx = indices[0];
-      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getSubTrim(mlpIdx) : await getSpeakerTrim(mlpIdx);
+      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getTrim(mlpIdx, 10, 100) : await getTrim(mlpIdx, 100, 10000);
       for (let i = 0; i < indices.length; i++) {
         if (indices[i] === mlpIdx) { continue; }
-        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
+        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getTrim(indices[i], 10, 100) : await getTrim(indices[i], 100, 10000);
         const delta = idxVolume - mlpVolume;
-        if (Math.abs(delta) > 5) {
+        if (Math.abs(delta) > 3) {
           const correction = Math.round(delta / 6) * 6;
           console.warn(`${measurements[indices[i]].title} shifted by ${correction}dB due to a known MultEQ volume bug.`);
           await postNext('Add SPL offset', indices[i], { offset: correction });
