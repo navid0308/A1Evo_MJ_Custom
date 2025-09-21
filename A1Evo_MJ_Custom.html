@@ -328,7 +328,7 @@
         if (models70xo.includes(model)) {
           freqIndex.push(70);
         }
-        freqIndex.sort(function(a, b) {return a - b;});
+        freqIndex.sort(function(a, b) { return a - b; });
         Object.freeze(freqIndex);
         console.log(`Speed of sound setting has been automatically adjusted for your ${modelName} at ${sOs} m/s.`);
         const hasSWChannels = jsonData.detectedChannels.some(channel => channel.commandId && channel.commandId.startsWith("SW"));
@@ -907,34 +907,34 @@
       }
     }
     async function spatialAverage() {
+      console.info("Starting spatial averaging...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
-      // move a copy of MLP measurements to the bottom for preserving
-      for (let i = 1; i <= nChannels; i++) {
-        await postSafe(`${baseUrl}/${cmdIdIndices[commandId[i]][0]}/command`, {command: "Response copy" }, "Completed");
-        await fetch_mREW(mCount + i, 'PUT', { title: `${commandId[i]}-mlp` });
-      }
-      console.info("Starting spatial averaging...");
+      let mlpIdx = mCount + 1;
+      let avgIdx = mCount + 2;
       for (let i = 1; i <= nChannels; i++) {
         const indices = cmdIdIndices[commandId[i]];
+        // move a copy of MLP measurement to the bottom for preserving
+        commandId[i].startsWith("SW") ? await genSub(indices[0]) : await genSpeaker(indices[0]);
+        await fetch_mREW(mlpIdx, 'PUT', { title: `${commandId[i]}-mlp` });
+        // spatially average
         console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
         if (indices.length > 1) {
           await postNext('Cross corr align', indices);
         }
-        const title = commandId[i] + "-avg";
         // average
         if (indices.length === 1) {
-          await postSafe(`${baseUrl}/${indices[0]}/command`, {command: "Response copy" }, "Completed"); // nothing to average
+          commandId[i].startsWith("SW") ? await genSub(indices[0]) : await genSpeaker(indices[0]); // nothing to average
         }
         else {
           await postNext('Magn plus phase average', indices); // do not use VA, it reduces SPL!
         }
-        // the "-avg" measurement
-        const idx = mCount + nChannels + i;
-        await fetch_mREW(idx, 'PUT', { title: title });
+        await fetch_mREW(avgIdx, 'PUT', { title: `${commandId[i]}-avg` });
         // align "-avg" measurement to target curve
-        const volAdjust = title.startsWith("SW") ? await getSubTrim(idx) : await getSpeakerTrim(idx);
-        await postNext('Add SPL offset', idx, { offset: volAdjust });
+        const volAdjust = commandId[i].startsWith("SW") ? await getSubTrim(avgIdx) : await getSpeakerTrim(avgIdx);
+        await postNext('Add SPL offset', avgIdx, { offset: volAdjust });
+        mlpIdx += 2;
+        avgIdx += 2;
       }
       console.infoUpdate(`Spatially averaged all channels.`);
       console.info("Deleting processed measurements...");
@@ -942,10 +942,14 @@
         await postDelete(i);
       }
       console.infoUpdate("Deleted processed measurements.");
-      // at this point 1...nChannels are MLP and nChannels+1...nChannels*2 is spatial average
+      // at this point mlp and avg measurements are alternating
+      mlpIdx = 1;
+      avgIdx = 2;
       for (let i = 1; i <= nChannels; i++) {
-        cmdIdMLPIndices[commandId[i]] = i;
-        cmdIdAVGIndices[commandId[i]] = i + nChannels;
+        cmdIdMLPIndices[commandId[i]] = mlpIdx;
+        cmdIdAVGIndices[commandId[i]] = avgIdx;
+        mlpIdx += 2;
+        avgIdx += 2;
       }
     }
     async function groundWorks() {
@@ -1461,79 +1465,81 @@
         console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Best XO: ${bestXO}hz`);
       }
     }
+    async function addSub2Speaker(spIdx, swIdx, xo) {
+      const spWithHPF = await genSpeaker(spIdx, xo);
+      const spWithHPFIdx = Object.keys(spWithHPF.results)[0];
+      const subWithLPF = await genSub(swIdx, xo);
+      const subWithLPFIdx = Object.keys(subWithLPF.results)[0];
+      const finalResponse = await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
+      await postDelete(subWithLPFIdx);
+      await postDelete(spWithHPFIdx);
+      return finalResponse;
+    }
     async function drawResults() {
       console.log("Generating expected final outputs for each channel...");
       console.info("Starting...");
-      // predicted results for MLP first
-      for (let i = 1; i <= nSpeakers; i++) {
+      let measurements = await fetch_mREW();
+      let mCount = Object.keys(measurements).length;
+      let mlpIdx = mCount + 1;
+      let avgIdx = mCount + 2;
+      for (let i = 1; i <= nChannels; i++) {
+        // SW will be at the end, generate for mlp, avg, then continue
+        if (commandId[i].startsWith("SW")) {
+          // generate LFEfinal-mlp
+          console.infoUpdate("Generating final output for LFE-mlp...");
+          let eqSubwoofer = cmdIdMLPIndicesEQ[commandId[i]];
+          let LFEChannel = await genSub(eqSubwoofer, 120);
+          let LFEChannelIdx = Object.keys(LFEChannel.results)[0];
+          await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-mlp-120hz-LPF" });
+          // generate LFEfinal-avg
+          console.infoUpdate("Generating final output for LFE-avg...");
+          eqSubwoofer = cmdIdAVGIndicesEQ[commandId[i]];
+          LFEChannel = await genSub(eqSubwoofer, 120);
+          LFEChannelIdx = Object.keys(LFEChannel.results)[0];
+          await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-avg-120hz-LPF" });
+          continue; // done
+        }
+        // generate final-mlp
         console.infoUpdate(`Generating final output for ${commandId[i]}-mlp...`);
-        const isLarge = customCrossover[i] === "L";
-        let finalResponseName = commandId[i] + "final-mlp";
-        finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
-        finalResponseName += isLarge ? "-Large" : `-${customCrossover[i]}hz-xo`;
-        const eqSpeaker = cmdIdMLPIndicesEQ[commandId[i]];
-        const spWithHPF = await genSpeaker(eqSpeaker, customCrossover[i]);
-        const spWithHPFIdx = (isLarge ? nChannels * 5 + i : Object.keys(spWithHPF.results)[0]);
+        let spFinalInfo = "";
+        if (commandId[i] === "C" && dialogueEnhancer) { spFinalInfo += "-DE"; }
+        if (customCrossover[i] === "L") { spFinalInfo += "-Large"; }
+        else { spFinalInfo += `-${customCrossover[i]}hz-xo`; }
+        let spFinalName = `${commandId[i]}final-mlp${spFinalInfo}`;
+        let eqSpeaker = cmdIdMLPIndicesEQ[commandId[i]];
         if (noSub) {
-          await fetch_mREW(spWithHPFIdx, 'PUT', { title: finalResponseName });
-          continue;
+          await genSpeaker(eqSpeaker);
         }
-        const eqSub = cmdIdMLPIndicesEQ[commandId[nChannels]];
-        const subWithLPF = await genSub(eqSub, customCrossover[i]);
-        const subWithLPFIdx = Object.keys(subWithLPF.results)[0];
-        const finalResponse = await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
-        const finalResponseIdx = Object.keys(finalResponse.results)[0];
-        await fetch_mREW(finalResponseIdx, 'PUT', { title: finalResponseName });
-        await postDelete(subWithLPFIdx);
-        await postDelete(spWithHPFIdx);
-      }
-      if (!noSub) {
-        console.infoUpdate("Generating final output for LFE-mlp...");
-        const eqSub = cmdIdMLPIndicesEQ[commandId[nChannels]];
-        const LFEChannel = await genSub(eqSub, 120);
-        const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
-        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-mlp-120hz-LPF" });
-      }
-      // predicted results for AVG
-      for (let i = 1; i <= nSpeakers; i++) {
+        else {
+          const eqSubwoofer = cmdIdMLPIndicesEQ[commandId[nChannels]];
+          await addSub2Speaker(eqSpeaker, eqSubwoofer, customCrossover[i]);
+        }
+        await fetch_mREW(mlpIdx, 'PUT', { title: spFinalName });
+        mlpIdx += 2;
+        // generate final-avg
         console.infoUpdate(`Generating final output for ${commandId[i]}-avg...`);
-        const isLarge = customCrossover[i] === "L";
-        let finalResponseName = commandId[i] + "final-avg";
-        finalResponseName += (commandId[i] === "C" && dialogueEnhancer) ? "-DE" : "";
-        finalResponseName += isLarge ? "-Large" : `-${customCrossover[i]}hz-xo`;
-        const eqSpeaker = cmdIdAVGIndicesEQ[commandId[i]];
-        const spWithHPF = await genSpeaker(eqSpeaker, customCrossover[i]);
-        const spWithHPFIdx = (isLarge ? nChannels * 6 + i : Object.keys(spWithHPF.results)[0]);
+        spFinalName = `${commandId[i]}final-avg${spFinalInfo}`;
+        eqSpeaker = cmdIdAVGIndicesEQ[commandId[i]];
         if (noSub) {
-          await fetch_mREW(spWithHPFIdx, 'PUT', { title: finalResponseName });
-          continue;
+          await genSpeaker(eqSpeaker);
         }
-        const eqSub = cmdIdAVGIndicesEQ[commandId[nChannels]];
-        const subWithLPF = await genSub(eqSub, customCrossover[i]);
-        const subWithLPFIdx = Object.keys(subWithLPF.results)[0];
-        const finalResponse = await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
-        const finalResponseIdx = Object.keys(finalResponse.results)[0];
-        await fetch_mREW(finalResponseIdx, 'PUT', { title: finalResponseName });
-        await postDelete(subWithLPFIdx);
-        await postDelete(spWithHPFIdx);
+        else {
+          const eqSubwoofer = cmdIdAVGIndicesEQ[commandId[nChannels]];
+          await addSub2Speaker(eqSpeaker, eqSubwoofer, customCrossover[i]);
+        }
+        await fetch_mREW(avgIdx, 'PUT', { title: spFinalName });
+        avgIdx += 2;
       }
-      if (!noSub) {
-        console.infoUpdate("Generating final output for LFE-avg...");
-        const eqSub = cmdIdAVGIndicesEQ[commandId[nChannels]];
-        const LFEChannel = await genSub(eqSub, 120);
-        const LFEChannelIdx = Object.keys(LFEChannel.results)[0];
-        await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-avg-120hz-LPF" });
-      }
-      await fetchSafe('target-level', nChannels * 5, 75.0);
-      const targetCurve = await postNext('Generate target measurement', nChannels * 5);
+      await fetchSafe('target-level', 1, 75.0);
+      const targetCurve = await postNext('Generate target measurement', 1);
       const targetCurveIdx = Object.keys(targetCurve.results)[0];
       const targetName = (targetCurveName === "" ? "TC-DEQ" : targetCurveName) + " @ 75dB";
       await fetch_mREW(targetCurveIdx, 'PUT', { title: targetName });
       // room curve no longer needed. keeping it enabled will only confuse on next run
       if (targetCurveName === "") { await disableRoomCurve(); }
       // use 1/6 smoothing for results
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
+      measurements = await fetch_mREW();
+      mCount = Object.keys(measurements).length;
       for (let i = 1; i <= mCount; i++) {
         titleM = await fetch_mREW(i);
         const title = titleM.title;
@@ -1857,9 +1863,9 @@
       return [isPossible, requiredDelay, isInverted, sumIndex];
     }
     async function genSub(i, freq) {
-      if (freq === "L") {
-        console.error("Cannot set subwoofer as LARGE!")
-        throw new Error;
+      // if no freq provided, just copy response
+      if (!freq) {
+        return await postSafe(`${baseUrl}/${i}/command`, { command: "Response copy" }, "Completed");
       }
       await postSafe(`${baseUrl}/${i}/filters`, {
         filters: [{
@@ -1875,7 +1881,8 @@
       return await postNext('Generate predicted measurement', i);
     }
     async function genSpeaker(i, freq) {
-      if (freq === "L") {
+      // if no freq provided, just copy response
+      if (!freq) {
         return await postSafe(`${baseUrl}/${i}/command`, { command: "Response copy" }, "Completed");
       }
       await postSafe(`${baseUrl}/${i}/filters`, {
