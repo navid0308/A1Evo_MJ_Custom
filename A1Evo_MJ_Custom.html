@@ -1150,10 +1150,9 @@
     async function getAbsLow3dBPointForSub(idx, start=10, end=320) {
       // finds low -3dB point from target SPL between 30-80hz
       // assumes sub is leveled to TC using 30-80hz
-      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
-      const subArray = response2array(response, 30, 80);
       const targetArray = response2array(targetResponse, 30, 80);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
+      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
@@ -1166,10 +1165,9 @@
     async function getAbsHigh3dBPointForSub(idx, start=10, end=320) {
       // finds high -3dB point from target SPL between 30-80hz
       // assumes sub is leveled to TC using 30-80hz
-      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
-      const subArray = response2array(response, 30, 80);
       const targetArray = response2array(targetResponse, 30, 80);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
+      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
@@ -1181,7 +1179,7 @@
     }
     async function getLow3dBPointFromTC(idx, start=10, end=320) {
       // finds low -3dB point from target
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -1195,7 +1193,7 @@
     }
     async function getHigh3dBPointFromTC(idx, start=10, end=320) {
       // finds high -3dB point from target
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -1209,7 +1207,7 @@
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
-      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -1422,7 +1420,7 @@
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
-        // finalize xo that is closest match to target curve
+        // find xo that is closest match to target curve at MLP
         const initialXO = customCrossover[i];
         let bestXO = initialXO, minRmsError = Infinity;
         console.info("Starting...");
@@ -1439,8 +1437,8 @@
             mlpSPWithHPFIdx = Object.keys(spWithHPF.results)[0];
           }
           else {
-            const mlpSPRIdx = cmdIdMLPIndicesEQ[commandId[i + 1]];
-            const pairSPAvg = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPRIdx]); // do not use VA. it unfairly benefits single channel speakers
+            const mlpSPIdxR = cmdIdMLPIndicesEQ[commandId[i + 1]];
+            const pairSPAvg = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
             const pairSPAvgIdx = Object.keys(pairSPAvg.results)[0];
             await genSpeaker(pairSPAvgIdx, checkXO); // generates to pairSPAvgIdx + 1
             await postDelete(pairSPAvgIdx);
@@ -1672,7 +1670,7 @@
         cmdIdIndices[commandId[i]] = [];
       }
       for (let i = nChannels + 1; i <= nSpeakers + nSubs; i++) {
-        delete cmdIdIndices[commandId[i]]; // get rid of non-final other subwoofer keys
+        delete cmdIdIndices[commandId[i]]; // remove individual subwoofer keys
       }
       for (let i = 1; i <= mCount; i++) {
         const key = measurements[i].title.replace(/\d+/g, '');
