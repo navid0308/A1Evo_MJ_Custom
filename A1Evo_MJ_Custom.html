@@ -1759,12 +1759,12 @@
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
       const mlpIdx = indices[0];
-      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getTrim(mlpIdx, 10, 100) : await getTrim(mlpIdx, 100, 10000);
+      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getSubTrim(mlpIdx) : await getSpeakerTrim(mlpIdx);
       for (let i = 0; i < indices.length; i++) {
         if (indices[i] === mlpIdx) { continue; }
-        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getTrim(indices[i], 10, 100) : await getTrim(indices[i], 100, 10000);
+        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
         const delta = idxVolume - mlpVolume;
-        if (Math.abs(delta) > 3) {
+        if (Math.abs(delta) > 5) {
           const correction = Math.round(delta / 6) * 6;
           console.warn(`${measurements[indices[i]].title} shifted by ${correction}dB due to a known MultEQ volume bug.`);
           await postNext('Add SPL offset', indices[i], { offset: correction });
