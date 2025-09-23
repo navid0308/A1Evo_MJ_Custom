@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.4.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.4.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -277,23 +277,19 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 
-    const modelsSoS300 = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "C-A110", "X3700H", "X4700H", "X6500H", "X6700H",
-      "X8500H", "R-A110", "-S730H", "-S740H", "-S750H", "-S760H", "-S930H", "-S940H", "-S950H", "-S960H", "X1400H", "X1500H", "X1600H",
-      "X1700H", "X2400H", "X2500H", "X2600H", "X2700H", "X3400H", "X3500H", "X3600H", "X3700H", "X4300H", "X4400H", "X4500H", "X4700H",
-      "X6300H", "X6400H", "X6500H", "X6700H", "X8500H", "AV7703", "AV7704", "AV7705", "AV7706", "AV8805", "NR1608", "NR1609", "NR1710",
-      "NR1711", "SR5012", "SR5013", "SR5014", "SR5015", "SR6012", "SR6013", "SR6014", "SR6015", "SR7011", "SR7012", "SR7013", "SR7015",
-      "SR8012", "SR8015"];
-    const micCalProb = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011",
-      "-S730H", "-S740H", "-S750H", "-S760H", "-S930H", "-S940H", "-S950H",
-      "-S960H", "X1400H", "X1500H", "X1600H", "X1700H", "X2400H", "X2500H",
-      "X2600H", "X2700H", "X3400H", "X3500H", "X3600H", "NR1608", "NR1609",
-      "NR1710", "NR1711", "SR5012", "SR5013", "SR5014", "SR5015", "SR6013",
-      "SR6014", "-S770H", "-S970H", "X1800H", "X2800H", "EMA 60", "MA 70s"];
-    const noxo180 = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "X6500H", "-S730H", "-S740H", "-S930H", "-S940H",
-      "X1400H", "X1500H", "X2400H", "X2500H", "X3400H", "X3500H", "X4300H", "X4400H", "X4500H", "X6300H", "X6400H", "X6500H", "AV7703",
-      "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012"];
-    const models70xo = ["A-900H", "MA 70S", "-S970H", "X2800H","-S670H", " AV 10", " AV 20", "VR-A1H", "VC-A1H", "X3800H", "X4800H",
-      "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
+    const modelsSoS300 = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "C-A110", "X3700H", "X4700H",
+      "X6500H", "X6700H", "X8500H", "R-A110", "-S730H", "-S740H", "-S750H", "-S760H", "-S930H", "-S940H", "-S950H", "-S960H", "X1400H",
+      "X1500H", "X1600H", "X1700H", "X2400H", "X2500H", "X2600H", "X2700H", "X3400H", "X3500H", "X3600H", "X3700H", "X4300H", "X4400H",
+      "X4500H", "X4700H", "X6300H", "X6400H", "X6500H", "X6700H", "X8500H", "AV7703", "AV7704", "AV7705", "AV7706", "AV8805", "NR1608",
+      "NR1609", "NR1710", "NR1711", "SR5012", "SR5013", "SR5014", "SR5015", "SR6012", "SR6013", "SR6014", "SR6015", "SR7011", "SR7012",
+      "SR7013", "SR7015", "SR8012", "SR8015"];
+    const micCalProb = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "-S730H", "-S740H", "-S750H", "-S760H",
+      "-S930H", "-S940H", "-S950H", "-S960H", "X1400H", "X1500H", "X1600H", "X1700H", "X2400H", "X2500H", "X2600H", "X2700H", "X3400H",
+      "X3500H", "X3600H", "NR1608", "NR1609", "NR1710", "NR1711", "SR5012", "SR5013", "SR5014", "SR5015", "SR6013", "SR6014", "-S770H",
+      "-S970H", "X1800H", "X2800H", "EMA 60", "MA 70s"];
+    const noxo180 = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "X6500H", "-S730H", "-S740H", "-S930H",
+      "-S940H", "X1400H", "X1500H", "X2400H", "X2500H", "X3400H", "X3500H", "X4300H", "X4400H", "X4500H", "X6300H", "X6400H", "X6500H",
+      "AV7703", "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012"];
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
@@ -325,7 +321,7 @@
         if (!noxo180.includes(model)) {
           freqIndex.push(180);
         }
-        if (models70xo.includes(model)) {
+        if (!modelsSoS300.includes(model)) {
           freqIndex.push(70);
         }
         freqIndex.sort(function(a, b) { return a - b; });
@@ -780,7 +776,8 @@
     function getDelayHeadroom(startIdx, endIdx) {
       const minM = Math.min(...mSec.slice(startIdx, endIdx + 1));
       const maxM = Math.max(...mSec.slice(startIdx, endIdx + 1));
-      const limInsec = 6 / sOs;
+      const maxDist = sOs === 300 ? 6 : 18;
+      const limInsec = maxDist / sOs;
       const msecMin = maxM - limInsec;
       const msecMax = minM + limInsec;
       const maxNegative = msecMin * 1000;
@@ -1369,11 +1366,13 @@
       if (noSub) { return; }
       const flIndex = getFLIndex();
       let distMinSub = Infinity;
+      let distMaxSub = -Infinity;
       // check if any directional subwoofer needs negative distance
       if (bassMode === "Directional") {
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           const distSub = flDist + (mSec[flIndex] - mSec[i]) * sOs;
           distMinSub = Math.min(distMinSub, distSub);
+          distMaxSub = Math.max(distMaxSub, distSub);
         }
       }
       // check if any SWMIX subwoofer needs negative distance
@@ -1382,13 +1381,28 @@
         const distLoSub = distMainSub - subLoDelay * sOs;
         const distHiSub = distMainSub - subHiDelay * sOs;
         distMinSub = Math.min(distLoSub, distHiSub);
+        distMaxSub = Math.max(distLoSub, distHiSub);
+      }
+      if (distMinSub < 0 && distMaxSub > 18) {
+        console.error("Min/Max subwoofer distances exceed the 0 - 18m AVR limits!");
+        throw new Error;
       }
       if (distMinSub < 0) {
-        console.warn(`Distances are being shifted by ${Math.abs(distMinSub).toFixed(2)}m to accommodate the required subwoofer delay!`);
+        const distShift = 0 - distMinSub;
+        console.warn(`Distances are being shifted by ${distShift.toFixed(2)}m to accommodate the required subwoofer delay!`);
         console.info("This adjustment will ONLY improve overall sound quality.");
         console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
         for (let i = 1; i <= nSpeakers + nSubs; i++) {
-          customDistance[i] += Math.abs(distMinSub);
+          customDistance[i] += distShift;
+        }
+      }
+      if (distMaxSub > 18) {
+        const distShift = 18 - distMaxSub;
+        console.warn(`Distances are being shifted by ${distShift.toFixed(2)}m to accommodate the required subwoofer delay!`);
+        console.info("This adjustment will ONLY improve overall sound quality.");
+        console.info("The receiver only accounts for relative time delays between speakers which are being kept intact.");
+        for (let i = 1; i <= nSpeakers + nSubs; i++) {
+          customDistance[i] += distShift;
         }
       }
     }
