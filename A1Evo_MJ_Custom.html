@@ -250,7 +250,7 @@
     <li class="smaller-font">In REW left column you should be seeing your Audyssey speaker measurements with increasing index numbers sorted in alphabetical order</li>
     <li class="smaller-font">Start REW's local API (application programming interface) server - 'Preferences' / 'API' / 'Start server'</li>
     <li class="smaller-font">Keep REW at "SPL & Phase" tab and close all REW child windows during the optimization process for a robust experience</li>
-    <li class="smaller-font">If you intend to run optimization multiple times with the same calibration: 'Save all', 'Remove all' and 'Open' saved measurements before each run</li>
+    <li class="smaller-font">***Press shift + click on the 'Optimize calibration' button to bypass REW EQ filter generation and use audyssey filtering***</li>
     <li class="smaller-font">When all is set, click the 'Optimize calibration' button below and sit back and relax. Your home cinema will be 'transformed' within minutes!</li>
   </ol>
   <div class="button-container">
@@ -1662,6 +1662,7 @@
         swIndices.push(cmdIdIndices[sortedSwList[i]]);
       }
       if (useAudyFiltering) {
+        console.warn("Time aligning subwoofer(s) and preserving 'directional bass' mode...");
         // align subwoofer IR start times at MLP like audyssey and call it a day
         for (let i = 0; i < swIndices.length; i++) {
           for (let j = 0; j < swIndices[i].length; j++) {
@@ -2086,7 +2087,7 @@
             fltPointsSub.push([freq, fltArraySub[k]]);
             freq *= octave;
           }
-          customTargetCurvePoints = fltPointsSub.map(point => `{${point[0]}, ${point[1]}}`);
+          customTargetCurvePointsSub = fltPointsSub.map(point => `{${point[0]}, ${point[1]}}`);
         }
         const subChannel = jsonData.detectedChannels[nChannels - 1];
         subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
