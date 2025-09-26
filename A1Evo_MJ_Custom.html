@@ -1668,7 +1668,7 @@
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
-      const farthestSubIRStart = measurements[currSubIdx].timeOfIRStartSeconds;
+      const farthestSubIRPeak = measurements[currSubIdx].timeOfIRPeakSeconds;
       for (let i = 1; i < swIndices.length; i++) {
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
@@ -1676,8 +1676,8 @@
         // set delay limit to 2x of (farthest sub IR start - this sub IR start)
         // note: this attempts to find the most optimal alignment that's also closest to time?IR start alignment
         const [, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-        const IRStartDelta = 1000 * (farthestSubIRStart - measurements[thisSubIdx].timeOfIRStartSeconds);
-        const delayLimit = Math.min(IRStartDelta * 2, hiDelay);
+        const IRPeakDelta = 1000 * (farthestSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
+        const delayLimit = Math.min(IRPeakDelta * 2, hiDelay);
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
