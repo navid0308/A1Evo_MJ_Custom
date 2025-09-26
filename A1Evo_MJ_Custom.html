@@ -899,7 +899,7 @@
     async function initializeSubwoofers() {
       if (noSub) { return; }
       if (bassMode === "Directional") {
-        await directional2standard();
+        await alignMultipleSubwoofers();
       }
       else {
         // normalize standard bass subwoofer median IR to t=0
@@ -1640,72 +1640,67 @@
       }
       return maxDelta;
     }
-    async function directional2standard() {
+    async function alignMultipleSubwoofers() {
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds & peak IR times
-      const swCmdIdsWithIRPeak = {};
+      // isolate SW commandIds & IR start times
+      const swCmdIdsWithIRStart = {};
       for (let i = 1; i < commandId.length; i++) {
         if (commandId[i].startsWith("SW")) {
           const mlpIdx = cmdIdIndices[commandId[i]][0];
-          swCmdIdsWithIRPeak[commandId[i]] = measurements[mlpIdx].timeOfIRPeakSeconds;
+          swCmdIdsWithIRStart[commandId[i]] = measurements[mlpIdx].timeOfIRStartSeconds;
         }
       }
-      // sort subs using peak IR time based on closest to farthest
-      const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
+      // sort subs using IR start time based on farthest to closest
+      const sortedSwList = Object.entries(swCmdIdsWithIRStart).sort((a, b) => b[1] - a[1]).map(row => row[0]);
       const swIndices = [];
       for (let i = 0; i < sortedSwList.length; i++) {
         swIndices.push(cmdIdIndices[sortedSwList[i]]);
       }
       if (useAudyFiltering) {
         console.warn("Time aligning subwoofer(s) and preserving 'directional bass' mode...");
-        // align subwoofer IR start times at MLP like audyssey and call it a day
-        for (let i = 0; i < swIndices.length; i++) {
-          for (let j = 0; j < swIndices[i].length; j++) {
-            await postNext('Offset t=0', swIndices[i][j], {offset: measurements[swIndices[i][0]].timeOfIRStartSeconds, unit: "seconds"});
-          }
-          const thisSubCmdId = measurements[swIndices[i][0]].title.slice(0, -1);
-          const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-          mSec[nSpeakers + thisSubNumber] -= measurements[swIndices[i][0]].timeOfIRStartSeconds;
-          invertSub[nSpeakers + thisSubNumber] = false;
-        }
       }
       else {
-        console.warn("Your system will now be converted to 'standard bass' mode for a better sound experience...");
-        console.info(`Alignment order based on IR peak time: ${sortedSwList}`);
-        let currSubIdx = swIndices[0][0];
-        let cmdIds = measurements[currSubIdx].title.slice(0, -1);
-        let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
-        let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
-        for (let i = 1; i < swIndices.length; i++) {
-          const thisSubIdx = swIndices[i][0];
-          const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
-          const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-          startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
-          endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
-          console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
-          const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-          const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
-                                                                                    startFreq, endFreq, loDelay, hiDelay);
-          if (!isPossible || !sumIndex) {
-            console.error("Failed to align multiple subwoofers!");
-            throw new Error;
-          }
-          currSubIdx = sumIndex;
-          mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
-          invertSub[nSpeakers + thisSubNumber] = isInverted;
-          cmdIds += ` & ${thisSubCmdId}`;
-          for (let j = 0; j < swIndices[i].length; j++) {
-            await postNext('Offset t=0', swIndices[i][j], {offset: -mSec[nSpeakers + thisSubNumber], unit: "seconds"});
-            if (isInverted) {
-              await postSafe(`${baseUrl}/${swIndices[i][j]}/command`,{command: "Invert"}, "Invert completed");
-            }
+        console.warn("Converting to 'standard bass' mode for a better sound experience...");
+      }
+      console.info(`Alignment order based on farthest to closest subwoofer(s): ${sortedSwList}`);
+      let currSubIdx = swIndices[0][0];
+      let cmdIds = measurements[currSubIdx].title.slice(0, -1);
+      let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
+      let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
+      const farthestSubIRStart = measurements[currSubIdx].timeOfIRStartSeconds;
+      for (let i = 1; i < swIndices.length; i++) {
+        const thisSubIdx = swIndices[i][0];
+        const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
+        const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
+        // set delay limit to 2x of (farthest sub IR start - this sub IR start)
+        // note: this attempts to find the most optimal alignment that's also closest to time?IR start alignment
+        const [, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
+        const IRStartDelta = 1000 * (farthestSubIRStart - measurements[thisSubIdx].timeOfIRStartSeconds);
+        const delayLimit = Math.min(IRStartDelta * 2, hiDelay);
+        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
+        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
+        console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
+        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
+                                                                                  startFreq, endFreq, 0, delayLimit);
+        if (!isPossible || !sumIndex) {
+          console.error("Failed to align multiple subwoofers!");
+          throw new Error;
+        }
+        currSubIdx = sumIndex;
+        mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
+        invertSub[nSpeakers + thisSubNumber] = isInverted;
+        cmdIds += ` & ${thisSubCmdId}`;
+        for (let j = 0; j < swIndices[i].length; j++) {
+          await postNext('Offset t=0', swIndices[i][j], {offset: -mSec[nSpeakers + thisSubNumber], unit: "seconds"});
+          if (isInverted) {
+            await postSafe(`${baseUrl}/${swIndices[i][j]}/command`,{command: "Invert"}, "Invert completed");
           }
         }
-        // cleanup all potential alignments
-        for (let i = currSubIdx; i > mCount; i--) {
-          await postDelete(i);
-        }
+      }
+      // cleanup all potential alignments
+      for (let i = currSubIdx; i > mCount; i--) {
+        await postDelete(i);
       }
       // normalize median subwoofer delay to t=0
       const loSWDelay = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
@@ -1903,7 +1898,7 @@
       return [isPossible, requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
-      console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
+      console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity, sumIndex = null;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
