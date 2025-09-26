@@ -1643,16 +1643,16 @@
     async function alignMultipleSubwoofers() {
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds & IR start times
-      const swCmdIdsWithIRStart = {};
+      // isolate SW commandIds & IR peak times
+      const swCmdIdsWithIRPeak = {};
       for (let i = 1; i < commandId.length; i++) {
         if (commandId[i].startsWith("SW")) {
           const mlpIdx = cmdIdIndices[commandId[i]][0];
-          swCmdIdsWithIRStart[commandId[i]] = measurements[mlpIdx].timeOfIRStartSeconds;
+          swCmdIdsWithIRPeak[commandId[i]] = measurements[mlpIdx].timeOfIRPeakSeconds;
         }
       }
-      // sort subs using IR start time based on farthest to closest
-      const sortedSwList = Object.entries(swCmdIdsWithIRStart).sort((a, b) => b[1] - a[1]).map(row => row[0]);
+      // sort subs using IR peak time based on farthest to closest
+      const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => b[1] - a[1]).map(row => row[0]);
       const swIndices = [];
       for (let i = 0; i < sortedSwList.length; i++) {
         swIndices.push(cmdIdIndices[sortedSwList[i]]);
@@ -1673,8 +1673,8 @@
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-        // set delay limit to 2x of (farthest sub IR start - this sub IR start)
-        // note: this attempts to find the most optimal alignment that's also closest to time?IR start alignment
+        // set delay limit to 2x of (farthest sub IR peak - this sub IR peak)
+        // note: this attempts to find the most optimal alignment that's also closest to time alignment
         const [, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         const IRPeakDelta = 1000 * (farthestSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
         const delayLimit = Math.min(IRPeakDelta * 2, hiDelay);
