@@ -1651,8 +1651,8 @@
           swCmdIdsWithIRPeak[commandId[i]] = measurements[mlpIdx].timeOfIRPeakSeconds;
         }
       }
-      // sort subs using IR peak time based on farthest to closest
-      const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => b[1] - a[1]).map(row => row[0]);
+      // sort subs using IR peak time
+      const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
       const swIndices = [];
       for (let i = 0; i < sortedSwList.length; i++) {
         swIndices.push(cmdIdIndices[sortedSwList[i]]);
@@ -1663,26 +1663,26 @@
       else {
         console.warn("Converting to 'standard bass' mode for a better sound experience...");
       }
-      console.info(`Alignment order based on farthest to closest subwoofer(s): ${sortedSwList}`);
+      console.info(`Alignment order based on IR peak time: ${sortedSwList}`);
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
-      const farthestSubIRPeak = measurements[currSubIdx].timeOfIRPeakSeconds;
+      const refSubIRPeak = measurements[currSubIdx].timeOfIRPeakSeconds;
       for (let i = 1; i < swIndices.length; i++) {
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-        // set delay limit to 2x of (farthest sub IR peak - this sub IR peak)
+        // set delay limit to 2x of IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
-        const [, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-        const IRPeakDelta = 1000 * (farthestSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
-        const delayLimit = Math.min(IRPeakDelta * 2, hiDelay);
+        const [loDelay,] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
+        const IRPeakDelta = 1000 * (refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
+        const delayLimit = Math.max(IRPeakDelta * 2, loDelay);
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
-                                                                                  startFreq, endFreq, 0, delayLimit);
+                                                                                  startFreq, endFreq, delayLimit, 0);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
           throw new Error;
