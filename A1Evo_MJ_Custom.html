@@ -250,7 +250,7 @@
     <li class="smaller-font">In REW left column you should be seeing your Audyssey speaker measurements with increasing index numbers sorted in alphabetical order</li>
     <li class="smaller-font">Start REW's local API (application programming interface) server - 'Preferences' / 'API' / 'Start server'</li>
     <li class="smaller-font">Keep REW at "SPL & Phase" tab and close all REW child windows during the optimization process for a robust experience</li>
-    <li class="smaller-font">***Press shift + click on the 'Optimize calibration' button to bypass REW EQ filter generation and use audyssey filtering***</li>
+    <li class="smaller-font">***Press shift key + click on the 'Optimize calibration' button to bypass REW EQ filter generation and use audyssey filtering***</li>
     <li class="smaller-font">When all is set, click the 'Optimize calibration' button below and sit back and relax. Your home cinema will be 'transformed' within minutes!</li>
   </ol>
   <div class="button-container">
@@ -1479,7 +1479,7 @@
       }
     }
     async function finalizeXO(start=20, end=250) {
-      if (noSub || useAudyFiltering) { return; } // no need to go further without subwoofer
+      if (noSub) { return; } // no need to go further without subwoofer
       console.log("Finalizing crossover frequencies to best follow the target curve at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const targetArray = response2array(targetResponse, start, end);
@@ -1490,7 +1490,7 @@
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         // find xo that is closest match to target curve at MLP
         const initialXO = customCrossover[i];
-        let bestXO = initialXO, minRmsError = Infinity;
+        let bestXO = initialXO, minRmsError = Infinity, maxSum = -Infinity;
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXO = freqIndex[j];
@@ -1516,13 +1516,23 @@
           const mlpSWWithLPFIdx = Object.keys(mlpSWWithLPF.results)[0];
           const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
           const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
-          // check RMS error against target curve
           const checkXOResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', mlpXOResultIdx);
           const checkXOArray = response2array(checkXOResponse, start, end);
-          const rmsError = calculateRMSError(checkXOArray, targetArray);
-          if (rmsError < minRmsError) {
-            minRmsError = rmsError;
-            bestXO = checkXO;
+          if (useAudyFiltering) {
+            // pick XO with highest output
+            const tempSum = checkXOArray.reduce((acc, val) => acc + val, 0);
+            if (tempSum > maxSum) {
+              maxSum = tempSum;
+              bestXO = checkXO;
+            }
+          }
+          else {
+            // pick XO with best target curve tracking
+            const rmsError = calculateRMSError(checkXOArray, targetArray);
+            if (rmsError < minRmsError) {
+              minRmsError = rmsError;
+              bestXO = checkXO;
+            }
           }
           // delete in reverse order of creation
           await postDelete(mlpXOResultIdx);
