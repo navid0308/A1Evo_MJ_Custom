@@ -346,8 +346,8 @@
         const spCmdIds = [];
         const swCmdIds = [];
         noCenter = true;
-        subLoTrim = 0;
-        subHiTrim = 0;
+        subLoTrim = Infinity;
+        subHiTrim = -Infinity;
         subLoDelay = Infinity;
         subHiDelay = -Infinity;
         jsonData.detectedChannels.forEach(channel => {
