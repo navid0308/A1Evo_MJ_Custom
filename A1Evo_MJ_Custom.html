@@ -660,7 +660,6 @@
       console.info(`****************************************************************************************************`);
     }
     async function bootUp() {
-      console.info("Resetting IR windows, equalizer & target settings for all measurements");
       const measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
       isAudy = true;
@@ -668,9 +667,19 @@
         isAudy = await checkIfAudyMeasurement();
       }
       Object.freeze(isAudy);
+      if (bassMode === "Directional" && useAudyFiltering && sOs === 300) {
+        console.error("Audyssey filtering not supported in directional bass mode on older AVRs!");
+        throw new Error;
+      }
+      else if (!isAudy && useAudyFiltering) {
+        console.error("Audyssey filtering not supported with manual measurements!");
+        throw new Error;
+      }
+      Object.freeze(useAudyFiltering);
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
       if (isCirrusLogic && isAudy) {mCount--;};
       let baseMessage = "Resetting IR windows, EQ type, target shape and smoothing for all measurements..."
+      console.info(baseMessage);
       for (let q = 1; q <= mCount; q++) {
         await postSafe(`${baseUrl}/${q}/ir-windows`, { leftWindowType: "Rectangular", rightWindowType: "Rectangular" }, "Update processed");
         await postSafe(`${baseUrl}/${q}/equaliser`, { manufacturer: "Generic", model: "Generic" }, "Equaliser selected");
@@ -781,15 +790,6 @@
         console.error(`Failed to fetch target curve, please make sure to have started REW API server! HTTP status code: ${tcResponse.status}.`);
         throw new Error;
       }
-      if (bassMode === "Directional" && useAudyFiltering && sOs === 300) {
-        console.warn("Audyssey filtering not supported in directional bass mode on older AVRs!");
-        useAudyFiltering = false;
-      }
-      else if (!isAudy && useAudyFiltering) {
-        console.warn("Audyssey filtering not supported with manual measurements!");
-        useAudyFiltering = false;
-      }
-      Object.freeze(useAudyFiltering);
       logCustomizations();
       return;
     }
@@ -1480,7 +1480,12 @@
     }
     async function finalizeXO(start=20, end=250) {
       if (noSub) { return; } // no need to go further without subwoofer
-      console.log("Finalizing crossover frequencies to best follow the target curve at MLP...");
+      if (useAudyFiltering) {
+        console.log("Finalizing crossover frequencies for maximum output at MLP...");
+      }
+      else {
+        console.log("Finalizing crossover frequencies to best follow the target curve at MLP...");
+      }
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const targetArray = response2array(targetResponse, start, end);
       const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
@@ -2126,7 +2131,8 @@
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      downloadLink.download = getadyName(fileName, "_" + (dialogueEnhancer ? "DE_" : "")
+      downloadLink.download = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
+                                                    + (dialogueEnhancer ? "DE_" : "")
                                                     + swInvMsg + `${tcName}_`
                                                     + `A1EvoMJC_${timestamp}.ady`);
       downloadLink.style.display = "none";
