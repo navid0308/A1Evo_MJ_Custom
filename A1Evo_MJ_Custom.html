@@ -302,8 +302,9 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
-    let useAudyFiltering = false;
-    const audyFilterPoints = [], audyFilterDEPoints = [], audyFilterDEOffset = {};
+    // parameters used for audy filtering mode
+    let useAudyFiltering = false, audyDEFilterOffset = 0;
+    const audyFilterPoints = [], audyDEFilterPoints = [], audySubFilterPoints = [];
 
     const startButton = document.getElementById('button2');
     startButton.addEventListener('click', function(event) {
@@ -966,21 +967,28 @@
       const DEFilter = await postNext('Generate filters measurement', 1);
       const DEFilterIdx = Object.keys(DEFilter.results)[0];
       const DEALOffset = await getALOffset(DEFilterIdx, false);
-      audyFilterDEOffset["DE"] = Math.round(DEALOffset * 2) / 2;
+      audyDEFilterOffset = Math.round(DEALOffset * 2) / 2; // add this to C if DE is enabled
+      Object.freeze(audyDEFilterOffset);
       const DEResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', DEFilterIdx);
       const DEFilterArray = response2array(DEResponse, start, end);
       await postDelete(DEFilterIdx);
       return DEFilterArray;
     }
-    async function prepareAudyFilteringData() {
-      // used in audy filtering mode
-      const octave = Math.pow(2, 1 / 96);
-      const tcArray = response2array(targetResponse, 10, 24000);
-      const DEFilterArray = await getDEFilterArray(10, 24000);
+    async function prepareAudyFilteringData(start=10, end=24000) {
+      // prepare the target curve as the target points for the ady
+      await fetchSafe('target-level', 1, 0.0);
+      const tc = await postNext('Generate target measurement', 1);
+      const tcIdx = Object.keys(tc.results)[0];
+      const tcResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, tcIdx);
+      const tcArray = response2array(tcResponse, start, end);
+      await postDelete(tcIdx); // cleanup
+      const DEFilterArray = await getDEFilterArray(start, end); // prepare in case DE is used
       let freq = 10;
+      const octave = Math.pow(2, 1 / 96);
       for (let i = 0; i < tcArray.length; i++) {
-        audyFilterPoints.push([freq, tcArray[i] - 75.0 + antiHFRolloff[i]]);
-        audyFilterDEPoints.push([freq, tcArray[i] + DEFilterArray[i] - 75.0 + antiHFRolloff[i]]);
+        audyFilterPoints.push([freq, tcArray[i] + antiHFRolloff[i]]);
+        audyDEFilterPoints.push([freq, tcArray[i] + DEFilterArray[i] + antiHFRolloff[i]]); // prepare in case DE is used
+        audySubFilterPoints.push([freq, tcArray[i]]);
         freq *= octave;
       }
     }
@@ -1129,7 +1137,7 @@
       if (useAudyFiltering && dialogueEnhancer) {
         for (let i = 1; i < nSpeakers; i++) {
           if (commandId[i] === "C") {
-            customLevel[i] += audyFilterDEOffset["DE"];
+            customLevel[i] += audyDEFilterOffset;
           }
         }
       }
@@ -1480,12 +1488,7 @@
     }
     async function finalizeXO(start=20, end=250) {
       if (noSub) { return; } // no need to go further without subwoofer
-      if (useAudyFiltering) {
-        console.log("Finalizing crossover frequencies for maximum output at MLP...");
-      }
-      else {
-        console.log("Finalizing crossover frequencies to best follow the target curve at MLP...");
-      }
+      console.log(`Finalizing crossover frequencies for ${useAudyFiltering ? "maximum output" : "best target tracking"} at MLP...`);
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const targetArray = response2array(targetResponse, start, end);
       const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
@@ -2050,7 +2053,7 @@
         let customTargetCurvePoints;
         if (useAudyFiltering) {
           if (commandId[i] === "C" && dialogueEnhancer) {
-            customTargetCurvePoints = audyFilterDEPoints.map(point => `{${point[0]}, ${point[1]}}`);
+            customTargetCurvePoints = audyDEFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
           }
           else {
             customTargetCurvePoints = audyFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
@@ -2073,7 +2076,7 @@
       if (!noSub) {
         let customTargetCurvePointsSub;
         if (useAudyFiltering) {
-          customTargetCurvePointsSub = audyFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
+          customTargetCurvePointsSub = audySubFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
         }
         else {
           const fltIdxSub = cmdIdFilterIndices[commandId[nChannels]];
