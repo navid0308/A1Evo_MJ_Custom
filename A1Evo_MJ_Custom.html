@@ -346,8 +346,8 @@
         const spCmdIds = [];
         const swCmdIds = [];
         noCenter = true;
-        subLoTrim = Infinity;
-        subHiTrim = -Infinity;
+        subLoTrim = 0;
+        subHiTrim = 0;
         subLoDelay = Infinity;
         subHiDelay = -Infinity;
         jsonData.detectedChannels.forEach(channel => {
@@ -379,8 +379,8 @@
         commandId.unshift(undefined); // start at 1
         Object.freeze(noCenter);
         Object.freeze(swChannelCount);
-        subLoTrim = -12 + Math.abs(subLoTrim);
-        subHiTrim = 12 - Math.abs(subHiTrim);
+        subLoTrim = -12 - subLoTrim;
+        subHiTrim = 12 - subHiTrim;
         Object.freeze(subLoTrim);
         Object.freeze(subHiTrim);
         subLoDelay /= sOs;
