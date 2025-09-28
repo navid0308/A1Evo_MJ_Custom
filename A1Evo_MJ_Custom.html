@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -877,7 +877,7 @@
         }
         mSec[i] = 0; // initialize
       }
-      // time align & normalize speaker delayss
+      // time align
       await postNext('Time align', mlpSPIndices);
       const measurements = await fetch_mREW();
       for (let i = 0; i < mlpSPIndices.length; i++) {
@@ -983,7 +983,7 @@
       const tcArray = response2array(tcResponse, start, end);
       await postDelete(tcIdx); // cleanup
       const DEFilterArray = await getDEFilterArray(start, end); // prepare in case DE is used
-      let freq = 10;
+      let freq = start;
       const octave = Math.pow(2, 1 / 96);
       for (let i = 0; i < tcArray.length; i++) {
         audyFilterPoints.push([freq, tcArray[i] + antiHFRolloff[i]]);
@@ -1691,16 +1691,18 @@
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-        // set delay limit to 2x of IR peak difference against reference subwoofer
+        // set low delay limit to -2x of IR peak difference against reference subwoofer
+        // set high delay limit to 1x of IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
-        const [loDelay,] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-        const IRPeakDelta = 1000 * (refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
-        const delayLimit = Math.max(IRPeakDelta * 2, loDelay);
+        const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
+        const IRPeakDelta = 1000 * Math.abs(refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
+        const loDelayLimit = Math.max(-2 * IRPeakDelta, loDelay);
+        const hiDelayLimit = Math.min(IRPeakDelta, hiDelay);
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
-                                                                                  startFreq, endFreq, delayLimit, 0);
+                                                                                  startFreq, endFreq, loDelayLimit, hiDelayLimit);
         if (!isPossible || !sumIndex) {
           console.error("Failed to align multiple subwoofers!");
           throw new Error;
