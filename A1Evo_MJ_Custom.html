@@ -1068,8 +1068,8 @@
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // line up response to target similar to REW
-        const tcLevelOffset = isSub ? await getTrim(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], "1%2F6")
+        // line up response to target similar to REW; limit SW TC level determination range to 20-120hz
+        const tcLevelOffset = isSub ? await getTrim(avgIdx, Math.max(20, m3dBPoints[i][0]), Math.min(120, m3dBPoints[i][1]), "1%2F6")
                                     : await getTrim(avgIdx, 200, 2000, "1%2F6");
         await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
         await postNext('Smooth', mlpIdx, { smoothing: "Var" });
