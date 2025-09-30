@@ -1503,7 +1503,7 @@
     }
     async function finalizeXO(start=20, end=250) {
       if (noSub) { return; } // no need to go further without subwoofer
-      console.log(`Finalizing crossover frequencies for ${useAudyFiltering ? "maximum output" : "best target tracking"} at MLP...`);
+      console.log("Finalizing crossover frequencies for maximum output at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const targetArray = response2array(targetResponse, start, end);
       const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
@@ -1513,7 +1513,7 @@
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         // find xo that is closest match to target curve at MLP
         const initialXO = customCrossover[i];
-        let bestXO = initialXO, minRmsError = Infinity, maxSum = -Infinity;
+        let bestXO = initialXO, maxSum = -Infinity;
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXO = freqIndex[j];
@@ -1539,23 +1539,13 @@
           const mlpSWWithLPFIdx = Object.keys(mlpSWWithLPF.results)[0];
           const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
           const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
-          const checkXOResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', mlpXOResultIdx);
+          const checkXOResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', mlpXOResultIdx);
           const checkXOArray = response2array(checkXOResponse, start, end);
-          if (useAudyFiltering) {
-            // pick XO with highest output
-            const tempSum = checkXOArray.reduce((acc, val) => acc + val, 0);
-            if (tempSum > maxSum) {
-              maxSum = tempSum;
-              bestXO = checkXO;
-            }
-          }
-          else {
-            // pick XO with best target curve tracking
-            const rmsError = calculateRMSError(checkXOArray, targetArray);
-            if (rmsError < minRmsError) {
-              minRmsError = rmsError;
-              bestXO = checkXO;
-            }
+          // pick XO with highest output
+          const tempSum = checkXOArray.reduce((acc, val) => acc + val, 0);
+          if (tempSum > maxSum) {
+            maxSum = tempSum;
+            bestXO = checkXO;
           }
           // delete in reverse order of creation
           await postDelete(mlpXOResultIdx);
@@ -1823,20 +1813,6 @@
         responseArray.push(sumMagnitude);
       }
       return responseArray;
-    }
-    function calculateRMSError(rpArray, targetArray) {
-      if (rpArray.length === 0 || targetArray.length === 0) {
-        console.warn("Failed to calculate RMS error!");
-        return Infinity;
-      }
-      const arrayLength = Math.min(rpArray.length, targetArray.length);
-      let sumOfSquares = 0;
-      for (let i = 0; i < arrayLength; i++) {
-        const diff = rpArray[i] - targetArray[i];
-        sumOfSquares += diff * diff;
-      }
-      const meanOfSquares = sumOfSquares / arrayLength;
-      return Math.sqrt(meanOfSquares);
     }
     async function getTrim(idx, start, end, smoothing="1%2F1") {
       const targetArray = response2array(targetResponse, start, end);
