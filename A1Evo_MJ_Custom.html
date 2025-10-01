@@ -294,7 +294,7 @@
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
-    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, rewEQIdx = 20;
+    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
@@ -1008,14 +1008,15 @@
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function addDialogueEnhancerFilter(idx) {
-      async function addPEQFilter(idx, freq, gain, q) {
+      let rewEQIdx = 20; // start from last; most likely to be available after auto-EQ
+      async function addPEQFilter(freq, gain, q) {
         try {
           if (rewEQIdx < 1 || rewEQIdx > 20) {
             throw new Error;
           }
           await postSafe(`${baseUrl}/${idx}/filters`, {
             filters: [{
-              "index": rewEQIdx--,
+              "index": rewEQIdx--, // work backwards from 20
               "type": "PK",
               "enabled": true,
               "isAuto": true,
@@ -1030,10 +1031,10 @@
           throw new Error;
         }
       }
-      // Q value------------------------|
-      // Gain dB--------------------|   |
-      // Frequency hz-----------|   |   |
-      await addPEQFilter(idx, 1500, 3, 0.5); // repeat and/or customize as needed
+      // Q value-------------------|
+      // Gain dB---------------|   |
+      // Frequency hz------|   |   |
+      await addPEQFilter(1500, 3, 0.5); // repeat and/or customize as needed
     }
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
