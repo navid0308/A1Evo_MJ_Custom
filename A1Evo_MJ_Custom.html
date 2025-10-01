@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1006,30 +1006,35 @@
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
-      if (useAudyFiltering) { return; }
-      const dynamicBassFilldB = await getDynamicBassFill(cmdIdAVGIndices[commandId[nChannels]]);
-      if (dynamicBassFilldB != 0) {
-        console.warn(`***Adding ${dynamicBassFilldB}dB dynamic bass fill to compensate for dips!***`);
-        for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-          customLevel[i] += dynamicBassFilldB;
-          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - dynamicBassFilldB}dB → ${customLevel[i]}dB`);
-        }
-        await postNext('Add SPL offset', cmdIdMLPIndices[commandId[nChannels]], { offset: dynamicBassFilldB });
-        await postNext('Add SPL offset', cmdIdAVGIndices[commandId[nChannels]], { offset: dynamicBassFilldB });
-      }
     }
     async function addDialogueEnhancerFilter(idx) {
-      await postSafe(`${baseUrl}/${idx}/filters`, {
-        filters: [{
-          "index": 20, // need to make sure it's available
-          "type": "PK",
-          "enabled": true,
-          "isAuto": true,
-          "frequency": 1500,
-          "gaindB": 3.0,
-          "q": 0.5
-        }]
-      }, "Filters set");
+      let rewEQIdx = 20; // start from last; most likely to be available after auto-EQ
+      async function addPEQFilter(freq, gain, q) {
+        try {
+          if (rewEQIdx < 1 || rewEQIdx > 20) {
+            throw new Error;
+          }
+          await postSafe(`${baseUrl}/${idx}/filters`, {
+            filters: [{
+              "index": rewEQIdx--, // work backwards from 20
+              "type": "PK",
+              "enabled": true,
+              "isAuto": true,
+              "frequency": freq,
+              "gaindB": gain,
+              "q": q
+            }]
+          }, "Filters set");
+        }
+        catch (error) {
+          console.error(`Failed to add DE PEQ filter <${freq}hz ${gain}dB ${q}Q> to REW EQ index#${rewEQIdx}!`);
+          throw new Error;
+        }
+      }
+      // Q value-------------------|
+      // Gain dB---------------|   |
+      // Frequency hz------|   |   |
+      await addPEQFilter(1500, 3, 0.5); // repeat and/or customize as needed
     }
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
@@ -1046,14 +1051,27 @@
         }
         return;
       }
+      /*EQ parameters start*/
+      // boost parameters for speakers in dB
+      const speakerIndividualMaxBoost = 3;
+      const speakerOverallMaxBoost = 0;
+      const speakerHighShelfMin = -6;
+      const speakerHighShelfMax = 6;
+      // boost parameters for subwoofer(s) in dB
+      const subwooferIndividualMaxBoost = 6;
+      const subwooferOverallMaxBoost = 3;
+      const subwooferLowShelfMin = -6;
+      const subwooferLowShelfMax = 6;
+      /*EQ parameters end*/
       console.log(`Generating min. phase EQ filters...`);
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // line up speaker response to target similar to REW, but don't affect subwoofer - already using DBF
-        const tcLevelOffset = isSub ? 0 : await getTrim(avgIdx, 200, 2000, "Var");
+        // line up response to target similar to REW; limit SW TC level determination range to 20-120hz if bandwidth exceeds it
+        const tcLevelOffset = isSub ? await getTrim(avgIdx, Math.max(20, m3dBPoints[i][0]), Math.min(120, m3dBPoints[i][1]), "1%2F6")
+                                    : await getTrim(avgIdx, Math.max(200, m3dBPoints[i][0]), Math.min(2000, m3dBPoints[i][1]), "1%2F6");
         await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
         await postNext('Smooth', mlpIdx, { smoothing: "Var" });
         await postNext('Smooth', avgIdx, { smoothing: "Var" });
@@ -1068,17 +1086,17 @@
         await postSafe(`http://localhost:4735/eq/match-target-settings`, {
           startFrequency: m3dBPoints[i][0],
           endFrequency: m3dBPoints[i][1],
-          individualMaxBoostdB: isSub ? 6 : 3,
-          overallMaxBoostdB: isSub ? 3 : 0,
+          individualMaxBoostdB: isSub ? subwooferIndividualMaxBoost : speakerIndividualMaxBoost,
+          overallMaxBoostdB: isSub ? subwooferOverallMaxBoost : speakerOverallMaxBoost,
           flatnessTargetdB: 1,
           allowNarrowFiltersBelow200Hz: true,
           varyQAbove200Hz: false,
           allowLowShelf: isSub,
-          lowShelfMin: -6,
-          lowShelfMax: 6,
+          lowShelfMin: subwooferLowShelfMin,
+          lowShelfMax: subwooferLowShelfMax,
           allowHighShelf: !isSub,
-          highShelfMin: -6,
-          highShelfMax: 6
+          highShelfMin: speakerHighShelfMin,
+          highShelfMax: speakerHighShelfMax
         }, "Update processed");
         try {
           await postNext('Match target', avgIdx);
@@ -1207,31 +1225,29 @@
       return xo;
     }
     async function getAbsLow3dBPointForSub(idx, start=10, end=320) {
-      // finds low -3dB point from target SPL between 30-80hz
-      // assumes sub is leveled to TC using 30-80hz
-      const targetArray = response2array(targetResponse, 30, 80);
-      const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
+      // finds low -3dB point from SPL between 30-80hz
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const subArray = response2array(response, 30, 80);
+      const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
       for (let i = 0; i < rpArray.length; i++) {
-        if ((rpArray[i] - targetSPL) >= -3) { break; }
+        if ((rpArray[i] - subSPL) >= -3) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
     async function getAbsHigh3dBPointForSub(idx, start=10, end=320) {
-      // finds high -3dB point from target SPL between 30-80hz
-      // assumes sub is leveled to TC using 30-80hz
-      const targetArray = response2array(targetResponse, 30, 80);
-      const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
-      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
+      // finds high -3dB point from SPL between 30-80hz
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const subArray = response2array(response, 30, 80);
+      const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - targetSPL) >= -3) { break; }
+        if ((rpArray[i] - subSPL) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
@@ -1488,7 +1504,7 @@
     }
     async function finalizeXO(start=20, end=250) {
       if (noSub) { return; } // no need to go further without subwoofer
-      console.log(`Finalizing crossover frequencies for ${useAudyFiltering ? "maximum output" : "best target tracking"} at MLP...`);
+      console.log("Finalizing crossover frequencies for maximum output at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const targetArray = response2array(targetResponse, start, end);
       const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
@@ -1498,7 +1514,7 @@
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         // find xo that is closest match to target curve at MLP
         const initialXO = customCrossover[i];
-        let bestXO = initialXO, minRmsError = Infinity, maxSum = -Infinity;
+        let bestXO = initialXO, maxSum = -Infinity;
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXO = freqIndex[j];
@@ -1524,23 +1540,13 @@
           const mlpSWWithLPFIdx = Object.keys(mlpSWWithLPF.results)[0];
           const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
           const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
-          const checkXOResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', mlpXOResultIdx);
+          const checkXOResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', mlpXOResultIdx);
           const checkXOArray = response2array(checkXOResponse, start, end);
-          if (useAudyFiltering) {
-            // pick XO with highest output
-            const tempSum = checkXOArray.reduce((acc, val) => acc + val, 0);
-            if (tempSum > maxSum) {
-              maxSum = tempSum;
-              bestXO = checkXO;
-            }
-          }
-          else {
-            // pick XO with best target curve tracking
-            const rmsError = calculateRMSError(checkXOArray, targetArray);
-            if (rmsError < minRmsError) {
-              minRmsError = rmsError;
-              bestXO = checkXO;
-            }
+          // pick XO with highest output
+          const tempSum = checkXOArray.reduce((acc, val) => acc + val, 0);
+          if (tempSum > maxSum) {
+            maxSum = tempSum;
+            bestXO = checkXO;
           }
           // delete in reverse order of creation
           await postDelete(mlpXOResultIdx);
@@ -1809,20 +1815,6 @@
       }
       return responseArray;
     }
-    function calculateRMSError(rpArray, targetArray) {
-      if (rpArray.length === 0 || targetArray.length === 0) {
-        console.warn("Failed to calculate RMS error!");
-        return Infinity;
-      }
-      const arrayLength = Math.min(rpArray.length, targetArray.length);
-      let sumOfSquares = 0;
-      for (let i = 0; i < arrayLength; i++) {
-        const diff = rpArray[i] - targetArray[i];
-        sumOfSquares += diff * diff;
-      }
-      const meanOfSquares = sumOfSquares / arrayLength;
-      return Math.sqrt(meanOfSquares);
-    }
     async function getTrim(idx, start, end, smoothing="1%2F1") {
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
@@ -1839,20 +1831,6 @@
     async function getSubTrim(idx) {
       const subTrim = await getTrim(idx, 30, 80);
       return subTrim;
-    }
-    async function getDynamicBassFill(idx) {
-      const startFreq = Math.round(await getLow3dBPointFromTC(idx, 20, 120));
-      const endFreq = Math.round(await getHigh3dBPointFromTC(idx, 20, 120));
-      const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
-      const subArray = response2array(subFreqResponse, startFreq, endFreq);
-      const targetArray = response2array(targetResponse, startFreq, endFreq);
-      const arrayLength = Math.min(subArray.length, targetArray.length);
-      let totalDips = 0;
-      for (let i = 0; i < arrayLength; i++) {
-        totalDips += Math.min(subArray[i] - targetArray[i], 0);
-      }
-      const dynamicBassFill = Math.round(-2 * (totalDips / arrayLength)) / 2; // round to nearest 0.5
-      return dynamicBassFill;
     }
     async function fixVolBug(indices) {
       if (indices.length <= 1) { return; }
