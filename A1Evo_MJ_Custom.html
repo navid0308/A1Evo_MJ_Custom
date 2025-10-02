@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -313,7 +313,7 @@
       }
     });
     function extractAdy(event) {
-      console.info("Initializing A1 Evo MJ Custom...");
+      console.info("Initializing A1Evo MJ Custom...");
       const file = event.target.files[0];
       fileName = file.name;
       console.info(`Audyssey calibration '${fileName}' has been uploaded!`)
@@ -551,11 +551,11 @@
       await groundWorks();
       await calculateRolloffs();
       await calculateSubBandwidth();
+      await optimizeSubDelay();
+      await finalizeXO();
       await generateFilters();
       finalizeTrims();
-      await optimizeSubDelay();
       finalizeDistances();
-      await finalizeXO();
       await drawResults();
       await updateAdy();
       await disableBlock();
@@ -926,6 +926,7 @@
         // move a copy of MLP measurement to the bottom for preserving
         commandId[i].startsWith("SW") ? await genSub(indices[0]) : await genSpeaker(indices[0]);
         await fetch_mREW(mlpIdx, 'PUT', { title: `${commandId[i]}-mlp` });
+        await postNext('Smooth', mlpIdx, { smoothing: "1/48" });
         // spatially average
         console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
         if (indices.length > 1) {
@@ -939,6 +940,7 @@
           await postNext('Magn plus phase average', indices); // do not use VA, it reduces SPL!
         }
         await fetch_mREW(avgIdx, 'PUT', { title: `${commandId[i]}-avg` });
+        await postNext('Smooth', avgIdx, { smoothing: "1/48" });
         // align "-avg" measurement to target curve
         const volAdjust = commandId[i].startsWith("SW") ? await getSubTrim(avgIdx) : await getSpeakerTrim(avgIdx);
         await postNext('Add SPL offset', avgIdx, { offset: volAdjust });
@@ -1007,6 +1009,12 @@
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
+    async function getALOffset(idx, isSub) {
+      const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
+      const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
+      return offset;
+    }
     async function addDialogueEnhancerFilter(idx) {
       let rewEQIdx = 20; // start from last; most likely to be available after auto-EQ
       async function addPEQFilter(freq, gain, q) {
@@ -1036,21 +1044,8 @@
       // Frequency hz------|   |   |
       await addPEQFilter(1500, 3, 0.5); // repeat and/or customize as needed
     }
-    async function getALOffset(idx, isSub) {
-      const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
-      const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
-      const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
-      return offset;
-    }
     async function generateFilters() {
-      if (useAudyFiltering) {
-        // passthrough the raw data
-        for (let i = 1; i <= nChannels; i++) {
-          cmdIdMLPIndicesEQ[commandId[i]] = cmdIdMLPIndices[commandId[i]];
-          cmdIdAVGIndicesEQ[commandId[i]] = cmdIdAVGIndices[commandId[i]];
-        }
-        return;
-      }
+      if (useAudyFiltering) { return; } // no need to EQ
       /*EQ parameters start*/
       // boost parameters for speakers in dB
       const speakerIndividualMaxBoost = 3;
@@ -1381,17 +1376,17 @@
     }
     async function optimizeSubDelay() {
       if (noSub) { return; } // no need to go further without subwoofer
-      const mlpEQResults = [];
+      const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
-        mlpEQResults.push(cmdIdMLPIndicesEQ[commandId[i]]);
+        mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
       const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
       console.log(`Optimizing subwoofer delay for ALL speakers at MLP using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
-      const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpEQResults)); // same results with RMS & VA since goal is max output
+      const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices)); // same results with RMS & VA since goal is max output
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
-      const subwooferWithLPF = await genSub(cmdIdMLPIndicesEQ[commandId[nChannels]], avgInitialXO);
+      const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], avgInitialXO);
       const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
       let [isPossible, requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
       // cleanup
@@ -1410,12 +1405,12 @@
         isInverted = false;
       }
       if (isInverted) {
-        await postSafe(`${baseUrl}/${cmdIdMLPIndicesEQ[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
-        await postSafe(`${baseUrl}/${cmdIdAVGIndicesEQ[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
+        await postSafe(`${baseUrl}/${cmdIdMLPIndices[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
+        await postSafe(`${baseUrl}/${cmdIdAVGIndices[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
       }
       subMoves /= 1000;
-      await postNext('Offset t=0', cmdIdMLPIndicesEQ[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
-      await postNext('Offset t=0', cmdIdAVGIndicesEQ[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
+      await postNext('Offset t=0', cmdIdMLPIndices[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
+      await postNext('Offset t=0', cmdIdAVGIndices[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
       if (bassMode === "Directional") {
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           mSec[i] += subMoves;
@@ -1507,7 +1502,7 @@
       console.log("Finalizing crossover frequencies for maximum output at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const targetArray = response2array(targetResponse, start, end);
-      const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
+      const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
       for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
@@ -1523,13 +1518,13 @@
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           let mlpSPWithHPFIdx;
-          const mlpSPIdx = cmdIdMLPIndicesEQ[commandId[i]];
+          const mlpSPIdx = cmdIdMLPIndices[commandId[i]];
           if (singleChannel) {
             const spWithHPF = await genSpeaker(mlpSPIdx, checkXO);
             mlpSPWithHPFIdx = Object.keys(spWithHPF.results)[0];
           }
           else {
-            const mlpSPIdxR = cmdIdMLPIndicesEQ[commandId[i + 1]];
+            const mlpSPIdxR = cmdIdMLPIndices[commandId[i + 1]];
             const pairSPAvg = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
             const pairSPAvgIdx = Object.keys(pairSPAvg.results)[0];
             await genSpeaker(pairSPAvgIdx, checkXO); // generates to pairSPAvgIdx + 1
