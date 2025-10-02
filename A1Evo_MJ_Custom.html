@@ -592,9 +592,11 @@
       console.log("***You may freely change crossovers in the MultEQ app or AVR if desired.***");
       console.log("***You may freely adjust the correction range in the MultEQ app if desired.***");
       if (targetCurveName === "") {
-        console.log("***Dynamic EQ is enabled! You may freely adjust DEQ Reference Level Offset on the AVR if desired.***")
+        console.log("***Dynamic EQ is enabled! You may freely adjust DEQ Reference Level Offset on the AVR if desired.***");
       }
-      console.info("The Editor app 'after' graphs will now represent the filters being applied for each channel.");
+      if (!useAudyFiltering) {
+        console.info("The Editor app 'after' graphs will now represent the filters being applied for each channel.");
+      }
       console.info(`****************************************************************************************************`);
       console.info("Enjoy your EVO'lved sound!");
     }
