@@ -1032,6 +1032,44 @@
         }
       }
     }
+    async function addLSFilter(idx, freq, gain) {
+      try {
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) { throw new Error; }
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            "index": eqIdx,
+            "type": "LS",
+            "enabled": true,
+            "frequency": freq,
+            "gaindB": gain
+          }]
+        }, "Filters set");
+      }
+      catch (error) {
+        console.error(`Failed to add low shelf filter <${freq}hz ${gain}dB> - measurement #${idx} has no more available EQ slots left in REW!`);
+        throw new Error;
+      }
+    }
+    async function addHSFilter(idx, freq, gain) {
+      try {
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) { throw new Error; }
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            "index": eqIdx,
+            "type": "HS",
+            "enabled": true,
+            "frequency": freq,
+            "gaindB": gain
+          }]
+        }, "Filters set");
+      }
+      catch (error) {
+        console.error(`Failed to add high shelf filter <${freq}hz ${gain}dB> - measurement #${idx} has no more available EQ slots left in REW!`);
+        throw new Error;
+      }
+    }
     async function addPEQFilter(idx, freq, gain, q) {
       try {
         const eqIdx = await getNextEQIdx(idx);
@@ -1049,36 +1087,40 @@
         }, "Filters set");
       }
       catch (error) {
-        console.error(`Failed to add PEQ filter <${freq}hz ${gain}dB ${q}q> - no more available EQ slots left in REW!`);
+        console.error(`Failed to add PEQ filter <${freq}hz ${gain}dB ${q}q> - measurement #${idx} has no more available EQ slots left in REW!`);
         throw new Error;
       }
     }
-    async function addCustomPEQFilters(mlpIdx, cmdId, autoEQFilterIdx) {
-      await clearFilters(mlpIdx);
+    async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
       /***Customization start***/
       if (cmdId === "C" && dialogueEnhancer) {
-        // Q value---------------------------|
-        // Gain dB-----------------------|   |
-        // Frequency hz--------------|   |   |
-        await addPEQFilter(mlpIdx, 1500, 3, 0.5); // repeat and/or customize as needed
+        // Q value------------------------|
+        // Gain dB--------------------|   |
+        // Frequency hz-----------|   |   |
+        await addPEQFilter(idx, 1500, 3, 0.5); // repeat and/or customize as needed
       }
       // use without if statement to apply to all channels, example-
-      //await addPEQFilter(mlpIdx, 100, 6, 1); // repeat and/or customize as needed
+      //await addHSFilter(idx, 2000, 9); // repeat and/or customize as needed
+      // low and high shelf filters are available as choices
+      //if (cmdId.startsWith("SW")) {
+        // Gain dB-----------------|
+        // Frequency hz--------|   |
+      //  await addLSFilter(idx, 50, 5);
+      //}
       // add upto 20 PEQ filters for any channel, example-
       //if (cmdId === "FL") {
-      //  await addPEQFilter(mlpIdx, 300, 6, 2.8); // repeat and/or customize as needed
-      //  await addPEQFilter(mlpIdx, 600, -6, 1.2); // repeat and/or customize as needed
-      //  await addPEQFilter(mlpIdx, 1000, 1.5, 3.1); // repeat and/or customize as needed
-      //  await addPEQFilter(mlpIdx, 3000, 9, 5); // repeat and/or customize as needed
+      //  await addPEQFilter(idx, 600, -6, 1.2); // repeat and/or customize as needed
+      //  await addPEQFilter(idx, 1000, 1.5, 3.1); // repeat and/or customize as needed
+      //  await addPEQFilter(idx, 3000, 9, 5); // repeat and/or customize as needed
       //}
       /***Customization end***/
       // combine custom filters with autoEQ filters
-      const customFilter = await postNext('Generate filters measurement', mlpIdx);
+      const customFilter = await postNext('Generate filters measurement', idx);
       const customFilterIdx = Object.keys(customFilter.results)[0];
       // apply custom filters to auto-EQ filters
-      const combinedFilter = await postNext('Arithmetic', [autoEQFilterIdx, customFilterIdx], {function: "A * B"});
+      const combinedFilter = await postNext('Arithmetic', [baseEQFilterIdx, customFilterIdx], {function: "A * B"});
       await postDelete(customFilterIdx);
-      await postDelete(autoEQFilterIdx); // combined filter is at auto-EQ filter index now
+      await postDelete(baseEQFilterIdx); // combined filter is at auto-EQ filter index now
     }
     async function generateREWFilters() {
       /***Customization start***/
@@ -1122,7 +1164,8 @@
         // generate filters & auto level it
         const filter = await postNext('Generate filters measurement', avgIdx);
         const filterIdx = Object.keys(filter.results)[0];
-        await addCustomPEQFilters(mlpIdx, commandId[i], filterIdx); // add any user desired customizations
+        await clearFilters(mlpIdx); // use mlp as a placeholder for custom filters
+        await addCustomREWFilters(mlpIdx, commandId[i], filterIdx); // add any user desired customizations
         cmdIdFilterIndices[commandId[i]] = filterIdx;
         await fetch_mREW(filterIdx, 'PUT', { title: `${commandId[i]}-filters` });
         const ALOffset = await getALOffset(filterIdx, isSub);
@@ -1158,7 +1201,7 @@
       }
     }
     async function generateTargetCurves() {
-      console.log("Generating target curves for each speaker...");
+      console.log("Generating target curves for each channel...");
       // generate target curve at 0dB
       await clearFilters(1);
       await fetchSafe('target-level', 1, 0.0);
@@ -1171,7 +1214,7 @@
         await clearFilters(mlpIdx);
         const customFilter = await postNext('Generate filters measurement', mlpIdx); // should be flat
         const customFilterIdx = Object.keys(customFilter.results)[0];
-        await addCustomPEQFilters(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
+        await addCustomREWFilters(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
         const ALOffset = await getALOffset(customFilterIdx, isSub);
         await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
         await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
