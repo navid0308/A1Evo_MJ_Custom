@@ -294,7 +294,7 @@
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
-    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay;
+    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, useAudyFiltering = false;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
@@ -302,9 +302,6 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
-    // parameters used for audy filtering mode
-    let useAudyFiltering = false, audyDEFilterOffset = 0;
-    const audyFilterPoints = [], audyDEFilterPoints = [], audySubFilterPoints = [];
 
     const startButton = document.getElementById('button2');
     startButton.addEventListener('click', function(event) {
@@ -553,7 +550,12 @@
       await calculateSubBandwidth();
       await optimizeSubDelay();
       await finalizeXO();
-      await generateFilters();
+      if (useAudyFiltering) {
+        await generateTargetCurves();
+      }
+      else {
+        await generateREWFilters();
+      }
       finalizeTrims();
       finalizeDistances();
       await drawResults();
@@ -965,43 +967,11 @@
         avgIdx += 2;
       }
     }
-    async function getDEFilterArray(start=10, end=24000) {
-      // used in audy filtering mode
-      const DEFilter = await postNext('Generate filters measurement', 1);
-      const DEFilterIdx = Object.keys(DEFilter.results)[0];
-      await addCustomPEQFilters(1, "C", DEFilterIdx);
-      const DEALOffset = await getALOffset(DEFilterIdx, false);
-      const DEResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', DEFilterIdx);
-      const DEFilterArray = response2array(DEResponse, start, end);
-      await postDelete(DEFilterIdx);
-      return [DEFilterArray, DEALOffset];
-    }
-    async function prepareAudyFilteringData(start=10, end=24000) {
-      // prepare the target curve as the target points for the ady
-      await fetchSafe('target-level', 1, 0.0);
-      const tc = await postNext('Generate target measurement', 1);
-      const tcIdx = Object.keys(tc.results)[0];
-      const tcResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, tcIdx);
-      const tcArray = response2array(tcResponse, start, end);
-      await postDelete(tcIdx); // cleanup
-      const [DEFilterArray, DEALOffset] = await getDEFilterArray(start, end); // prepare in case DE is used
-      audyDEFilterOffset = Math.round(DEALOffset * 2) / 2; // add this to C if DE is enabled
-      Object.freeze(audyDEFilterOffset);
-      let freq = start;
-      const octave = Math.pow(2, 1 / 96);
-      for (let i = 0; i < tcArray.length; i++) {
-        audyFilterPoints.push([freq, tcArray[i] + antiHFRolloff[i]]);
-        audyDEFilterPoints.push([freq, tcArray[i] + DEFilterArray[i] + antiHFRolloff[i]]); // prepare in case DE is used
-        audySubFilterPoints.push([freq, tcArray[i]]);
-        freq *= octave;
-      }
-    }
     async function groundWorks() {
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       console.log(`Optimizing${useAudyFiltering ? " " : " spatial averaging, "}volume & time alignment...`);
-      if (useAudyFiltering) { await prepareAudyFilteringData(); }
       await initializeTrims();
       await timeAlignSpeakers();
       await initializeSubwoofers();
@@ -1110,8 +1080,7 @@
       await postDelete(customFilterIdx);
       await postDelete(autoEQFilterIdx); // combined filter is at auto-EQ filter index now
     }
-    async function generateFilters() {
-      if (useAudyFiltering) { return; } // no need to EQ
+    async function generateREWFilters() {
       /***Customization start***/
       // boost parameters for speakers in dB
       const speakerIndividualMaxBoost = 3;
@@ -1188,15 +1157,38 @@
         console.infoUpdate(logUpdate);
       }
     }
-    function sanityCheckSpeakerTrims() {
-      // TODO: think of a cleaner way to do this
-      if (useAudyFiltering && dialogueEnhancer) {
-        for (let i = 1; i < nSpeakers; i++) {
-          if (commandId[i] === "C") {
-            customLevel[i] += audyDEFilterOffset;
-          }
+    async function generateTargetCurves() {
+      console.log("Generating target curves for each speaker...");
+      // generate target curve at 0dB
+      await clearFilters(1);
+      await fetchSafe('target-level', 1, 0.0);
+      const targetCurve = await postNext('Generate target measurement', 1);
+      const targetCurveIdx = Object.keys(targetCurve.results)[0];
+      // add in user customizations and generate the target curve for each channel
+      for (let i = 1; i <= nChannels; i++) {
+        const isSub = commandId[i].startsWith("SW");
+        const mlpIdx = cmdIdMLPIndices[commandId[i]];
+        await clearFilters(mlpIdx);
+        const customFilter = await postNext('Generate filters measurement', mlpIdx); // should be flat
+        const customFilterIdx = Object.keys(customFilter.results)[0];
+        await addCustomPEQFilters(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
+        const ALOffset = await getALOffset(customFilterIdx, isSub);
+        await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
+        await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
+        await postNext('Add SPL offset', customFilterIdx, { offset: -ALOffset });
+        await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
+        cmdIdFilterIndices[commandId[i]] = customFilterIdx - 1; // baseline target curve will be deleted and everything will shift by -1
+        const trimOffset = Math.round(ALOffset * 2) / 2;
+        if (trimOffset != 0) {
+          const customLevelOriginal = customLevel[i];
+          customLevel[i] += trimOffset;
+          console.info(`${commandId[i].padStart(3, ".")} auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`);
         }
       }
+      await postDelete(targetCurveIdx);
+      console.info("Completed generating target curves for all channels.");
+    }
+    function sanityCheckSpeakerTrims() {
       // if a speaker is too sensitive or not sensitive enough, it may end up outside +/-12dB
       const minSpeakerTrim = Math.min(...customLevel.slice(1, nSpeakers + 1));
       const maxSpeakerTrim = Math.max(...customLevel.slice(1, nSpeakers + 1));
@@ -2068,19 +2060,8 @@
       }
       // inject filters/TC into ady
       for (let i = 1; i <= nSpeakers; i++) {
-        let customTargetCurvePoints;
-        if (useAudyFiltering) {
-          if (commandId[i] === "C" && dialogueEnhancer) {
-            customTargetCurvePoints = audyDEFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-          }
-          else {
-            customTargetCurvePoints = audyFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-          }
-        }
-        else {
-          const fltIdx = cmdIdFilterIndices[commandId[i]];
-          customTargetCurvePoints = await getFilterPoints(fltIdx, true);
-        }
+        const fltIdx = cmdIdFilterIndices[commandId[i]];
+        const customTargetCurvePoints = await getFilterPoints(fltIdx, true);
         const thisChannel = jsonData.detectedChannels.find(channel => channel.commandId === commandId[i]);
         thisChannel.customTargetCurvePoints = customTargetCurvePoints;
         thisChannel.midrangeCompensation = false;
@@ -2092,14 +2073,8 @@
         thisChannel.channelReport.customEnSpeakerConnect = customCrossover[i] === "L" ? 2 : 1;
       }
       if (!noSub) {
-        let customTargetCurvePointsSub;
-        if (useAudyFiltering) {
-          customTargetCurvePointsSub = audySubFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-        }
-        else {
-          const fltIdxSub = cmdIdFilterIndices[commandId[nChannels]];
-          customTargetCurvePointsSub = await getFilterPoints(fltIdxSub);
-        }
+        const fltIdxSub = cmdIdFilterIndices[commandId[nChannels]];
+        const customTargetCurvePointsSub = await getFilterPoints(fltIdxSub);
         const subChannel = jsonData.detectedChannels[nChannels - 1];
         subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
         let k = 0;
