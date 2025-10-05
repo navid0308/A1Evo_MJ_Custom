@@ -1092,6 +1092,8 @@
         // Frequency hz--------------|   |   |
         await addPEQFilter(mlpIdx, 1500, 3, 0.5); // repeat and/or customize as needed
       }
+      // use without if statement to apply to all channels, example-
+      //await addPEQFilter(mlpIdx, 100, 6, 1); // repeat and/or customize as needed
       // add upto 20 PEQ filters for any channel, example-
       //if (cmdId === "FL") {
       //  await addPEQFilter(mlpIdx, 300, 6, 2.8); // repeat and/or customize as needed
