@@ -1209,27 +1209,36 @@
       const targetCurveIdx = Object.keys(targetCurve.results)[0];
       // add in user customizations and generate the target curve for each channel
       for (let i = 1; i <= nChannels; i++) {
+        console.info(`${commandId[i].padStart(3, ".")} - generating target curve...`);
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
+        // create a blank filter
         await clearFilters(mlpIdx);
         const customFilter = await postNext('Generate filters measurement', mlpIdx); // should be flat
         const customFilterIdx = Object.keys(customFilter.results)[0];
+        // add in all user customizations on top of the blank filter & calculate any AL offset
         await addCustomREWFilters(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
         const ALOffset = await getALOffset(customFilterIdx, isSub);
+        // get rid of phase data since it needs to be applied to target curve which is magnitude only
+        await postSafe(`${baseUrl}/${customFilterIdx}/command`, { command: "Response magnitude copy" }, "Completed");
+        await postDelete(customFilterIdx); // custom filter idx is now magnitude only
+        // combine any custom filter with the target curve and AL offset it
+        // note: this will be the "filter" in audyssey filtering mode
         await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
         await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
         await postNext('Add SPL offset', customFilterIdx, { offset: -ALOffset });
         await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
         cmdIdFilterIndices[commandId[i]] = customFilterIdx - 1; // baseline target curve will be deleted and everything will shift by -1
         const trimOffset = Math.round(ALOffset * 2) / 2;
+        let logUpdate = `${commandId[i].padStart(3, ".")} - target curve created`;
         if (trimOffset != 0) {
           const customLevelOriginal = customLevel[i];
           customLevel[i] += trimOffset;
-          console.info(`${commandId[i].padStart(3, ".")} auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`);
+          logUpdate += ` | ${commandId[i].padStart(3, ".")} auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
+        console.infoUpdate(logUpdate);
       }
       await postDelete(targetCurveIdx);
-      console.info("Completed generating target curves for all channels.");
     }
     function sanityCheckSpeakerTrims() {
       // if a speaker is too sensitive or not sensitive enough, it may end up outside +/-12dB
@@ -2055,6 +2064,7 @@
       return await postNext('Generate predicted measurement', i);
     }
     async function getFilterPoints(fltIdx, useAntiHF=false) {
+      // preps the filter as a frequency response array from 10hz-24khz
       const fltPoints = [];
       const octave = Math.pow(2, 1 / 96);
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', fltIdx);
