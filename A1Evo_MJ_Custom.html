@@ -1210,7 +1210,6 @@
     async function generateTargetCurves() {
       console.log("Generating target curves for each channel...");
       // generate target curve at 0dB
-      await clearFilters(1);
       await fetchSafe('target-level', 1, 0.0);
       const targetCurve = await postNext('Generate target measurement', 1);
       const targetCurveIdx = Object.keys(targetCurve.results)[0];
