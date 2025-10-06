@@ -226,7 +226,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.4</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -294,7 +294,7 @@
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
-    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay;
+    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, useAudyFiltering = false;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
@@ -302,9 +302,6 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
-    // parameters used for audy filtering mode
-    let useAudyFiltering = false, audyDEFilterOffset = 0;
-    const audyFilterPoints = [], audyDEFilterPoints = [], audySubFilterPoints = [];
 
     const startButton = document.getElementById('button2');
     startButton.addEventListener('click', function(event) {
@@ -553,7 +550,12 @@
       await calculateSubBandwidth();
       await optimizeSubDelay();
       await finalizeXO();
-      await generateFilters();
+      if (useAudyFiltering) {
+        await generateTargetCurves();
+      }
+      else {
+        await generateREWFilters();
+      }
       finalizeTrims();
       finalizeDistances();
       await drawResults();
@@ -965,43 +967,11 @@
         avgIdx += 2;
       }
     }
-    async function getDEFilterArray(start=10, end=24000) {
-      // used in audy filtering mode
-      await addDialogueEnhancerFilter(1);
-      const DEFilter = await postNext('Generate filters measurement', 1);
-      const DEFilterIdx = Object.keys(DEFilter.results)[0];
-      const DEALOffset = await getALOffset(DEFilterIdx, false);
-      audyDEFilterOffset = Math.round(DEALOffset * 2) / 2; // add this to C if DE is enabled
-      Object.freeze(audyDEFilterOffset);
-      const DEResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', DEFilterIdx);
-      const DEFilterArray = response2array(DEResponse, start, end);
-      await postDelete(DEFilterIdx);
-      return DEFilterArray;
-    }
-    async function prepareAudyFilteringData(start=10, end=24000) {
-      // prepare the target curve as the target points for the ady
-      await fetchSafe('target-level', 1, 0.0);
-      const tc = await postNext('Generate target measurement', 1);
-      const tcIdx = Object.keys(tc.results)[0];
-      const tcResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, tcIdx);
-      const tcArray = response2array(tcResponse, start, end);
-      await postDelete(tcIdx); // cleanup
-      const DEFilterArray = await getDEFilterArray(start, end); // prepare in case DE is used
-      let freq = start;
-      const octave = Math.pow(2, 1 / 96);
-      for (let i = 0; i < tcArray.length; i++) {
-        audyFilterPoints.push([freq, tcArray[i] + antiHFRolloff[i]]);
-        audyDEFilterPoints.push([freq, tcArray[i] + DEFilterArray[i] + antiHFRolloff[i]]); // prepare in case DE is used
-        audySubFilterPoints.push([freq, tcArray[i]]);
-        freq *= octave;
-      }
-    }
     async function groundWorks() {
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       console.log(`Optimizing${useAudyFiltering ? " " : " spatial averaging, "}volume & time alignment...`);
-      if (useAudyFiltering) { await prepareAudyFilteringData(); }
       await initializeTrims();
       await timeAlignSpeakers();
       await initializeSubwoofers();
@@ -1011,44 +981,155 @@
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
+    async function updateEQTargetSettings(idx, start, end, isSub) {
+      // line up response to target similar to REW; limit SW TC level determination range to 20-120hz if bandwidth exceeds it
+      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "1%2F6")
+                                  : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "1%2F6");
+      await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
+      await postNext('Smooth', idx, { smoothing: "Var" });
+      await postNext('Smooth', idx, { smoothing: "Var" });
+      await postSafe(`${baseUrl}/${idx}/target-settings`, {
+        shape: isSub ? "Subwoofer" : "Full range",
+        lowFreqCutoffHz: (isSub && start === 10) ? 0 : start,
+        lowFreqSlopedBPerOctave: 48, // steep slope to EQ without effect and keep REW happy
+        bassManagementCutoffHz: (isSub && end === 320) ? 20000 : end,
+        bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
+      }, "Update processed");
+      // return the tc level offset
+      return tcLevelOffset;
+    }
+    async function updateEQFilterSettings(start, end, indMaxBoost, ovMaxBoost, LSMin, LSMax, HSMin, HSMax) {
+      await postSafe(`http://localhost:4735/eq/match-target-settings`, {
+        startFrequency: start, endFrequency: end,
+        individualMaxBoostdB: indMaxBoost, overallMaxBoostdB: ovMaxBoost, flatnessTargetdB: 1,
+        allowNarrowFiltersBelow200Hz: true, varyQAbove200Hz: false,
+        allowLowShelf: true, lowShelfMin: LSMin, lowShelfMax: LSMax,
+        allowHighShelf: true, highShelfMin: HSMin, highShelfMax: HSMax
+      }, "Update processed");
+    }
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
       const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
       return offset;
     }
-    async function addDialogueEnhancerFilter(idx) {
-      let rewEQIdx = 20; // start from last; most likely to be available after auto-EQ
-      async function addPEQFilter(freq, gain, q) {
-        try {
-          if (rewEQIdx < 1 || rewEQIdx > 20) {
-            throw new Error;
-          }
-          await postSafe(`${baseUrl}/${idx}/filters`, {
-            filters: [{
-              "index": rewEQIdx--, // work backwards from 20
-              "type": "PK",
-              "enabled": true,
-              "isAuto": true,
-              "frequency": freq,
-              "gaindB": gain,
-              "q": q
-            }]
-          }, "Filters set");
-        }
-        catch (error) {
-          console.error(`Failed to add DE PEQ filter <${freq}hz ${gain}dB ${q}Q> to REW EQ index#${rewEQIdx}!`);
-          throw new Error;
+    async function getNextEQIdx(idx) {
+      const filters = await fetchSafe("filters", idx);
+      for (let i = 0; i < Math.min(20, filters.length); i++) {
+        if (filters[i]["type"] === "None") {
+          return (i + 1);
         }
       }
-      // Q value-------------------|
-      // Gain dB---------------|   |
-      // Frequency hz------|   |   |
-      await addPEQFilter(1500, 3, 0.5); // repeat and/or customize as needed
+      return -1;
     }
-    async function generateFilters() {
-      if (useAudyFiltering) { return; } // no need to EQ
-      /*EQ parameters start*/
+    async function clearFilters(idx) {
+      const filters = await fetchSafe("filters", idx);
+      // set anything non-None to None
+      for (let i = 0; i < filters.length; i++) {
+        if (filters[i]["type"] != "None") {
+          await postSafe(`${baseUrl}/${idx}/filters`, {
+            filters: [{ "index": i + 1, "type": "None" }]
+          }, "Filters set");
+        }
+      }
+    }
+    async function addLSFilter(idx, freq, gain) {
+      try {
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) { throw new Error; }
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            "index": eqIdx,
+            "type": "LS",
+            "enabled": true,
+            "frequency": freq,
+            "gaindB": gain
+          }]
+        }, "Filters set");
+      }
+      catch (error) {
+        console.error(`Failed to add low shelf filter <${freq}hz ${gain}dB> - measurement #${idx} has no more available EQ slots left in REW!`);
+        throw new Error;
+      }
+    }
+    async function addHSFilter(idx, freq, gain) {
+      try {
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) { throw new Error; }
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            "index": eqIdx,
+            "type": "HS",
+            "enabled": true,
+            "frequency": freq,
+            "gaindB": gain
+          }]
+        }, "Filters set");
+      }
+      catch (error) {
+        console.error(`Failed to add high shelf filter <${freq}hz ${gain}dB> - measurement #${idx} has no more available EQ slots left in REW!`);
+        throw new Error;
+      }
+    }
+    async function addPEQFilter(idx, freq, gain, q) {
+      try {
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) { throw new Error; }
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            "index": eqIdx,
+            "type": "PK",
+            "enabled": true,
+            "isAuto": true,
+            "frequency": freq,
+            "gaindB": gain,
+            "q": q
+          }]
+        }, "Filters set");
+      }
+      catch (error) {
+        console.error(`Failed to add PEQ filter <${freq}hz ${gain}dB ${q}q> - measurement #${idx} has no more available EQ slots left in REW!`);
+        throw new Error;
+      }
+    }
+    async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
+      /***Customization start***/
+
+      if (cmdId === "C" && dialogueEnhancer) {
+        // Q value------------------------|
+        // Gain dB--------------------|   |
+        // Frequency hz-----------|   |   |
+        await addPEQFilter(idx, 1500, 3, 0.5); // repeat and/or customize as needed
+      }
+
+      // use without if statement to apply to all channels
+      //await addHSFilter(idx, 2000, 9); // repeat and/or customize as needed
+
+      // low and high shelf filters are available as choices
+      //if (cmdId.startsWith("SW")) {
+      //  await addLSFilter(idx, 50, 5);
+      //}
+
+      // add upto 20 PEQ filters for any channel
+      //if (cmdId === "FL") {
+      //  await addPEQFilter(idx, 600, -6, 1.2); // repeat and/or customize as needed
+      //  await addPEQFilter(idx, 1000, 1.5, 3.1); // repeat and/or customize as needed
+      //  await addPEQFilter(idx, 3000, 9, 5); // repeat and/or customize as needed
+      //}
+
+      /***Customization end***/
+
+      // combine custom filters with autoEQ filters
+      const customFilter = await postNext('Generate filters measurement', idx);
+      const customFilterIdx = Object.keys(customFilter.results)[0];
+      // apply custom filters to auto-EQ filters
+      const combinedFilter = await postNext('Arithmetic', [baseEQFilterIdx, customFilterIdx], {function: "A * B"});
+      await postDelete(customFilterIdx);
+      await postDelete(baseEQFilterIdx); // combined filter is at auto-EQ filter index now
+    }
+    async function generateREWFilters() {
+      /***Customization start***/
+
       // boost parameters for speakers in dB
       const speakerIndividualMaxBoost = 3;
       const speakerOverallMaxBoost = 0;
@@ -1059,42 +1140,25 @@
       const subwooferOverallMaxBoost = 3;
       const subwooferLowShelfMin = -6;
       const subwooferLowShelfMax = 6;
-      /*EQ parameters end*/
+
+      /***Customization end***/
       console.log(`Generating min. phase EQ filters...`);
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // line up response to target similar to REW; limit SW TC level determination range to 20-120hz if bandwidth exceeds it
-        const tcLevelOffset = isSub ? await getTrim(avgIdx, Math.max(20, m3dBPoints[i][0]), Math.min(120, m3dBPoints[i][1]), "1%2F6")
-                                    : await getTrim(avgIdx, Math.max(200, m3dBPoints[i][0]), Math.min(2000, m3dBPoints[i][1]), "1%2F6");
-        await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
-        await postNext('Smooth', mlpIdx, { smoothing: "Var" });
-        await postNext('Smooth', avgIdx, { smoothing: "Var" });
-        await postSafe(`${baseUrl}/${avgIdx}/target-settings`, {
-          shape: isSub ? "Subwoofer" : "Full range",
-          lowFreqCutoffHz: (isSub && m3dBPoints[i][0] === 10) ? 0 : m3dBPoints[i][0],
-          lowFreqSlopedBPerOctave: 48, // steep slope to EQ without effect and keep REW happy
-          bassManagementCutoffHz: (isSub && m3dBPoints[i][1] === 320) ? 20000 : m3dBPoints[i][1],
-          bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
-        }, "Update processed");
-        // tinker as needed
-        await postSafe(`http://localhost:4735/eq/match-target-settings`, {
-          startFrequency: m3dBPoints[i][0],
-          endFrequency: m3dBPoints[i][1],
-          individualMaxBoostdB: isSub ? subwooferIndividualMaxBoost : speakerIndividualMaxBoost,
-          overallMaxBoostdB: isSub ? subwooferOverallMaxBoost : speakerOverallMaxBoost,
-          flatnessTargetdB: 1,
-          allowNarrowFiltersBelow200Hz: true,
-          varyQAbove200Hz: false,
-          allowLowShelf: isSub,
-          lowShelfMin: subwooferLowShelfMin,
-          lowShelfMax: subwooferLowShelfMax,
-          allowHighShelf: !isSub,
-          highShelfMin: speakerHighShelfMin,
-          highShelfMax: speakerHighShelfMax
-        }, "Update processed");
+        const tcLevelOffset = await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        if (isSub) {
+          await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
+            subwooferIndividualMaxBoost, subwooferOverallMaxBoost,
+            subwooferLowShelfMin, subwooferLowShelfMax, 0, 0); // no HS
+        }
+        else {
+          await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
+            speakerIndividualMaxBoost, speakerOverallMaxBoost,
+            0, 0, speakerHighShelfMin, speakerHighShelfMax); // no LS
+        }
         try {
           await postNext('Match target', avgIdx);
         }
@@ -1102,17 +1166,15 @@
           // not really an issue if it fails
           console.debug(`${commandId[i]} could not be equalized!`);
         }
-        if (commandId[i] === "C" && dialogueEnhancer) {
-          await addDialogueEnhancerFilter(avgIdx);
-        }
         // cleanup EQ params
         await postSafe(`${baseUrl}/${avgIdx}/target-settings`, { shape: "None" }, "Update processed");
         // generate filters & auto level it
         const filter = await postNext('Generate filters measurement', avgIdx);
         const filterIdx = Object.keys(filter.results)[0];
+        await clearFilters(mlpIdx); // use mlp as a placeholder for custom filters
+        await addCustomREWFilters(mlpIdx, commandId[i], filterIdx); // add any user desired customizations
         cmdIdFilterIndices[commandId[i]] = filterIdx;
-        const filterName = `${commandId[i]}-filters`;
-        await fetch_mREW(filterIdx, 'PUT', { title: filterName });
+        await fetch_mREW(filterIdx, 'PUT', { title: `${commandId[i]}-filters` });
         const ALOffset = await getALOffset(filterIdx, isSub);
         await postNext('Add SPL offset', filterIdx, { offset: -ALOffset });
         // generate predicted equalized response using the auto leveled filter
@@ -1120,13 +1182,11 @@
         const mlpEqResponse = await postNext('Arithmetic', [mlpIdx, filterIdx], {function: "A * B"});
         const mlpEqResponseIdx = Object.keys(mlpEqResponse.results)[0];
         cmdIdMLPIndicesEQ[commandId[i]] = mlpEqResponseIdx;
-        const mlpEqResponseName = `${commandId[i]}-mlp-equalized`;
-        await fetch_mREW(mlpEqResponseIdx, 'PUT', { title: mlpEqResponseName });
+        await fetch_mREW(mlpEqResponseIdx, 'PUT', { title: `${commandId[i]}-mlp-equalized` });
         const eqResponse = await postNext('Arithmetic', [avgIdx, filterIdx], {function: "A * B"});
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
         cmdIdAVGIndicesEQ[commandId[i]] = eqResponseIdx;
-        const eqResponseName = `${commandId[i]}-avg-equalized`;
-        await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
+        await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
         // compensate equalized response & trims for auto level as well as tc level offset
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
         const trimOffset = tcLevelOffset + Math.round(ALOffset * 2) / 2; //round to nearest 0.5
@@ -1147,15 +1207,46 @@
         console.infoUpdate(logUpdate);
       }
     }
-    function sanityCheckSpeakerTrims() {
-      // TODO: think of a cleaner way to do this
-      if (useAudyFiltering && dialogueEnhancer) {
-        for (let i = 1; i < nSpeakers; i++) {
-          if (commandId[i] === "C") {
-            customLevel[i] += audyDEFilterOffset;
-          }
+    async function generateTargetCurves() {
+      console.log("Generating target curves for each channel...");
+      // generate target curve at 0dB
+      await fetchSafe('target-level', 1, 0.0);
+      const targetCurve = await postNext('Generate target measurement', 1);
+      const targetCurveIdx = Object.keys(targetCurve.results)[0];
+      // add in user customizations and generate the target curve for each channel
+      for (let i = 1; i <= nChannels; i++) {
+        console.info(`${commandId[i].padStart(3, ".")} - generating target curve...`);
+        const isSub = commandId[i].startsWith("SW");
+        const mlpIdx = cmdIdMLPIndices[commandId[i]];
+        // create a blank filter
+        await clearFilters(mlpIdx);
+        const customFilter = await postNext('Generate filters measurement', mlpIdx); // should be flat
+        const customFilterIdx = Object.keys(customFilter.results)[0];
+        // add in all user customizations on top of the blank filter & calculate any AL offset
+        await addCustomREWFilters(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
+        const ALOffset = await getALOffset(customFilterIdx, isSub);
+        // get rid of phase data since it needs to be applied to target curve which is magnitude only
+        await postSafe(`${baseUrl}/${customFilterIdx}/command`, { command: "Response magnitude copy" }, "Completed");
+        await postDelete(customFilterIdx); // custom filter idx is now magnitude only
+        // combine any custom filter with the target curve and AL offset it
+        // note: this will be the "filter" in audyssey filtering mode
+        await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
+        await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
+        await postNext('Add SPL offset', customFilterIdx, { offset: -ALOffset });
+        await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
+        cmdIdFilterIndices[commandId[i]] = customFilterIdx - 1; // baseline target curve will be deleted and everything will shift by -1
+        const trimOffset = Math.round(ALOffset * 2) / 2;
+        let logUpdate = `${commandId[i].padStart(3, ".")} - target curve created`;
+        if (trimOffset != 0) {
+          const customLevelOriginal = customLevel[i];
+          customLevel[i] += trimOffset;
+          logUpdate += ` | ${commandId[i].padStart(3, ".")} auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
+        console.infoUpdate(logUpdate);
       }
+      await postDelete(targetCurveIdx);
+    }
+    function sanityCheckSpeakerTrims() {
       // if a speaker is too sensitive or not sensitive enough, it may end up outside +/-12dB
       const minSpeakerTrim = Math.min(...customLevel.slice(1, nSpeakers + 1));
       const maxSpeakerTrim = Math.max(...customLevel.slice(1, nSpeakers + 1));
@@ -1979,6 +2070,7 @@
       return await postNext('Generate predicted measurement', i);
     }
     async function getFilterPoints(fltIdx, useAntiHF=false) {
+      // preps the filter as a frequency response array from 10hz-24khz
       const fltPoints = [];
       const octave = Math.pow(2, 1 / 96);
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', fltIdx);
@@ -2027,19 +2119,8 @@
       }
       // inject filters/TC into ady
       for (let i = 1; i <= nSpeakers; i++) {
-        let customTargetCurvePoints;
-        if (useAudyFiltering) {
-          if (commandId[i] === "C" && dialogueEnhancer) {
-            customTargetCurvePoints = audyDEFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-          }
-          else {
-            customTargetCurvePoints = audyFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-          }
-        }
-        else {
-          const fltIdx = cmdIdFilterIndices[commandId[i]];
-          customTargetCurvePoints = await getFilterPoints(fltIdx, true);
-        }
+        const fltIdx = cmdIdFilterIndices[commandId[i]];
+        const customTargetCurvePoints = await getFilterPoints(fltIdx, true);
         const thisChannel = jsonData.detectedChannels.find(channel => channel.commandId === commandId[i]);
         thisChannel.customTargetCurvePoints = customTargetCurvePoints;
         thisChannel.midrangeCompensation = false;
@@ -2051,14 +2132,8 @@
         thisChannel.channelReport.customEnSpeakerConnect = customCrossover[i] === "L" ? 2 : 1;
       }
       if (!noSub) {
-        let customTargetCurvePointsSub;
-        if (useAudyFiltering) {
-          customTargetCurvePointsSub = audySubFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-        }
-        else {
-          const fltIdxSub = cmdIdFilterIndices[commandId[nChannels]];
-          customTargetCurvePointsSub = await getFilterPoints(fltIdxSub);
-        }
+        const fltIdxSub = cmdIdFilterIndices[commandId[nChannels]];
+        const customTargetCurvePointsSub = await getFilterPoints(fltIdxSub);
         const subChannel = jsonData.detectedChannels[nChannels - 1];
         subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
         let k = 0;
