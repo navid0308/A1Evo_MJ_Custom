@@ -981,20 +981,21 @@
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
-    async function updateEQTargetSettings(idx, low3dBPoint, high3dBPoint, isSub) {
+    async function updateEQTargetSettings(idx, start, end, isSub) {
       // line up response to target similar to REW; limit SW TC level determination range to 20-120hz if bandwidth exceeds it
-      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, low3dBPoint), Math.min(120, high3dBPoint), "1%2F6")
-                                  : await getTrim(idx, Math.max(200, low3dBPoint), Math.min(2000, high3dBPoint), "1%2F6");
+      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "1%2F6")
+                                  : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "1%2F6");
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postNext('Smooth', idx, { smoothing: "Var" });
       await postNext('Smooth', idx, { smoothing: "Var" });
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
-        lowFreqCutoffHz: (isSub && low3dBPoint === 10) ? 0 : low3dBPoint,
+        lowFreqCutoffHz: (isSub && start === 10) ? 0 : start,
         lowFreqSlopedBPerOctave: 48, // steep slope to EQ without effect and keep REW happy
-        bassManagementCutoffHz: (isSub && high3dBPoint === 320) ? 20000 : high3dBPoint,
+        bassManagementCutoffHz: (isSub && end === 320) ? 20000 : end,
         bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
       }, "Update processed");
+      // return the tc level offset
       return tcLevelOffset;
     }
     async function updateEQFilterSettings(start, end, indMaxBoost, ovMaxBoost, LSMin, LSMax, HSMin, HSMax) {
@@ -1093,27 +1094,31 @@
     }
     async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
       /***Customization start***/
+
       if (cmdId === "C" && dialogueEnhancer) {
         // Q value------------------------|
         // Gain dB--------------------|   |
         // Frequency hz-----------|   |   |
         await addPEQFilter(idx, 1500, 3, 0.5); // repeat and/or customize as needed
       }
-      // use without if statement to apply to all channels, example-
+
+      // use without if statement to apply to all channels
       //await addHSFilter(idx, 2000, 9); // repeat and/or customize as needed
+
       // low and high shelf filters are available as choices
       //if (cmdId.startsWith("SW")) {
-        // Gain dB-----------------|
-        // Frequency hz--------|   |
       //  await addLSFilter(idx, 50, 5);
       //}
-      // add upto 20 PEQ filters for any channel, example-
+
+      // add upto 20 PEQ filters for any channel
       //if (cmdId === "FL") {
       //  await addPEQFilter(idx, 600, -6, 1.2); // repeat and/or customize as needed
       //  await addPEQFilter(idx, 1000, 1.5, 3.1); // repeat and/or customize as needed
       //  await addPEQFilter(idx, 3000, 9, 5); // repeat and/or customize as needed
       //}
+
       /***Customization end***/
+
       // combine custom filters with autoEQ filters
       const customFilter = await postNext('Generate filters measurement', idx);
       const customFilterIdx = Object.keys(customFilter.results)[0];
@@ -1124,6 +1129,7 @@
     }
     async function generateREWFilters() {
       /***Customization start***/
+
       // boost parameters for speakers in dB
       const speakerIndividualMaxBoost = 3;
       const speakerOverallMaxBoost = 0;
@@ -1134,6 +1140,7 @@
       const subwooferOverallMaxBoost = 3;
       const subwooferLowShelfMin = -6;
       const subwooferLowShelfMax = 6;
+
       /***Customization end***/
       console.log(`Generating min. phase EQ filters...`);
       for (let i = 1; i <= nChannels; i++) {
