@@ -246,6 +246,7 @@
     .speaker-content h3,
     .speaker-content .label {
       color: #FFA500;
+      font-size: 15px;
       font-weight: bold;
     }
     .filter-table {
@@ -273,7 +274,7 @@
     .toggle-all {
       cursor: pointer;
       font-weight: bold;
-      font-size: 11px;
+      font-size: 12px;
       padding: 6px 10px;
       border: 1px solid #444;
       margin-bottom: 10px;
@@ -450,9 +451,6 @@
       font-size: 14px;
       transition: font-size 0.3s ease;
     }
-    #advanceToggleText.expanded-font {
-      font-size: 18px;
-    }
     .advance-content {
       margin-top: 10px;
       padding: 10px;
@@ -531,7 +529,7 @@
       <div class="advance-content" id="advanceContent">
     <!-- Speaker Section -->
     <div class="section">
-      <h3 style="color:#FFA500; font-size: 16px;">Speaker Filter Boost (REW filtering)</h3>
+      <h3 style="color:#FFA500; font-size: 14px;">Speaker Filter Boost (REW filtering)</h3>
 
       <div class="slider-row">
         <div class="slider-half">
@@ -540,7 +538,7 @@
             <span id="spkIndBoostLabel">3 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="spkIndBoost" class="slider" min="0" max="12" step="1" value="3">
+            <input type="range" id="spkIndBoost" class="slider" min="0" max="10" step="1" value="3">
             <div class="tooltip">Speaker individual boost</div>
           </div>
         </div>
@@ -551,7 +549,7 @@
             <span id="spkOverAllBoostLabel">0 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="spkOverAllBoost" class="slider" min="0" max="12" step="1" value="0">
+            <input type="range" id="spkOverAllBoost" class="slider" min="0" max="10" step="1" value="0">
             <div class="tooltip">Speaker overall boost</div>
           </div>
         </div>
@@ -564,7 +562,7 @@
             <span id="spkHighShelfMinLabel">-6 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="spkHighShelfMin" class="slider" min="-12" max="0" step="1" value="-6">
+            <input type="range" id="spkHighShelfMin" class="slider" min="-10" max="0" step="1" value="-6">
             <div class="tooltip">Speaker minimum high-shelf filter</div>
           </div>
         </div>
@@ -575,7 +573,7 @@
             <span id="spkHighShelfMaxLabel">6 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="spkHighShelfMax" class="slider" min="0" max="12" step="1" value="6">
+            <input type="range" id="spkHighShelfMax" class="slider" min="0" max="10" step="1" value="6">
             <div class="tooltip">Speaker maximum high-shelf filter</div>
           </div>
         </div>
@@ -584,7 +582,7 @@
 
     <!-- Subwoofer Section -->
     <div class="section">
-      <h3 style="color:#FFA500; font-size: 16px;">Subwoofer Filter Boost (REW filtering)</h3>
+      <h3 style="color:#FFA500; font-size: 14px;">Subwoofer Filter Boost (REW filtering)</h3>
 
       <div class="slider-row">
         <div class="slider-half">
@@ -593,7 +591,7 @@
             <span id="subIndividualMaxBoostLabel">6 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="subIndividualMaxBoost" class="slider" min="0" max="12" step="1" value="6">
+            <input type="range" id="subIndividualMaxBoost" class="slider" min="0" max="10" step="1" value="6">
             <div class="tooltip">Subwoofer individual boost</div>
           </div>
         </div>
@@ -604,7 +602,7 @@
             <span id="subOverallMaxBoostLabel">3 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="subOverallMaxBoost" class="slider" min="0" max="12" step="1" value="3">
+            <input type="range" id="subOverallMaxBoost" class="slider" min="0" max="10" step="1" value="3">
             <div class="tooltip">Subwoofer maximum overall boost</div>
           </div>
         </div>
@@ -617,7 +615,7 @@
             <span id="subLowShelfMinLabel">-6 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="subLowShelfMin" class="slider" min="-12" max="0" step="1" value="-6">
+            <input type="range" id="subLowShelfMin" class="slider" min="-10" max="0" step="1" value="-6">
             <div class="tooltip">Subwoofer minimum low-shelf filter</div>
           </div>
         </div>
@@ -628,24 +626,24 @@
             <span id="subLowShelfMaxLabel">6 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="subLowShelfMax" class="slider" min="0" max="12" step="1" value="6">
+            <input type="range" id="subLowShelfMax" class="slider" min="0" max="10" step="1" value="6">
             <div class="tooltip">Subwoofer maximum low-shelf filter</div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="toggle-all" onclick="toggleAllSpeakers()" id="toggleAll">[ + ] Expand All</div>
+    <div class="toggle-all" onclick="toggleAllSpeakers()" id="toggleAll">[ + ] EQ Filters</div>
 
-    <span class="explanation">👉 Available when "Optimize Calibration" is illuminated.</span>
+    <span class="explanation">👉 Available <b>only</b> when "Optimize Calibration" is illuminated.</span>
     <div id="filtersControls" style="display:none; margin-top:6px;">
       <span title="Export Filters" onclick="exportFilters()" 
-            style="cursor:pointer; font-size:12px; color:gold; margin-right:12px;">
-        💾 Save Per Speaker Filters for Next Run
+            style="cursor:pointer; font-size:12px; color:#33cc33; margin-right:12px;">
+        💾 Save Speaker Filters for Next Run
       </span>
       <label for="importFile" title="Import Filters" 
-             style="cursor:pointer; font-size:12px; color:gold;">
-        📂 Import Per Speaker Saved Filters
+             style="cursor:pointer; font-size:12px; color:#33cc33;">
+        📂 Import Saved Speaker Filters
       </label>
       <input type="file" id="importFile" style="display:none;" />
           <span style="margin:10px 0; text-align:left;">
@@ -748,8 +746,6 @@
 
       const contents = document.querySelectorAll(".speaker-content");
       contents.forEach(el => el.style.display = "none");
-      const toggleBtn = document.getElementById("toggleAll");
-      if (toggleBtn) toggleBtn.textContent = "[ + ] Custom Filters";
       // ============================
       // END Create Dynamic Speaker PEQ
       // ============================
@@ -1803,14 +1799,14 @@
       }
 
       if (toggleBtn) {
-        toggleBtn.textContent = isCollapsed ? "[ – ] Custom Filters" : "[ + ] Custom Filters";
+        toggleBtn.textContent = isCollapsed ? "[ – ] EQ Filters" : "[ + ] EQ Filters";
       }
     }
 
     document.addEventListener("DOMContentLoaded", () => {
       const toggleBtn = document.getElementById("toggleAll");
       if (toggleBtn) {
-        toggleBtn.textContent = "[ + ] Custom Filters";
+        toggleBtn.textContent = "[ + ] EQ Filters";
         toggleBtn.disabled = false;
       }
 
@@ -1820,7 +1816,7 @@
           const contents = document.querySelectorAll(".speaker-content");
           contents.forEach(el => el.style.display = "none");
 
-          toggleBtn.textContent = "[ + ] Custom Filters";
+          toggleBtn.textContent = "[ + ] EQ Filters";
 
           const controls = document.getElementById("filtersControls");
           if (controls) controls.style.display = "none";
@@ -1862,13 +1858,6 @@
         });
       });
 
-      /*const cFreq = document.getElementById("cFreq1");
-      const cGain = document.getElementById("cGain1");
-      const cQ    = document.getElementById("cQ1");
-      if (cFreq) cFreq.value = 1500;
-      if (cGain) cGain.value = 3;
-      if (cQ)    cQ.value    = 0.5;*/
-
       commandId.slice(1).forEach(p => updateFilterChain(p.toLowerCase()));
     }
 
@@ -1880,6 +1869,13 @@
       const freqEl = document.getElementById(`${idPrefix}Freq${filterIndex}`);
       const gainEl = document.getElementById(`${idPrefix}Gain${filterIndex}`);
       const qEl    = document.getElementById(`${idPrefix}Q${filterIndex}`);
+
+      if (type === "None") {
+        freqEl.disabled = true;
+        gainEl.disabled = true;
+        qEl.disabled = true;
+        return;
+      }
 
       const noGainTypes = ["LP","HP","LP1","HP1","LP Q","HP Q","Notch","Notch Q","All pass"];
       const noQTypes    = ["Modal","LP","HP","LP1","HP1","LS","HS","LS 6dB","HS 6dB","LS 12dB","HS 12dB","Notch"];
