@@ -1750,9 +1750,9 @@
           typeEl.value = "None";
           typeEl.disabled = false;
 
-          if (freqEl) { freqEl.value = 1000; freqEl.disabled = false; }
-          if (gainEl) { gainEl.value = 0;    gainEl.disabled = false; }
-          if (qEl)    { qEl.value    = 0.5;  qEl.disabled    = false; }
+          if (freqEl) { freqEl.value = ""; freqEl.disabled = false; }
+          if (gainEl) { gainEl.value = "";    gainEl.disabled = false; }
+          if (qEl)    { qEl.value    = "";  qEl.disabled    = false; }
 
           updateInputStates(typeEl);
         } else {
