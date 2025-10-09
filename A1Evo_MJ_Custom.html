@@ -526,7 +526,7 @@
 
     <div class="advanced-container" id="advancedContainer">
       <div class="toggle-advance">
-        <span id="advanceToggleText" onclick="toggleAdvance()">[ + ] Advance User Options</span>
+        <span id="advanceToggleText" onclick="toggleAdvance()">[ + ] Advanced Settings</span>
       </div>
       <div class="advance-content" id="advanceContent">
     <!-- Speaker Section -->
@@ -613,23 +613,23 @@
       <div class="slider-row">
         <div class="slider-half">
           <div class="slider-label">
-            <span>Subwoofer Min High-shelf</span>
+            <span>Subwoofer Min Low-shelf</span>
             <span id="subLowShelfMinLabel">-6 dB</span>
           </div>
           <div class="tooltip-container">
             <input type="range" id="subLowShelfMin" class="slider" min="-12" max="0" step="1" value="-6">
-            <div class="tooltip">Subwoofer minimum high-shelf filter</div>
+            <div class="tooltip">Subwoofer minimum low-shelf filter</div>
           </div>
         </div>
 
         <div class="slider-half">
           <div class="slider-label">
-            <span>Subwoofer Max High-shelf</span>
+            <span>Subwoofer Max Low-shelf</span>
             <span id="subLowShelfMaxLabel">6 dB</span>
           </div>
           <div class="tooltip-container">
             <input type="range" id="subLowShelfMax" class="slider" min="0" max="12" step="1" value="6">
-            <div class="tooltip">Subwoofer maximum high-shelf filter</div>
+            <div class="tooltip">Subwoofer maximum low-shelf filter</div>
           </div>
         </div>
       </div>
@@ -819,7 +819,7 @@
       const contents = document.querySelectorAll(".speaker-content");
       contents.forEach(el => el.style.display = "none");
       const toggleBtn = document.getElementById("toggleAll");
-      if (toggleBtn) toggleBtn.textContent = "[ + ] Expand Spk PEQ";
+      if (toggleBtn) toggleBtn.textContent = "[ + ] Custom Filters";
       // ============================
       // END Creat Dynamic Speaker PEQ
       // ============================
@@ -1463,7 +1463,7 @@
       const isVisible = content.style.display === "block";
       content.style.display = isVisible ? "none" : "block";
       container.classList.toggle("expanded", !isVisible);
-      toggleText.textContent = isVisible ? "[ + ] Advance User Options" : "[ − ] Advance User Options";
+      toggleText.textContent = isVisible ? "[ + ] Advanced Settings" : "[ − ] Advanced Settings";
       toggleText.classList.toggle("expanded-font", !isVisible);
     }
 
@@ -1556,7 +1556,7 @@
         if (content && container && toggleText) {
           content.style.display = "none";
           container.classList.remove("expanded");
-          toggleText.textContent = "[ + ] Advance User Options";
+          toggleText.textContent = "[ + ] Advanced Settings";
           toggleText.classList.remove("expanded-font");
         }
       });
@@ -1803,14 +1803,14 @@
       }
 
       if (toggleBtn) {
-        toggleBtn.textContent = isCollapsed ? "[ – ] Collapse All PEQ" : "[ + ] Expand Spk PEQ";
+        toggleBtn.textContent = isCollapsed ? "[ – ] Custom Filters" : "[ + ] Custom Filters";
       }
     }
 
     document.addEventListener("DOMContentLoaded", () => {
       const toggleBtn = document.getElementById("toggleAll");
       if (toggleBtn) {
-        toggleBtn.textContent = "[ + ] Expand Spk PEQ";
+        toggleBtn.textContent = "[ + ] Custom Filters";
         toggleBtn.disabled = false;
       }
 
@@ -1820,7 +1820,7 @@
           const contents = document.querySelectorAll(".speaker-content");
           contents.forEach(el => el.style.display = "none");
 
-          toggleBtn.textContent = "[ + ] Expand Spk PEQ";
+          toggleBtn.textContent = "[ + ] Custom Filters";
 
           const controls = document.getElementById("filtersControls");
           if (controls) controls.style.display = "none";
@@ -1832,7 +1832,7 @@
     // Filter Dropdowns
     // ============================
     const filterTypes = [
-      "None", "PK", "LS", "HS", "All pass", /*"Modal",
+      "None", "PK", "LS", "HS" /*, "All pass", "Modal",
       "LP", "HP", "LP1", "HP1", "LP Q", "HP Q",
       "LS 6dB", "HS 6dB", "LS 12dB", "HS 12dB",
       "LS Q", "HS Q", "Notch", "Notch Q"*/
@@ -2755,8 +2755,7 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
           // generate final-mlp
           console.infoUpdate(`Generating final output for ${commandId[i]}-mlp...`);
           let spFinalInfo = "";
-          //if (commandId[i] === "C" && dialogueEnhancer) { spFinalInfo += "-DE"; }
-          if (commandId[i] === "C") { spFinalInfo += "-DE"; }
+          if (commandId[i] === "C" && dialogueEnhancer) { spFinalInfo += "-DE"; }
           if (customCrossover[i] === "L") { spFinalInfo += "-Large"; }
           else { spFinalInfo += `-${customCrossover[i]}hz-xo`; }
           let spFinalName = `${commandId[i]}final-mlp${spFinalInfo}`;
