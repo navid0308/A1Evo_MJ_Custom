@@ -637,7 +637,7 @@
 
     <div class="toggle-all" onclick="toggleAllSpeakers()" id="toggleAll">[ + ] Expand All</div>
 
-    <span class="explanation">👉 Works only with "Dialogue Enhancer" is checked.</span>
+    <span class="explanation">👉 Available when "Optimize Calibration" is illuminated.</span>
     <div id="filtersControls" style="display:none; margin-top:6px;">
       <span title="Export Filters" onclick="exportFilters()" 
             style="cursor:pointer; font-size:12px; color:gold; margin-right:12px;">
@@ -700,6 +700,64 @@
         useAudyFiltering = true;
       }
     });
+    function populateCustomFilterTable() {
+      // ============================
+      // Creat Dynamic Speaker PEQ based on ADY upload
+      // ============================
+
+      document.getElementById("speakersContainer").innerHTML = "";
+
+      const speakerNames = {
+        C:   "Center",
+        FL:  "Front Left",
+        FR:  "Front Right",
+        CH:  "Center Height",
+        FDL: "Front Dolby Left",
+        FDR: "Front Dolby Right",
+        SLA: "Surround Left",
+        SRA: "Surround Right",
+        SBL: "Surround Back Left",
+        SBR: "Surround Back Right",
+        SDL: "Surround Dolby Left",
+        SDR: "Surround Dolby Right",
+        SHL: "Surround Height Left",
+        SHR: "Surround Height Right",
+        FWL: "Front Wide Left",
+        FWR: "Front Wide Right",
+        TFL: "Top Front Left",
+        TFR: "Top Front Right",
+        TRL: "Top Rear Left",
+        TRR: "Top Rear Right",
+        TML: "Top Middle Left",
+        TMR: "Top Middle Right",
+        TS:  "Top Surround",
+
+        // Subs
+        SW1:  "Subwoofer",
+      };
+      let subAdded = false;
+      commandId.slice(1).forEach(spk => {
+        if (spk.startsWith("SW")) {
+          if (subAdded) return;
+          spk = "SW1";
+          subAdded = true;
+        }
+        if (speakerNames[spk]) {
+          createSpeakerTable(spk, `${speakerNames[spk]} (${spk})`, 20);
+        } else {
+          createSpeakerTable(spk, `Speaker ${spk}`, 20);
+        }
+      });
+      populateFilterDropdowns();
+
+      const contents = document.querySelectorAll(".speaker-content");
+      contents.forEach(el => el.style.display = "none");
+      const toggleBtn = document.getElementById("toggleAll");
+      if (toggleBtn) toggleBtn.textContent = "[ + ] Custom Filters";
+      // ============================
+      // END Creat Dynamic Speaker PEQ
+      // ============================
+    }
     function extractAdy(event) {
       console.info("Initializing A1Evo MJ Custom...");
       const file = event.target.files[0];
@@ -766,63 +824,7 @@
           commandId.push(swCmdIds[0]);
         }
         commandId.unshift(undefined); // start at 1
-
-      // ============================
-      // Creat Dynamic Speaker PEQ based on ADY upload
-      // ============================
-
-      document.getElementById("speakersContainer").innerHTML = "";
-
-      const speakerNames = {
-        C:   "Center",
-        FL:  "Front Left",
-        FR:  "Front Right",
-        CH:  "Center Height",
-        FDL: "Front Dolby Left",
-        FDR: "Front Dolby Right",
-        SLA: "Surround Left",
-        SRA: "Surround Right",
-        SBL: "Surround Back Left",
-        SBR: "Surround Back Right",
-        SDL: "Surround Dolby Left",
-        SDR: "Surround Dolby Right",
-        SHL: "Surround Height Left",
-        SHR: "Surround Height Right",
-        FWL: "Front Wide Left",
-        FWR: "Front Wide Right",
-        TFL: "Top Front Left",
-        TFR: "Top Front Right",
-        TRL: "Top Rear Left",
-        TRR: "Top Rear Right",
-        TML: "Top Middle Left",
-        TMR: "Top Middle Right",
-        TS:  "Top Surround",
-
-        // Subs
-        SW1:  "Subwoofer",
-      };
-      let subAdded = false;
-      commandId.slice(1).forEach(spk => {
-        if (spk.startsWith("SW")) {
-          if (subAdded) return;       
-          spk = "SW1";               
-          subAdded = true;
-        }
-        if (speakerNames[spk]) {
-          createSpeakerTable(spk, `${speakerNames[spk]} (${spk})`, 20);
-        } else {
-          createSpeakerTable(spk, `Speaker ${spk}`, 20);
-        }
-      });
-      populateFilterDropdowns();
-
-      const contents = document.querySelectorAll(".speaker-content");
-      contents.forEach(el => el.style.display = "none");
-      const toggleBtn = document.getElementById("toggleAll");
-      if (toggleBtn) toggleBtn.textContent = "[ + ] Custom Filters";
-      // ============================
-      // END Creat Dynamic Speaker PEQ
-      // ============================
+        populateCustomFilterTable();
         Object.freeze(noCenter);
         Object.freeze(swChannelCount);
         subLoTrim = -12 - subLoTrim;
@@ -1680,19 +1682,19 @@
 
       html += `<tr><td>Freq (Hz)</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" value="1000" step="0.5" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" min="10" max="20000" step="0.5" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
       html += `<tr><td>Gain (dB)</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" value="0" step="0.1" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" min="-20" max="10" step="0.1" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
       html += `<tr><td>Q</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" value="0.5" step="0.01" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" min="0.1" max="10" step="0.01" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
@@ -1788,6 +1790,8 @@
     // Expnad / Collapse Filters +-
     // ============================
     function toggleAllSpeakers() {
+      if (startButton.disabled) { return; }
+
       const contents = document.querySelectorAll(".speaker-content");
       const toggleBtn = document.getElementById("toggleAll");
 
@@ -1947,33 +1951,6 @@
     }
 
     // ============================
-    // Dialogue Enhancer Toggle
-    // ============================
-    function toggleDialogueEnhancerState() {
-      const checked = document.getElementById("dialogueEnhancer")?.checked ?? false;
-
-      const enhancerSection = document.getElementById("dialogueEnhancerSection");
-      if (enhancerSection) {
-        enhancerSection.querySelectorAll("select, input").forEach(el => {
-          if (el.id !== "dialogueEnhancer") el.disabled = !checked;
-        });
-      }
-
-      if (checked) {
-        commandId.slice(1).forEach(p => updateFilterChain(p.toLowerCase()));
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      populateFilterDropdowns();
-      const enhancerCheckbox = document.getElementById("dialogueEnhancer");
-      if (enhancerCheckbox) {
-        enhancerCheckbox.addEventListener("change", toggleDialogueEnhancerState);
-        toggleDialogueEnhancerState();
-      }
-    });
-
-    // ============================
     // Tabindex assignment
     // ============================
     document.addEventListener("DOMContentLoaded", () => {
@@ -2031,13 +2008,6 @@
         }
       }
     }
-
-// ========================
-// Main PEQ function
-// ========================
-async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
-  const prefix = cmdId.toLowerCase();
-  const isSub = cmdId.startsWith("SW");
     async function addLSFilter(idx, type, freq, gain) {
       try {
         if (!["LS", "LS 6dB", "LS 12dB"].includes(type)) {
@@ -2060,7 +2030,6 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
         throw error;
       }
     }
-
     async function addHSFilter(idx, type, freq, gain) {
       try {
         if (!["HS", "HS 6dB", "HS 12dB"].includes(type)) {
@@ -2068,7 +2037,6 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
         }
         const eqIdx = await getNextEQIdx(idx);
         if (eqIdx < 1) throw new Error;
-
         await postSafe(`${baseUrl}/${idx}/filters`, {
           filters: [{
             index: eqIdx,
@@ -2083,7 +2051,6 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
         throw error;
       }
     }
-
     async function addNoGainNoQFilter(idx, type, freq) {
       try {
         if (!["LP", "HP", "LP1", "HP1", "Notch"].includes(type)) {
@@ -2105,7 +2072,6 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
         throw error;
       }
     }
-
     async function addQFilter(idx, type, freq, q) {
       try {
         if (!["LP Q", "HP Q", "Notch Q", "All pass"].includes(type)) {
@@ -2128,7 +2094,6 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
         throw error;
       }
     }
-
     async function addPEQFilter(idx, type, freq, gain, q) {
       try {
         if (!["PK", "LS Q", "HS Q"].includes(type)) {
@@ -2154,6 +2119,12 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
       }
     }
 
+    // ========================
+    // Main PEQ function
+    // ========================
+    async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
+      const prefix = cmdId.toLowerCase();
+      const isSub = cmdId.startsWith("SW");
       for (let i = 1; i <= 20; i++) {
         const typeEl = document.getElementById(`${prefix}Type${i}`);
         const freqEl = document.getElementById(`${prefix}Freq${i}`);
@@ -2234,6 +2205,10 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
           // not really an issue if it fails
           console.debug(`${commandId[i]} could not be equalized!`);
         }
+        // add DE filter
+        if (commandId[i] === "C" && dialogueEnhancer) {
+          await addPEQFilter(avgIdx, "PK", 1500, 3, 0.5);
+        }
         // cleanup EQ params
         await postSafe(`${baseUrl}/${avgIdx}/target-settings`, { shape: "None" }, "Update processed");
         // generate filters & auto level it
@@ -2286,9 +2261,15 @@ async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
         console.info(`${commandId[i].padStart(3, ".")} - generating target curve...`);
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
-        // create a blank filter
+        const avgIdx = cmdIdAVGIndices[commandId[i]];
+        // start from clean slate
         await clearFilters(mlpIdx);
-        const customFilter = await postNext('Generate filters measurement', mlpIdx); // should be flat
+        await clearFilters(avgIdx);
+        // add DE if needed
+        if (commandId[i] === "C" && dialogueEnhancer) {
+          await addPEQFilter(avgIdx, "PK", 1500, 3, 0.5);
+        }
+        const customFilter = await postNext('Generate filters measurement', avgIdx);
         const customFilterIdx = Object.keys(customFilter.results)[0];
         // add in all user customizations on top of the blank filter & calculate any AL offset
         await addCustomREWFilters(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
