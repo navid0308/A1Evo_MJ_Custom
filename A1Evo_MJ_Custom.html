@@ -221,12 +221,269 @@
      text-align: right;
      margin-top: 3px;
      font-style: italic;
-   }
+    }
+    .speaker-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 0px;
+    }
+    #speakersContainer {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(32%, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .speaker-content {
+      background: #1f1f1f;
+      border: 1px solid #444;
+      border-radius: 10px;
+      padding: 15px;
+      overflow-x: auto;
+      color: #ddd;
+      font-size: 13px;
+    }
+    .speaker-content h3,
+    .speaker-content .label {
+      color: #FFA500;
+      font-weight: bold;
+    }
+    .filter-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 11px;
+      text-align: left;
+      background-color: #2a2a2a;
+      color: #ddd;
+    }
+    .filter-table th,
+    .filter-table td {
+      border: 1px solid #444;
+      padding: 4px 6px;
+    }
+    .filter-table input,
+    .filter-table select {
+      width: 60px;
+      font-size: 11px;
+      background-color: #1f1f1f;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 4px;
+    }
+    .toggle-all {
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 11px;
+      padding: 6px 10px;
+      border: 1px solid #444;
+      margin-bottom: 10px;
+      display: inline-block;
+      border-radius: 5px;
+      background-color: #2a2a2a;
+      color: #ddd;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+    .toggle-expand {
+      background: #3B82F6;
+      color: #fff;
+    }
+    .toggle-collapse {
+      background: #2D3748;
+      color: #fff;
+    }
+    .lowercase-text {
+      text-transform: none;
+    }
+    .slider-row {
+      display: flex;
+      gap: 34px;
+      flex-wrap: wrap;
+    }
+    .slider-half {
+      flex: 1 1 45%;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: -4px;
+    }
+    .slider-container {
+      margin: 10px 0;
+      width: 100%;
+    }
+    .slider {
+      width: 100%;
+      height: 6px;
+      background: linear-gradient(90deg, #3B82F6, #2D3748);
+      border-radius: 3px;
+      outline: none;
+      -webkit-appearance: none;
+      margin-top: 2px;
+    }
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #3B82F6;
+      border: 2px solid #1E40AF;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .slider::-webkit-slider-thumb:hover {
+      background: #1E40AF;
+      transform: scale(1.1);
+      border-color: #2563EB;
+    }
+    .tooltip-container {
+      position: relative;
+      width: 100%;
+    }
+    .tooltip-container:hover .tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .tooltip {
+      position: absolute;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #555;
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 14px;
+      text-align: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .tooltip::after {
+      content: '';
+      position: absolute;
+      top: 0%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 6px;
+      border-style: solid;
+      border-color: #2A2E37 transparent transparent transparent;
+    }
+    .tooltip-link {
+      position: relative;
+      display: inline-block;
+    }
+    .link-tooltip {
+      visibility: hidden;
+      width: 150px;
+      background-color: #555;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 2px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      font-size: 12px;
+      left: 50%;
+      margin-left: -87px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tooltip-link:hover .link-tooltip {
+      visibility: visible;
+      opacity: 0.9;
+    }
+    .link-tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: #555 transparent transparent transparent;
+    }
+    .advanced-container {
+      border: 1px solid #444;
+      border-radius: 8px;
+      background-color: #1f1f1f;
+      margin: 20px 0;
+      padding: 6px 10px;
+      font-family: 'Segoe UI', sans-serif;
+      transition: padding 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 0 0 transparent;
+    }
+    .advanced-container.expanded {
+      padding: 16px;
+      box-shadow: 0 0 10px rgba(255, 165, 0, 0.3); /* subtle orange glow */
+    }
+    .toggle-advance {
+      font-size: 14px;
+      font-weight: bold;
+      color: #FFA500;
+      margin-bottom: 6px;
+    }
+    .toggle-advance span {
+      cursor: pointer;
+      transition: color 0.3s ease;
+    }
+    .toggle-advance span:hover {
+      color: #FFB347;
+    }
+    #advanceToggleText {
+      font-size: 14px;
+      transition: font-size 0.3s ease;
+    }
+    #advanceToggleText.expanded-font {
+      font-size: 18px;
+    }
+    .advance-content {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #2a2a2a;
+      border-radius: 6px;
+      display: none;
+      color: #ddd;
+      font-size: 13px;
+    }
+    .clear-btn {
+      background-color: #1f1f1f; 
+      color: #FFA500;            
+      border: 1px solid #FFA500;  
+      border-radius: 4px;
+      padding: 1px 6px;        
+      font-size: 10px;       
+      font-weight: bold;
+      cursor: pointer;
+      width: auto;             
+      display: inline-block;
+    }
+
+    .clear-btn:hover {
+      background-color: #FFA500;  
+      color: #1f1f1f;          
+    }
   </style>
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v1.5.4</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -253,9 +510,7 @@
     <li class="smaller-font">***Press shift key + click on the 'Optimize calibration' button to bypass REW EQ filter generation and use Audyssey filtering***</li>
     <li class="smaller-font">When all is set, click the 'Optimize calibration' button below and sit back and relax. Your home cinema will be 'transformed' within minutes!</li>
   </ol>
-  <div class="button-container">
-    <button id="button2" onclick="startButton_clicked()" disabled>Optimize calibration</button>
-  </div>
+
   <div class="customization-options">
     <small>
       <label>
@@ -268,7 +523,143 @@
         Avoid subwoofer polarity inversion
         <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
-    </small>
+
+    <div class="advanced-container" id="advancedContainer">
+      <div class="toggle-advance">
+        <span id="advanceToggleText" onclick="toggleAdvance()">[ + ] Advance User Options</span>
+      </div>
+      <div class="advance-content" id="advanceContent">
+    <!-- Speaker Section -->
+    <div class="section">
+      <h3 style="color:#FFA500; font-size: 16px;">Speaker Filter Boost</h3>
+
+      <div class="slider-row">
+        <div class="slider-half">
+          <div class="slider-label">
+            <span>Speaker Individual Max Boost</span>
+            <span id="spkIndBoostLabel">3 dB</span>
+          </div>
+          <div class="tooltip-container">
+            <input type="range" id="spkIndBoost" class="slider" min="0" max="12" step="1" value="3">
+            <div class="tooltip">Speaker individual boost</div>
+          </div>
+        </div>
+
+        <div class="slider-half">
+          <div class="slider-label">
+            <span>Speaker Overall Max Boost</span>
+            <span id="spkOverAllBoostLabel">0 dB</span>
+          </div>
+          <div class="tooltip-container">
+            <input type="range" id="spkOverAllBoost" class="slider" min="0" max="12" step="1" value="0">
+            <div class="tooltip">Speaker overall boost</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-half">
+          <div class="slider-label">
+            <span>Speaker Min High-shelf</span>
+            <span id="spkHighShelfMinLabel">-6 dB</span>
+          </div>
+          <div class="tooltip-container">
+            <input type="range" id="spkHighShelfMin" class="slider" min="-12" max="0" step="1" value="-6">
+            <div class="tooltip">Speaker minimum high-shelf filter</div>
+          </div>
+        </div>
+
+        <div class="slider-half">
+          <div class="slider-label">
+            <span>Speaker Max High-shelf</span>
+            <span id="spkHighShelfMaxLabel">6 dB</span>
+          </div>
+          <div class="tooltip-container">
+            <input type="range" id="spkHighShelfMax" class="slider" min="0" max="12" step="1" value="6">
+            <div class="tooltip">Speaker maximum high-shelf filter</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subwoofer Section -->
+    <div class="section">
+      <h3 style="color:#FFA500; font-size: 16px;">Subwoofer Filter Boost</h3>
+
+      <div class="slider-row">
+        <div class="slider-half">
+          <div class="slider-label">
+            <span>Subwoofer Individual Max Boost</span>
+            <span id="subIndividualMaxBoostLabel">6 dB</span>
+          </div>
+          <div class="tooltip-container">
+            <input type="range" id="subIndividualMaxBoost" class="slider" min="0" max="12" step="1" value="6">
+            <div class="tooltip">Subwoofer individual boost</div>
+          </div>
+        </div>
+
+        <div class="slider-half">
+          <div class="slider-label">
+            <span>Subwoofer Overall Max Boost</span>
+            <span id="subOverallMaxBoostLabel">3 dB</span>
+          </div>
+          <div class="tooltip-container">
+            <input type="range" id="subOverallMaxBoost" class="slider" min="0" max="12" step="1" value="3">
+            <div class="tooltip">Subwoofer maximum overall boost</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-half">
+          <div class="slider-label">
+            <span>Subwoofer Min High-shelf</span>
+            <span id="subLowShelfMinLabel">-6 dB</span>
+          </div>
+          <div class="tooltip-container">
+            <input type="range" id="subLowShelfMin" class="slider" min="-12" max="0" step="1" value="-6">
+            <div class="tooltip">Subwoofer minimum high-shelf filter</div>
+          </div>
+        </div>
+
+        <div class="slider-half">
+          <div class="slider-label">
+            <span>Subwoofer Max High-shelf</span>
+            <span id="subLowShelfMaxLabel">6 dB</span>
+          </div>
+          <div class="tooltip-container">
+            <input type="range" id="subLowShelfMax" class="slider" min="0" max="12" step="1" value="6">
+            <div class="tooltip">Subwoofer maximum high-shelf filter</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toggle-all" onclick="toggleAllSpeakers()" id="toggleAll">[ + ] Expand All</div>
+
+    <span class="explanation">👉 Works only with "Dialogue Enhancer" is checked.</span>
+    <div id="filtersControls" style="display:none; margin-top:6px;">
+      <span title="Export Filters" onclick="exportFilters()" 
+            style="cursor:pointer; font-size:12px; color:gold; margin-right:12px;">
+        💾 Save Per Speaker Filters for Next Run
+      </span>
+      <label for="importFile" title="Import Filters" 
+             style="cursor:pointer; font-size:12px; color:gold;">
+        📂 Import Per Speaker Saved Filters
+      </label>
+      <input type="file" id="importFile" style="display:none;" />
+          <span style="margin:10px 0; text-align:left;">
+      <button class="clear-btn" onclick="clearAllFilters()">Clear All</button>
+    </div>
+    <div id="speakersContainer"></div>
+
+
+    </div>
+  </div>
+</small>
+  </div>
+  <div class="button-container">
+    <button id="button2" onclick="startButton_clicked()" disabled>Optimize calibration</button>
   </div>
   <div class="notice">*A1Evo will perform best with the default options with majority of systems</div>
   <h2 class="log-heading">Progress log:</h2>
@@ -294,7 +685,7 @@
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
-    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay;
+    let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, useAudyFiltering = false;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
@@ -302,9 +693,6 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
-    // parameters used for audy filtering mode
-    let useAudyFiltering = false, audyDEFilterOffset = 0;
-    const audyFilterPoints = [], audyDEFilterPoints = [], audySubFilterPoints = [];
 
     const startButton = document.getElementById('button2');
     startButton.addEventListener('click', function(event) {
@@ -378,6 +766,63 @@
           commandId.push(swCmdIds[0]);
         }
         commandId.unshift(undefined); // start at 1
+
+      // ============================
+      // Creat Dynamic Speaker PEQ based on ADY upload
+      // ============================
+
+      document.getElementById("speakersContainer").innerHTML = "";
+
+      const speakerNames = {
+        C:   "Center",
+        FL:  "Front Left",
+        FR:  "Front Right",
+        CH:  "Center Height",
+        FDL: "Front Dolby Left",
+        FDR: "Front Dolby Right",
+        SLA: "Surround Left",
+        SRA: "Surround Right",
+        SBL: "Surround Back Left",
+        SBR: "Surround Back Right",
+        SDL: "Surround Dolby Left",
+        SDR: "Surround Dolby Right",
+        SHL: "Surround Height Left",
+        SHR: "Surround Height Right",
+        FWL: "Front Wide Left",
+        FWR: "Front Wide Right",
+        TFL: "Top Front Left",
+        TFR: "Top Front Right",
+        TRL: "Top Rear Left",
+        TRR: "Top Rear Right",
+        TML: "Top Middle Left",
+        TMR: "Top Middle Right",
+        TS:  "Top Surround",
+
+        // Subs
+        SW1:  "Subwoofer",
+      };
+      let subAdded = false;
+      commandId.slice(1).forEach(spk => {
+        if (spk.startsWith("SW")) {
+          if (subAdded) return;       
+          spk = "SW1";               
+          subAdded = true;
+        }
+        if (speakerNames[spk]) {
+          createSpeakerTable(spk, `${speakerNames[spk]} (${spk})`, 20);
+        } else {
+          createSpeakerTable(spk, `Speaker ${spk}`, 20);
+        }
+      });
+      populateFilterDropdowns();
+
+      const contents = document.querySelectorAll(".speaker-content");
+      contents.forEach(el => el.style.display = "none");
+      const toggleBtn = document.getElementById("toggleAll");
+      if (toggleBtn) toggleBtn.textContent = "[ + ] Expand Spk PEQ";
+      // ============================
+      // END Creat Dynamic Speaker PEQ
+      // ============================
         Object.freeze(noCenter);
         Object.freeze(swChannelCount);
         subLoTrim = -12 - subLoTrim;
@@ -553,7 +998,12 @@
       await calculateSubBandwidth();
       await optimizeSubDelay();
       await finalizeXO();
-      await generateFilters();
+      if (useAudyFiltering) {
+        await generateTargetCurves();
+      }
+      else {
+        await generateREWFilters();
+      }
       finalizeTrims();
       finalizeDistances();
       await drawResults();
@@ -965,43 +1415,11 @@
         avgIdx += 2;
       }
     }
-    async function getDEFilterArray(start=10, end=24000) {
-      // used in audy filtering mode
-      await addDialogueEnhancerFilter(1);
-      const DEFilter = await postNext('Generate filters measurement', 1);
-      const DEFilterIdx = Object.keys(DEFilter.results)[0];
-      const DEALOffset = await getALOffset(DEFilterIdx, false);
-      audyDEFilterOffset = Math.round(DEALOffset * 2) / 2; // add this to C if DE is enabled
-      Object.freeze(audyDEFilterOffset);
-      const DEResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', DEFilterIdx);
-      const DEFilterArray = response2array(DEResponse, start, end);
-      await postDelete(DEFilterIdx);
-      return DEFilterArray;
-    }
-    async function prepareAudyFilteringData(start=10, end=24000) {
-      // prepare the target curve as the target points for the ady
-      await fetchSafe('target-level', 1, 0.0);
-      const tc = await postNext('Generate target measurement', 1);
-      const tcIdx = Object.keys(tc.results)[0];
-      const tcResponse = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, tcIdx);
-      const tcArray = response2array(tcResponse, start, end);
-      await postDelete(tcIdx); // cleanup
-      const DEFilterArray = await getDEFilterArray(start, end); // prepare in case DE is used
-      let freq = start;
-      const octave = Math.pow(2, 1 / 96);
-      for (let i = 0; i < tcArray.length; i++) {
-        audyFilterPoints.push([freq, tcArray[i] + antiHFRolloff[i]]);
-        audyDEFilterPoints.push([freq, tcArray[i] + DEFilterArray[i] + antiHFRolloff[i]]); // prepare in case DE is used
-        audySubFilterPoints.push([freq, tcArray[i]]);
-        freq *= octave;
-      }
-    }
     async function groundWorks() {
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       console.log(`Optimizing${useAudyFiltering ? " " : " spatial averaging, "}volume & time alignment...`);
-      if (useAudyFiltering) { await prepareAudyFilteringData(); }
       await initializeTrims();
       await timeAlignSpeakers();
       await initializeSubwoofers();
@@ -1011,90 +1429,804 @@
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
+    async function updateEQTargetSettings(idx, start, end, isSub) {
+      // line up response to target similar to REW; limit SW TC level determination range to 20-120hz if bandwidth exceeds it
+      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "1%2F6")
+                                  : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "1%2F6");
+      await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
+      await postNext('Smooth', idx, { smoothing: "Var" });
+      await postNext('Smooth', idx, { smoothing: "Var" });
+      await postSafe(`${baseUrl}/${idx}/target-settings`, {
+        shape: isSub ? "Subwoofer" : "Full range",
+        lowFreqCutoffHz: (isSub && start === 10) ? 0 : start,
+        lowFreqSlopedBPerOctave: 48, // steep slope to EQ without effect and keep REW happy
+        bassManagementCutoffHz: (isSub && end === 320) ? 20000 : end,
+        bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
+      }, "Update processed");
+      // return the tc level offset
+      return tcLevelOffset;
+    }
+
+
+// ========================
+// Advance Settings
+// ========================
+
+    // ========================
+    // Slider Customization
+    // ========================
+    function toggleAdvance() {
+      const content = document.getElementById("advanceContent");
+      const container = document.getElementById("advancedContainer");
+      const toggleText = document.getElementById("advanceToggleText");
+
+      const isVisible = content.style.display === "block";
+      content.style.display = isVisible ? "none" : "block";
+      container.classList.toggle("expanded", !isVisible);
+      toggleText.textContent = isVisible ? "[ + ] Advance User Options" : "[ − ] Advance User Options";
+      toggleText.classList.toggle("expanded-font", !isVisible);
+    }
+
+    const defaultSliderValues = {
+      spkIndBoost: 3,
+      spkOverAllBoost: 0,
+      spkHighShelfMin: -6,
+      spkHighShelfMax: 6,
+      subIndividualMaxBoost: 6,
+      subOverallMaxBoost: 3,
+      subLowShelfMin: -6,
+      subLowShelfMax: 6
+    };
+
+    const sliders = [
+      { id: "spkIndBoost", label: "spkIndBoostLabel", variable: "speakerIndividualMaxBoost" },
+      { id: "spkOverAllBoost", label: "spkOverAllBoostLabel", variable: "speakerOverallMaxBoost" },
+      { id: "spkHighShelfMin", label: "spkHighShelfMinLabel", variable: "speakerHighShelfMin" },
+      { id: "spkHighShelfMax", label: "spkHighShelfMaxLabel", variable: "speakerHighShelfMax" },
+      { id: "subIndividualMaxBoost", label: "subIndividualMaxBoostLabel", variable: "subwooferIndividualMaxBoost" },
+      { id: "subOverallMaxBoost", label: "subOverallMaxBoostLabel", variable: "subwooferOverallMaxBoost" },
+      { id: "subLowShelfMin", label: "subLowShelfMinLabel", variable: "subwooferLowShelfMin" },
+      { id: "subLowShelfMax", label: "subLowShelfMaxLabel", variable: "subwooferLowShelfMax" }
+    ];
+
+    function applySliderState(lock) {
+      sliders.forEach(({ id, label, variable }) => {
+        const slider = document.getElementById(id);
+        const output = document.getElementById(label);
+
+        if (slider && output) {
+          if (lock) {
+            const def = defaultSliderValues[id];
+            slider.value = def;
+            output.textContent = `${def} dB`;
+            window[variable] = def;
+            slider.disabled = true;
+            slider.style.opacity = "0.5";
+            slider.style.pointerEvents = "none";
+          } else {
+            slider.disabled = false;
+            slider.style.opacity = "1";
+            slider.style.pointerEvents = "auto";
+            output.textContent = `${slider.value} dB`;
+            window[variable] = parseFloat(slider.value);
+          }
+        }
+      });
+    }
+
+    sliders.forEach(({ id, label, variable }) => {
+      const slider = document.getElementById(id);
+      const output = document.getElementById(label);
+
+      if (slider && output) {
+        slider.addEventListener("input", () => {
+          const value = parseFloat(slider.value);
+          output.textContent = `${value} dB`;
+          window[variable] = value;
+        });
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      sliders.forEach(({ id, label, variable }) => {
+        const slider = document.getElementById(id);
+        const output = document.getElementById(label);
+        if (slider && output) {
+          slider.value = defaultSliderValues[id];
+          output.textContent = `${defaultSliderValues[id]} dB`;
+          window[variable] = defaultSliderValues[id];
+        }
+      });
+    });
+
+    const optimizeBtn = document.getElementById("button2");
+    if (optimizeBtn) {
+      optimizeBtn.addEventListener("click", (e) => {
+        if (e.altKey) {
+          applySliderState(true);
+          console.info("ALT + Button2 pressed → sliders reset to default & disabled.");
+        } else {
+          applySliderState(false);
+          console.info("Button2 pressed → sliders active.");
+        }
+        const content = document.getElementById("advanceContent");
+        const container = document.getElementById("advancedContainer");
+        const toggleText = document.getElementById("advanceToggleText");
+
+        if (content && container && toggleText) {
+          content.style.display = "none";
+          container.classList.remove("expanded");
+          toggleText.textContent = "[ + ] Advance User Options";
+          toggleText.classList.remove("expanded-font");
+        }
+      });
+    }
+
+    // ============================
+    // Export Filters
+    // ============================
+    function exportFilters() {
+      const filtersPerSpeaker = 20;
+      const exportData = {};
+
+      commandId.slice(1).forEach(prefix => {
+        const p = prefix.toLowerCase();
+        exportData[p] = [];
+
+        for (let i = 1; i <= filtersPerSpeaker; i++) {
+          const typeEl = document.getElementById(`${p}Type${i}`);
+          const freqEl = document.getElementById(`${p}Freq${i}`);
+          const gainEl = document.getElementById(`${p}Gain${i}`);
+          const qEl    = document.getElementById(`${p}Q${i}`);
+
+          if (typeEl) {
+            exportData[p].push({
+              type: typeEl.value || "None",
+              freq: freqEl?.value || "",
+              gain: gainEl?.value || "",
+              q:    qEl?.value || ""
+            });
+          }
+        }
+      });
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "filters.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ============================
+    // Import Filters
+    // ============================
+    document.getElementById("importFile").addEventListener("change", e => {
+      if (e.target.files.length > 0) {
+        importFilters(e.target.files[0]);
+      }
+    });
+
+    function importFilters(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const data = JSON.parse(e.target.result);
+        Object.keys(data).forEach(prefix => {
+          const p = prefix.toLowerCase();
+          const container =
+            document.getElementById(`speaker-${prefix}`) ||
+            document.getElementById(`speaker-${prefix.toUpperCase()}`) ||
+            document.getElementById(`speaker-${prefix.toLowerCase()}`);
+
+          let lastUsed = 0;
+
+          data[prefix].forEach((f, i) => {
+            const idx = i + 1;
+            const typeEl = document.getElementById(`${p}Type${idx}`);
+            const freqEl = document.getElementById(`${p}Freq${idx}`);
+            const gainEl = document.getElementById(`${p}Gain${idx}`);
+            const qEl    = document.getElementById(`${p}Q${idx}`);
+
+            if (typeEl) typeEl.value = f.type || "None";
+            if (freqEl) freqEl.value = f.freq || "";
+            if (gainEl) gainEl.value = f.gain || "";
+            if (qEl)    qEl.value    = f.q    || "";
+
+            if (typeEl && f.type && f.type !== "None") {
+              lastUsed = idx;
+            }
+          });
+
+          if (container && lastUsed > 0) {
+            for (let i = 1; i <= Math.min(lastUsed + 1, 20); i++) {
+              showFilterColumn(container, prefix, i);
+            }
+          }
+
+          updateFilterChain(p);
+        });
+      };
+      reader.readAsText(file);
+    }
+
+    // ========================
+    // Create Dynamic Speakers
+    // ========================
+    function createSpeakerTable(prefix, name, numFilters = 20) {
+      const container = document.createElement("div");
+      container.className = "speaker-content";
+      container.id = "speaker-" + prefix;
+
+      let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="margin:0;">${name}</h3>
+          <button class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
+        </div>
+        <table class="filter-table">
+          <thead>
+            <tr><th></th>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<th id="${prefix.toLowerCase()}Header${i}">Filter ${i}</th>`;
+      }
+      html += `</tr></thead><tbody>`;
+
+      html += `<tr><td>Type</td>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<td><select id="${prefix.toLowerCase()}Type${i}" data-filter="${i}" class="filter-input"></select></td>`;
+      }
+      html += `</tr>`;
+
+      html += `<tr><td>Freq (Hz)</td>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" value="1000" step="0.5" data-filter="${i}" class="filter-input"></td>`;
+      }
+      html += `</tr>`;
+
+      html += `<tr><td>Gain (dB)</td>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" value="0" step="0.1" data-filter="${i}" class="filter-input"></td>`;
+      }
+      html += `</tr>`;
+
+      html += `<tr><td>Q</td>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" value="0.5" step="0.01" data-filter="${i}" class="filter-input"></td>`;
+      }
+      html += `</tr>`;
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+      document.getElementById("speakersContainer").appendChild(container);
+
+      for (let i = 4; i <= numFilters; i++) {
+        hideFilterColumn(container, prefix, i);
+      }
+
+      const inputs = container.querySelectorAll(".filter-input");
+      inputs.forEach(input => {
+        const handler = () => {
+          const idx = parseInt(input.dataset.filter, 10);
+          if (idx < numFilters && hasValueInColumn(container, prefix, idx)) {
+            showFilterColumn(container, prefix, idx + 1);
+          }
+        };
+        input.addEventListener("input", handler);
+        input.addEventListener("change", handler);
+      });
+    }
+
+      function hideFilterColumn(container, prefix, idx) {
+        container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
+          el.closest("td").style.display = "none";
+        });
+        const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
+        if (header) header.style.display = "none";
+      }
+
+      function showFilterColumn(container, prefix, idx) {
+        container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
+          el.closest("td").style.display = "";
+        });
+        const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
+        if (header) header.style.display = "";
+      }
+
+      function hasValueInColumn(container, prefix, idx) {
+        const els = container.querySelectorAll(`[data-filter='${idx}']`);
+        return Array.from(els).some(el => String(el.value).trim() !== "");
+      }
+
+    // ============================
+    // Clear Filters
+    // ============================
+    function clearSpeakerFilters(prefix) {
+      const container = document.getElementById("speaker-" + prefix);
+
+      for (let i = 1; i <= 20; i++) {
+        const typeEl = document.getElementById(`${prefix.toLowerCase()}Type${i}`);
+        const freqEl = document.getElementById(`${prefix.toLowerCase()}Freq${i}`);
+        const gainEl = document.getElementById(`${prefix.toLowerCase()}Gain${i}`);
+        const qEl    = document.getElementById(`${prefix.toLowerCase()}Q${i}`);
+
+        if (!typeEl) continue;
+
+        if (i === 1) {
+          typeEl.value = "None";
+          typeEl.disabled = false;
+
+          if (freqEl) { freqEl.value = 1000; freqEl.disabled = false; }
+          if (gainEl) { gainEl.value = 0;    gainEl.disabled = false; }
+          if (qEl)    { qEl.value    = 0.5;  qEl.disabled    = false; }
+
+          updateInputStates(typeEl);
+        } else {
+          typeEl.value = "None";
+          typeEl.disabled = true;
+
+          if (freqEl) { freqEl.value = ""; freqEl.disabled = true; }
+          if (gainEl) { gainEl.value = ""; gainEl.disabled = true; }
+          if (qEl)    { qEl.value    = ""; qEl.disabled    = true; }
+        }
+
+        if (i <= 3) {
+          showFilterColumn(container, prefix, i);
+        } else {
+          hideFilterColumn(container, prefix, i);
+        }
+      }
+    }
+
+    function clearAllFilters() {
+      commandId.slice(1).forEach(prefix => {
+        clearSpeakerFilters(prefix);
+      });
+    }
+
+    // ============================
+    // Expnad / Collapse Filters +-
+    // ============================
+    function toggleAllSpeakers() {
+      const contents = document.querySelectorAll(".speaker-content");
+      const toggleBtn = document.getElementById("toggleAll");
+
+      const isCollapsed = Array.from(contents).every(el => el.style.display === "none");
+
+      contents.forEach(el => {
+        el.style.display = isCollapsed ? "block" : "none";
+      });
+
+      const controls = document.getElementById("filtersControls");
+      if (controls) {
+        controls.style.display = isCollapsed ? "block" : "none";
+      }
+
+      if (toggleBtn) {
+        toggleBtn.textContent = isCollapsed ? "[ – ] Collapse All PEQ" : "[ + ] Expand Spk PEQ";
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggleBtn = document.getElementById("toggleAll");
+      if (toggleBtn) {
+        toggleBtn.textContent = "[ + ] Expand Spk PEQ";
+        toggleBtn.disabled = false;
+      }
+
+      const optimizeBtn = document.getElementById("button2");
+      if (optimizeBtn && toggleBtn) {
+        optimizeBtn.addEventListener("click", () => {
+          const contents = document.querySelectorAll(".speaker-content");
+          contents.forEach(el => el.style.display = "none");
+
+          toggleBtn.textContent = "[ + ] Expand Spk PEQ";
+
+          const controls = document.getElementById("filtersControls");
+          if (controls) controls.style.display = "none";
+        });
+      }
+    });
+
+    // ============================
+    // Filter Dropdowns
+    // ============================
+    const filterTypes = [
+      "None", "PK", "LS", "HS", "All pass", /*"Modal",
+      "LP", "HP", "LP1", "HP1", "LP Q", "HP Q",
+      "LS 6dB", "HS 6dB", "LS 12dB", "HS 12dB",
+      "LS Q", "HS Q", "Notch", "Notch Q"*/
+    ];
+    function populateFilterDropdowns() {
+      const allSelects = document.querySelectorAll("select[id*='Type']");
+
+      allSelects.forEach(select => {
+        select.innerHTML = "";
+
+        filterTypes.forEach(type => {
+          const option = document.createElement("option");
+          option.value = type;
+          option.textContent = type;
+
+          if (type === "None") {
+            option.selected = true;
+          }
+
+          select.appendChild(option);
+        });
+
+        select.addEventListener("change", () => {
+          updateInputStates(select);
+          const idPrefix = select.id.replace(/Type\d+$/, "");
+          updateFilterChain(idPrefix);
+        });
+      });
+
+      /*const cFreq = document.getElementById("cFreq1");
+      const cGain = document.getElementById("cGain1");
+      const cQ    = document.getElementById("cQ1");
+      if (cFreq) cFreq.value = 1500;
+      if (cGain) cGain.value = 3;
+      if (cQ)    cQ.value    = 0.5;*/
+
+      commandId.slice(1).forEach(p => updateFilterChain(p.toLowerCase()));
+    }
+
+    function updateInputStates(select) {
+      const type = select.value;
+      const idPrefix = select.id.replace(/Type\d+$/, "");
+      const filterIndex = select.id.match(/\d+$/)[0];
+
+      const freqEl = document.getElementById(`${idPrefix}Freq${filterIndex}`);
+      const gainEl = document.getElementById(`${idPrefix}Gain${filterIndex}`);
+      const qEl    = document.getElementById(`${idPrefix}Q${filterIndex}`);
+
+      const noGainTypes = ["LP","HP","LP1","HP1","LP Q","HP Q","Notch","Notch Q","All pass"];
+      const noQTypes    = ["Modal","LP","HP","LP1","HP1","LS","HS","LS 6dB","HS 6dB","LS 12dB","HS 12dB","Notch"];
+
+      if (gainEl) {
+        if (noGainTypes.includes(type)) {
+          gainEl.disabled = true;
+          gainEl.value = "";
+        } else {
+          gainEl.disabled = false;
+        }
+      }
+
+      if (qEl) {
+        if (noQTypes.includes(type)) {
+          qEl.disabled = true;
+          qEl.value = "";
+        } else {
+          qEl.disabled = false;
+        }
+      }
+    }
+
+    function updateFilterChain(idPrefix) {
+      const filtersPerSpeaker = 20;
+      const spkUpper = idPrefix.toUpperCase();
+      const pos = Array.isArray(commandId) ? commandId.indexOf(spkUpper) : -1;
+      const base = pos > 0 ? (pos - 1) * (filtersPerSpeaker * 4) : 0;
+      let tabIndex = base + 1;
+
+      for (let i = 1; i <= filtersPerSpeaker; i++) {
+        const typeEl = document.getElementById(`${idPrefix}Type${i}`);
+        const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
+        const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
+        const qEl    = document.getElementById(`${idPrefix}Q${i}`);
+
+        if (!typeEl) continue;
+
+        if (i === 1) {
+          typeEl.disabled = false;
+          if (freqEl) freqEl.disabled = false;
+          updateInputStates(typeEl);
+        } else {
+          const prevType = document.getElementById(`${idPrefix}Type${i-1}`)?.value;
+          const enableNow = prevType && prevType !== "None";
+
+          typeEl.disabled = !enableNow;
+          if (freqEl) freqEl.disabled = !enableNow;
+
+          if (!enableNow) {
+            typeEl.value = "None";
+            if (freqEl) freqEl.value = "";
+            if (gainEl) { gainEl.value = ""; gainEl.disabled = true; }
+            if (qEl)    { qEl.value    = ""; qEl.disabled    = true; }
+          } else {
+            updateInputStates(typeEl);
+          }
+        }
+
+        if (typeEl) typeEl.tabIndex = tabIndex++;
+        if (freqEl) freqEl.tabIndex = tabIndex++;
+        if (gainEl) gainEl.tabIndex = tabIndex++;
+        if (qEl)    qEl.tabIndex    = tabIndex++;
+      }
+    }
+
+    // ============================
+    // Dialogue Enhancer Toggle
+    // ============================
+    function toggleDialogueEnhancerState() {
+      const checked = document.getElementById("dialogueEnhancer")?.checked ?? false;
+
+      const enhancerSection = document.getElementById("dialogueEnhancerSection");
+      if (enhancerSection) {
+        enhancerSection.querySelectorAll("select, input").forEach(el => {
+          if (el.id !== "dialogueEnhancer") el.disabled = !checked;
+        });
+      }
+
+      if (checked) {
+        commandId.slice(1).forEach(p => updateFilterChain(p.toLowerCase()));
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      populateFilterDropdowns();
+      const enhancerCheckbox = document.getElementById("dialogueEnhancer");
+      if (enhancerCheckbox) {
+        enhancerCheckbox.addEventListener("change", toggleDialogueEnhancerState);
+        toggleDialogueEnhancerState();
+      }
+    });
+
+    // ============================
+    // Tabindex assignment
+    // ============================
+    document.addEventListener("DOMContentLoaded", () => {
+      const filtersPerSpeaker = 20;
+      let tabIndex = 1;
+
+      commandId.slice(1).forEach(prefix => {
+        const idPrefix = prefix.toLowerCase();
+        for (let i = 1; i <= filtersPerSpeaker; i++) {
+          const typeEl = document.getElementById(`${idPrefix}Type${i}`);
+          const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
+          const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
+          const qEl    = document.getElementById(`${idPrefix}Q${i}`);
+
+          [typeEl, freqEl, gainEl, qEl].forEach(el => {
+            if (el) el.setAttribute("tabindex", tabIndex++);
+          });
+        }
+      });
+    });
+
+
+    async function updateEQFilterSettings(start, end, indMaxBoost, ovMaxBoost, LSMin, LSMax, HSMin, HSMax) {
+      await postSafe(`http://localhost:4735/eq/match-target-settings`, {
+        startFrequency: start, endFrequency: end,
+        individualMaxBoostdB: indMaxBoost, overallMaxBoostdB: ovMaxBoost, flatnessTargetdB: 1,
+        allowNarrowFiltersBelow200Hz: true, varyQAbove200Hz: false,
+        allowLowShelf: true, lowShelfMin: LSMin, lowShelfMax: LSMax,
+        allowHighShelf: true, highShelfMin: HSMin, highShelfMax: HSMax
+      }, "Update processed");
+    }
     async function getALOffset(idx, isSub) {
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
       const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
       return offset;
     }
-    async function addDialogueEnhancerFilter(idx) {
-      let rewEQIdx = 20; // start from last; most likely to be available after auto-EQ
-      async function addPEQFilter(freq, gain, q) {
-        try {
-          if (rewEQIdx < 1 || rewEQIdx > 20) {
-            throw new Error;
-          }
-          await postSafe(`${baseUrl}/${idx}/filters`, {
-            filters: [{
-              "index": rewEQIdx--, // work backwards from 20
-              "type": "PK",
-              "enabled": true,
-              "isAuto": true,
-              "frequency": freq,
-              "gaindB": gain,
-              "q": q
-            }]
-          }, "Filters set");
-        }
-        catch (error) {
-          console.error(`Failed to add DE PEQ filter <${freq}hz ${gain}dB ${q}Q> to REW EQ index#${rewEQIdx}!`);
-          throw new Error;
+    async function getNextEQIdx(idx) {
+      const filters = await fetchSafe("filters", idx);
+      for (let i = 0; i < Math.min(20, filters.length); i++) {
+        if (filters[i]["type"] === "None") {
+          return (i + 1);
         }
       }
-      // Q value-------------------|
-      // Gain dB---------------|   |
-      // Frequency hz------|   |   |
-      await addPEQFilter(1500, 3, 0.5); // repeat and/or customize as needed
+      return -1;
     }
-    async function generateFilters() {
-      if (useAudyFiltering) { return; } // no need to EQ
-      /*EQ parameters start*/
-      // boost parameters for speakers in dB
-      const speakerIndividualMaxBoost = 3;
-      const speakerOverallMaxBoost = 0;
-      const speakerHighShelfMin = -6;
-      const speakerHighShelfMax = 6;
-      // boost parameters for subwoofer(s) in dB
-      const subwooferIndividualMaxBoost = 6;
-      const subwooferOverallMaxBoost = 3;
-      const subwooferLowShelfMin = -6;
-      const subwooferLowShelfMax = 6;
-      /*EQ parameters end*/
+    async function clearFilters(idx) {
+      const filters = await fetchSafe("filters", idx);
+      // set anything non-None to None
+      for (let i = 0; i < filters.length; i++) {
+        if (filters[i]["type"] != "None") {
+          await postSafe(`${baseUrl}/${idx}/filters`, {
+            filters: [{ "index": i + 1, "type": "None" }]
+          }, "Filters set");
+        }
+      }
+    }
+
+// ========================
+// Main PEQ function
+// ========================
+async function addCustomREWFilters(idx, cmdId, baseEQFilterIdx) {
+  const prefix = cmdId.toLowerCase();
+  const isSub = cmdId.startsWith("SW");
+    async function addLSFilter(idx, type, freq, gain) {
+      try {
+        if (!["LS", "LS 6dB", "LS 12dB"].includes(type)) {
+          throw new Error(`Invalid LS filter type: ${type}`);
+        }
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) throw new Error;
+
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            index: eqIdx,
+            type,
+            enabled: true,
+            frequency: freq,
+            gaindB: gain
+          }]
+        }, "Filters set");
+      } catch (error) {
+        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB> - measurement #${idx}`);
+        throw error;
+      }
+    }
+
+    async function addHSFilter(idx, type, freq, gain) {
+      try {
+        if (!["HS", "HS 6dB", "HS 12dB"].includes(type)) {
+          throw new Error(`Invalid HS filter type: ${type}`);
+        }
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) throw new Error;
+
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            index: eqIdx,
+            type,
+            enabled: true,
+            frequency: freq,
+            gaindB: gain
+          }]
+        }, "Filters set");
+      } catch (error) {
+        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB> - measurement #${idx}`);
+        throw error;
+      }
+    }
+
+    async function addNoGainNoQFilter(idx, type, freq) {
+      try {
+        if (!["LP", "HP", "LP1", "HP1", "Notch"].includes(type)) {
+          throw new Error(`Invalid filter type: ${type}`);
+        }
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) throw new Error;
+
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            index: eqIdx,
+            type,
+            enabled: true,
+            frequency: freq
+          }]
+        }, "Filters set");
+      } catch (error) {
+        console.error(`Failed to add ${type} filter <${freq}Hz> - measurement #${idx}`);
+        throw error;
+      }
+    }
+
+    async function addQFilter(idx, type, freq, q) {
+      try {
+        if (!["LP Q", "HP Q", "Notch Q", "All pass"].includes(type)) {
+          throw new Error(`Invalid filter type: ${type}`);
+        }
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) throw new Error;
+
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            index: eqIdx,
+            type,
+            enabled: true,
+            frequency: freq,
+            q
+          }]
+        }, "Filters set");
+      } catch (error) {
+        console.error(`Failed to add ${type} filter <${freq}Hz Q=${q}> - measurement #${idx}`);
+        throw error;
+      }
+    }
+
+    async function addPEQFilter(idx, type, freq, gain, q) {
+      try {
+        if (!["PK", "LS Q", "HS Q"].includes(type)) {
+          throw new Error(`Invalid PEQ filter type: ${type}`);
+        }
+        const eqIdx = await getNextEQIdx(idx);
+        if (eqIdx < 1) throw new Error;
+
+        await postSafe(`${baseUrl}/${idx}/filters`, {
+          filters: [{
+            index: eqIdx,
+            type,
+            enabled: true,
+            isAuto: (type === "PK"),
+            frequency: freq,
+            gaindB: gain,
+            q
+          }]
+        }, "Filters set");
+      } catch (error) {
+        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB Q=${q}> - measurement #${idx}`);
+        throw error;
+      }
+    }
+
+      for (let i = 1; i <= 20; i++) {
+        const typeEl = document.getElementById(`${prefix}Type${i}`);
+        const freqEl = document.getElementById(`${prefix}Freq${i}`);
+        const gainEl = document.getElementById(`${prefix}Gain${i}`);
+        const qEl    = document.getElementById(`${prefix}Q${i}`);
+
+        if (!typeEl || !freqEl) break;
+
+        const type = typeEl.value;
+        if (type === "None") continue;
+
+        const freq = parseFloat(freqEl.value) || 0;
+        const gain = gainEl && gainEl.value !== "" ? parseFloat(gainEl.value) : null;
+        const q    = qEl && qEl.value !== "" ? parseFloat(qEl.value) : null;
+
+        if (["HS", "HS 6dB", "HS 12dB"].includes(type)) {
+          await addHSFilter(idx, type, freq, gain);
+        }
+        else if (["LS", "LS 6dB", "LS 12dB"].includes(type)) {
+          await addLSFilter(idx, type, freq, gain);
+        }
+        else if (["PK", "LS Q", "HS Q"].includes(type)) {
+          await addPEQFilter(idx, type, freq, gain, q);
+        }
+        else if (["LP", "HP", "LP1", "HP1", "Notch"].includes(type)) {
+          await addNoGainNoQFilter(idx, type, freq);
+        }
+        else if (["LP Q", "HP Q", "Notch Q", "All pass"].includes(type)) {
+          await addQFilter(idx, type, freq, q);
+        }
+        else {
+          console.warn(`${isSub ? "Subwoofer" : "Speaker"} filter type "${type}" at row ${i} not handled explicitly.`);
+        }
+      }
+      
+      /***Customization end***/
+
+      // combine custom filters with autoEQ filters
+      const customFilter = await postNext("Generate filters measurement", idx);
+      const customFilterIdx = Object.keys(customFilter.results)[0];
+      const combinedFilter = await postNext("Arithmetic", [baseEQFilterIdx, customFilterIdx], {function: "A * B"});
+      await postDelete(customFilterIdx);
+      await postDelete(baseEQFilterIdx);
+    }
+    async function generateREWFilters() {
+      /***Customization start***/
+      const speakerIndividualMaxBoost = window.speakerIndividualMaxBoost;
+      const speakerOverallMaxBoost = window.speakerOverallMaxBoost;
+      const speakerHighShelfMin = window.speakerHighShelfMin;
+      const speakerHighShelfMax = window.speakerHighShelfMax;
+      const subwooferIndividualMaxBoost = window.subwooferIndividualMaxBoost;
+      const subwooferOverallMaxBoost = window.subwooferOverallMaxBoost;
+      const subwooferLowShelfMin = window.subwooferLowShelfMin;
+      const subwooferLowShelfMax = window.subwooferLowShelfMax;
+
+      /***Customization end***/
       console.log(`Generating min. phase EQ filters...`);
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // line up response to target similar to REW; limit SW TC level determination range to 20-120hz if bandwidth exceeds it
-        const tcLevelOffset = isSub ? await getTrim(avgIdx, Math.max(20, m3dBPoints[i][0]), Math.min(120, m3dBPoints[i][1]), "1%2F6")
-                                    : await getTrim(avgIdx, Math.max(200, m3dBPoints[i][0]), Math.min(2000, m3dBPoints[i][1]), "1%2F6");
-        await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
-        await postNext('Smooth', mlpIdx, { smoothing: "Var" });
-        await postNext('Smooth', avgIdx, { smoothing: "Var" });
-        await postSafe(`${baseUrl}/${avgIdx}/target-settings`, {
-          shape: isSub ? "Subwoofer" : "Full range",
-          lowFreqCutoffHz: (isSub && m3dBPoints[i][0] === 10) ? 0 : m3dBPoints[i][0],
-          lowFreqSlopedBPerOctave: 48, // steep slope to EQ without effect and keep REW happy
-          bassManagementCutoffHz: (isSub && m3dBPoints[i][1] === 320) ? 20000 : m3dBPoints[i][1],
-          bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
-        }, "Update processed");
-        // tinker as needed
-        await postSafe(`http://localhost:4735/eq/match-target-settings`, {
-          startFrequency: m3dBPoints[i][0],
-          endFrequency: m3dBPoints[i][1],
-          individualMaxBoostdB: isSub ? subwooferIndividualMaxBoost : speakerIndividualMaxBoost,
-          overallMaxBoostdB: isSub ? subwooferOverallMaxBoost : speakerOverallMaxBoost,
-          flatnessTargetdB: 1,
-          allowNarrowFiltersBelow200Hz: true,
-          varyQAbove200Hz: false,
-          allowLowShelf: isSub,
-          lowShelfMin: subwooferLowShelfMin,
-          lowShelfMax: subwooferLowShelfMax,
-          allowHighShelf: !isSub,
-          highShelfMin: speakerHighShelfMin,
-          highShelfMax: speakerHighShelfMax
-        }, "Update processed");
+        const tcLevelOffset = await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        if (isSub) {
+          await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
+            subwooferIndividualMaxBoost, subwooferOverallMaxBoost,
+            subwooferLowShelfMin, subwooferLowShelfMax, 0, 0); // no HS
+        }
+        else {
+          await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
+            speakerIndividualMaxBoost, speakerOverallMaxBoost,
+            0, 0, speakerHighShelfMin, speakerHighShelfMax); // no LS
+        }
         try {
           await postNext('Match target', avgIdx);
         }
@@ -1102,17 +2234,15 @@
           // not really an issue if it fails
           console.debug(`${commandId[i]} could not be equalized!`);
         }
-        if (commandId[i] === "C" && dialogueEnhancer) {
-          await addDialogueEnhancerFilter(avgIdx);
-        }
         // cleanup EQ params
         await postSafe(`${baseUrl}/${avgIdx}/target-settings`, { shape: "None" }, "Update processed");
         // generate filters & auto level it
         const filter = await postNext('Generate filters measurement', avgIdx);
         const filterIdx = Object.keys(filter.results)[0];
+        await clearFilters(mlpIdx); // use mlp as a placeholder for custom filters
+        await addCustomREWFilters(mlpIdx, commandId[i], filterIdx); // add any user desired customizations
         cmdIdFilterIndices[commandId[i]] = filterIdx;
-        const filterName = `${commandId[i]}-filters`;
-        await fetch_mREW(filterIdx, 'PUT', { title: filterName });
+        await fetch_mREW(filterIdx, 'PUT', { title: `${commandId[i]}-filters` });
         const ALOffset = await getALOffset(filterIdx, isSub);
         await postNext('Add SPL offset', filterIdx, { offset: -ALOffset });
         // generate predicted equalized response using the auto leveled filter
@@ -1120,13 +2250,11 @@
         const mlpEqResponse = await postNext('Arithmetic', [mlpIdx, filterIdx], {function: "A * B"});
         const mlpEqResponseIdx = Object.keys(mlpEqResponse.results)[0];
         cmdIdMLPIndicesEQ[commandId[i]] = mlpEqResponseIdx;
-        const mlpEqResponseName = `${commandId[i]}-mlp-equalized`;
-        await fetch_mREW(mlpEqResponseIdx, 'PUT', { title: mlpEqResponseName });
+        await fetch_mREW(mlpEqResponseIdx, 'PUT', { title: `${commandId[i]}-mlp-equalized` });
         const eqResponse = await postNext('Arithmetic', [avgIdx, filterIdx], {function: "A * B"});
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
         cmdIdAVGIndicesEQ[commandId[i]] = eqResponseIdx;
-        const eqResponseName = `${commandId[i]}-avg-equalized`;
-        await fetch_mREW(eqResponseIdx, 'PUT', { title: eqResponseName });
+        await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
         // compensate equalized response & trims for auto level as well as tc level offset
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
         const trimOffset = tcLevelOffset + Math.round(ALOffset * 2) / 2; //round to nearest 0.5
@@ -1147,15 +2275,46 @@
         console.infoUpdate(logUpdate);
       }
     }
-    function sanityCheckSpeakerTrims() {
-      // TODO: think of a cleaner way to do this
-      if (useAudyFiltering && dialogueEnhancer) {
-        for (let i = 1; i < nSpeakers; i++) {
-          if (commandId[i] === "C") {
-            customLevel[i] += audyDEFilterOffset;
-          }
+    async function generateTargetCurves() {
+      console.log("Generating target curves for each channel...");
+      // generate target curve at 0dB
+      await fetchSafe('target-level', 1, 0.0);
+      const targetCurve = await postNext('Generate target measurement', 1);
+      const targetCurveIdx = Object.keys(targetCurve.results)[0];
+      // add in user customizations and generate the target curve for each channel
+      for (let i = 1; i <= nChannels; i++) {
+        console.info(`${commandId[i].padStart(3, ".")} - generating target curve...`);
+        const isSub = commandId[i].startsWith("SW");
+        const mlpIdx = cmdIdMLPIndices[commandId[i]];
+        // create a blank filter
+        await clearFilters(mlpIdx);
+        const customFilter = await postNext('Generate filters measurement', mlpIdx); // should be flat
+        const customFilterIdx = Object.keys(customFilter.results)[0];
+        // add in all user customizations on top of the blank filter & calculate any AL offset
+        await addCustomREWFilters(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
+        const ALOffset = await getALOffset(customFilterIdx, isSub);
+        // get rid of phase data since it needs to be applied to target curve which is magnitude only
+        await postSafe(`${baseUrl}/${customFilterIdx}/command`, { command: "Response magnitude copy" }, "Completed");
+        await postDelete(customFilterIdx); // custom filter idx is now magnitude only
+        // combine any custom filter with the target curve and AL offset it
+        // note: this will be the "filter" in audyssey filtering mode
+        await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
+        await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
+        await postNext('Add SPL offset', customFilterIdx, { offset: -ALOffset });
+        await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
+        cmdIdFilterIndices[commandId[i]] = customFilterIdx - 1; // baseline target curve will be deleted and everything will shift by -1
+        const trimOffset = Math.round(ALOffset * 2) / 2;
+        let logUpdate = `${commandId[i].padStart(3, ".")} - target curve created`;
+        if (trimOffset != 0) {
+          const customLevelOriginal = customLevel[i];
+          customLevel[i] += trimOffset;
+          logUpdate += ` | ${commandId[i].padStart(3, ".")} auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
+        console.infoUpdate(logUpdate);
       }
+      await postDelete(targetCurveIdx);
+    }
+    function sanityCheckSpeakerTrims() {
       // if a speaker is too sensitive or not sensitive enough, it may end up outside +/-12dB
       const minSpeakerTrim = Math.min(...customLevel.slice(1, nSpeakers + 1));
       const maxSpeakerTrim = Math.max(...customLevel.slice(1, nSpeakers + 1));
@@ -1596,7 +2755,8 @@
           // generate final-mlp
           console.infoUpdate(`Generating final output for ${commandId[i]}-mlp...`);
           let spFinalInfo = "";
-          if (commandId[i] === "C" && dialogueEnhancer) { spFinalInfo += "-DE"; }
+          //if (commandId[i] === "C" && dialogueEnhancer) { spFinalInfo += "-DE"; }
+          if (commandId[i] === "C") { spFinalInfo += "-DE"; }
           if (customCrossover[i] === "L") { spFinalInfo += "-Large"; }
           else { spFinalInfo += `-${customCrossover[i]}hz-xo`; }
           let spFinalName = `${commandId[i]}final-mlp${spFinalInfo}`;
@@ -1979,6 +3139,7 @@
       return await postNext('Generate predicted measurement', i);
     }
     async function getFilterPoints(fltIdx, useAntiHF=false) {
+      // preps the filter as a frequency response array from 10hz-24khz
       const fltPoints = [];
       const octave = Math.pow(2, 1 / 96);
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', fltIdx);
@@ -2027,19 +3188,8 @@
       }
       // inject filters/TC into ady
       for (let i = 1; i <= nSpeakers; i++) {
-        let customTargetCurvePoints;
-        if (useAudyFiltering) {
-          if (commandId[i] === "C" && dialogueEnhancer) {
-            customTargetCurvePoints = audyDEFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-          }
-          else {
-            customTargetCurvePoints = audyFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-          }
-        }
-        else {
-          const fltIdx = cmdIdFilterIndices[commandId[i]];
-          customTargetCurvePoints = await getFilterPoints(fltIdx, true);
-        }
+        const fltIdx = cmdIdFilterIndices[commandId[i]];
+        const customTargetCurvePoints = await getFilterPoints(fltIdx, true);
         const thisChannel = jsonData.detectedChannels.find(channel => channel.commandId === commandId[i]);
         thisChannel.customTargetCurvePoints = customTargetCurvePoints;
         thisChannel.midrangeCompensation = false;
@@ -2051,14 +3201,8 @@
         thisChannel.channelReport.customEnSpeakerConnect = customCrossover[i] === "L" ? 2 : 1;
       }
       if (!noSub) {
-        let customTargetCurvePointsSub;
-        if (useAudyFiltering) {
-          customTargetCurvePointsSub = audySubFilterPoints.map(point => `{${point[0]}, ${point[1]}}`);
-        }
-        else {
-          const fltIdxSub = cmdIdFilterIndices[commandId[nChannels]];
-          customTargetCurvePointsSub = await getFilterPoints(fltIdxSub);
-        }
+        const fltIdxSub = cmdIdFilterIndices[commandId[nChannels]];
+        const customTargetCurvePointsSub = await getFilterPoints(fltIdxSub);
         const subChannel = jsonData.detectedChannels[nChannels - 1];
         subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
         let k = 0;
