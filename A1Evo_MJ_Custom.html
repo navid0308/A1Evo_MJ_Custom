@@ -733,20 +733,16 @@
         TS:  "Top Surround",
 
         // Subs
-        SW1:  "Subwoofer",
+        SW1:  "Subwoofer", // no need for SW2,3,4 since it's applied globally to all subwoofers
+        SWMIX: "Subwoofer"
       };
       let subAdded = false;
       commandId.slice(1).forEach(spk => {
         if (spk.startsWith("SW")) {
           if (subAdded) return;
-          spk = "SW1";
           subAdded = true;
         }
-        if (speakerNames[spk]) {
-          createSpeakerTable(spk, `${speakerNames[spk]} (${spk})`, 20);
-        } else {
-          createSpeakerTable(spk, `Speaker ${spk}`, 20);
-        }
+        createSpeakerTable(spk, `${speakerNames[spk]} (${spk})`, 20);
       });
       populateFilterDropdowns();
 
@@ -1682,19 +1678,19 @@
 
       html += `<tr><td>Freq (Hz)</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" min="10" max="20000" step="0.5" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" min="10" max="20000" value="" step="0.5" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
       html += `<tr><td>Gain (dB)</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" min="-20" max="10" step="0.1" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" min="-20" max="10" value="" step="0.1" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
       html += `<tr><td>Q</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" min="0.1" max="10" step="0.01" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" min="0.1" max="10" value="" step="0.01" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
