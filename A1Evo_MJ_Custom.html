@@ -451,7 +451,7 @@
       font-size: 14px;
       transition: font-size 0.3s ease;
     }
-    .advance-content {
+    .advanced-content {
       margin-top: 10px;
       padding: 10px;
       background-color: #2a2a2a;
@@ -526,9 +526,9 @@
       <div class="toggle-advance">
         <span id="advanceToggleText" onclick="toggleAdvance()">[ + ] Advanced Settings</span>
       </div>
-      <div class="advance-content" id="advanceContent">
-    <!-- Speaker Section -->
-    <div class="section">
+      <div class="advanced-content" id="advancedContent">
+      <!-- Speaker Section -->
+      <div class="section">
       <h3 style="color:#FFA500; font-size: 14px;">Speaker Filter Boost (REW filtering)</h3>
 
       <div class="slider-row">
@@ -1450,7 +1450,7 @@
     // Slider Customization
     // ========================
     function toggleAdvance() {
-      const content = document.getElementById("advanceContent");
+      const content = document.getElementById("advancedContent");
       const container = document.getElementById("advancedContainer");
       const toggleText = document.getElementById("advanceToggleText");
 
@@ -1543,7 +1543,7 @@
           applySliderState(false);
           console.info("Button2 pressed → sliders active.");
         }
-        const content = document.getElementById("advanceContent");
+        const content = document.getElementById("advancedContent");
         const container = document.getElementById("advancedContainer");
         const toggleText = document.getElementById("advanceToggleText");
 
