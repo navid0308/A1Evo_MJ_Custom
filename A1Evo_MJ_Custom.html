@@ -653,13 +653,13 @@
     <!-- Controls start hidden -->
     <div id="filtersControls" style="display:none; margin-top:6px; justify-content:space-between; align-items:center;">
       <div>
-        <label for="importFile" class="import-export-btn" title="Import Filters"
-        style="display:inline-block; text-align:center; cursor: Pointer;">
+        <!--Import button-->
+        <label for="importFile" class="import-export-btn" title="Import Filters" style="display:inline-block; text-align:center; cursor: Pointer;">
         📂 Import Filters
         </label>
-        <input type="file" id="importFile" style="display:none;" onchange="importFilters(this.files[0])"/>
-        <button class="import-export-btn" onclick="exportFilters()" title="Export Filters"
-        style="display:inline-block; text-align:center; cursor: Pointer;">
+        <input type="file" id="importFile" style="display:none;"/>
+        <!--Export button-->
+        <button class="import-export-btn" onclick="exportFilters()" title="Export Filters" style="display:inline-block; text-align:center; cursor: Pointer;">
         💾 Export Filters
         </button>
       </div>
@@ -770,7 +770,9 @@
     function exportFilters() {
       const filtersPerSpeaker = 20;
       const exportData = {};
+      const doNotExportList = ["sw2", "sw3", "sw4"];
       commandId.slice(1).forEach(prefix => {
+        if (doNotExportList.includes(prefix.toLowerCase())) { return; }
         const p = prefix.toLowerCase();
         exportData[p] = [];
         for (let i = 1; i <= filtersPerSpeaker; i++) {
@@ -815,6 +817,11 @@
             document.getElementById(`speaker-${prefix}`) ||
             document.getElementById(`speaker-${prefix.toUpperCase()}`) ||
             document.getElementById(`speaker-${prefix.toLowerCase()}`);
+
+          if (!container) {
+            console.warn(`Ignoring filter data for channel ${prefix.toUpperCase()} - not present in the ady.`);
+            return;
+          }
 
           let lastUsed = 0;
           data[prefix].forEach((f, i) => {
@@ -1082,7 +1089,7 @@
       const noQTypes    = ["Modal","LP","HP","LP1","HP1","LS","HS","LS 6dB","HS 6dB","LS 12dB","HS 12dB","Notch"];
 
       if (freqEl) {
-        freqEl.value = "1000";
+        freqEl.value = freqEl.value === "" ? "1000" : freqEl.value;
       }
 
       if (gainEl) {
@@ -1091,7 +1098,7 @@
           gainEl.value = "";
         } else {
           gainEl.disabled = false;
-          gainEl.value = "0";
+          gainEl.value = gainEl.value === "" ? "0" : gainEl.value;
         }
       }
 
@@ -1101,7 +1108,7 @@
           qEl.value = "";
         } else {
           qEl.disabled = false;
-          qEl.value = "1";
+          qEl.value = qEl.value === "" ? "1" : qEl.value;
         }
       }
     }
