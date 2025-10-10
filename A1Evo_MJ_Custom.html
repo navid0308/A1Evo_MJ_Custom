@@ -800,6 +800,9 @@
         importFilters(e.target.files[0]);
       }
     });
+    document.getElementById("importFile").addEventListener('click', function() {
+      this.value = null; // Clear the value when the input is clicked; ensures same filename can be used
+    });
     function importFilters(file) {
       const reader = new FileReader();
       reader.onload = e => {
