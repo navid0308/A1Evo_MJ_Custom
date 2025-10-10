@@ -731,18 +731,16 @@
       toggleText.textContent = isVisible ? "[ + ] Advanced Settings" : "[ − ] Advanced Settings";
       toggleText.classList.toggle("expanded-font", !isVisible);
     }
-    function applySliderState() {
+    function lockSliders() {
       // lock sliders and use the last selected values
       sliders.forEach(({ id, label, variable }) => {
         const slider = document.getElementById(id);
         const output = document.getElementById(label);
-        if (slider && output) {
-          slider.disabled = true;
-          slider.style.opacity = "0.5";
-          slider.style.pointerEvents = "none";
-          output.textContent = `${slider.value} dB`;
-          window[variable] = parseFloat(slider.value);
-        }
+        slider.disabled = true;
+        slider.style.opacity = "0.5";
+        slider.style.pointerEvents = "none";
+        output.textContent = `${slider.value} dB`;
+        window[variable] = parseFloat(slider.value);
       });
     }
 
@@ -771,25 +769,6 @@
         }
       });
     });
-
-    const optimizeBtn = document.getElementById("button2");
-    if (optimizeBtn) {
-      optimizeBtn.addEventListener("click", (e) => {
-        applySliderState();
-
-        const content = document.getElementById("advancedContent");
-        const container = document.getElementById("advancedContainer");
-        const toggleText = document.getElementById("advanceToggleText");
-
-        if (content && container && toggleText) {
-          content.style.display = "none";
-          container.classList.remove("expanded");
-          toggleText.textContent = "[ + ] Advanced Settings";
-          toggleText.classList.remove("expanded-font");
-        }
-      });
-    }
-
     // ============================
     // Export Filters
     // ============================
@@ -1456,6 +1435,14 @@
       logContainer.style.transition = 'max-height 0.3s ease';
       document.querySelector('.customization-options').classList.add('new-style');
       document.querySelector('.notice').style.fontSize = '0.5em';
+      const content = document.getElementById("advancedContent");
+      const container = document.getElementById("advancedContainer");
+      const toggleText = document.getElementById("advanceToggleText");
+      content.style.display = "none";
+      container.classList.remove("expanded");
+      toggleText.textContent = "[ + ] Advanced Settings";
+      toggleText.classList.remove("expanded-font");
+      lockSliders();
       runOptimizer();
     }
     function updateCheckboxStates() {
