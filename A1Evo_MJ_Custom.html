@@ -841,6 +841,23 @@
       };
       reader.readAsText(file);
     }
+    function isNumeric(str) {
+      return !isNaN(parseFloat(str)) && isFinite(Number(str));
+    }
+    // checks if input in filter table is within range
+    function checkValue(object) {
+      if (object.value === "") { return; }
+      if (!isNumeric(Object.value)) {
+        object.value = "";
+        return;
+      }
+      if (parseInt(object.value) > parseInt(object.max)) {
+        object.value = object.max;
+      }
+      if (parseInt(object.value) < parseInt(object.min)) {
+        object.value = object.min;
+      }
+    }
     // create filter table for a specific command id
     // TODO: understand this
     function createSpeakerTable(prefix, name, numFilters = 20) {
@@ -869,19 +886,19 @@
 
       html += `<tr><td>Freq (Hz)</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" min="10" max="20000" value="" step="0.5" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" min="10" max="20000" value="" step="0.5" onblur="checkValue(this)" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
       html += `<tr><td>Gain (dB)</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" min="-20" max="10" value="" step="0.1" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" min="-20" max="10" value="" step="0.1" onblur="checkValue(this)" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
       html += `<tr><td>Q</td>`;
       for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" min="0.1" max="10" value="" step="0.01" data-filter="${i}" class="filter-input"></td>`;
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" min="0.1" max="10" value="" step="0.01" onblur="checkValue(this)" data-filter="${i}" class="filter-input"></td>`;
       }
       html += `</tr>`;
 
@@ -946,8 +963,8 @@
           typeEl.disabled = false;
 
           if (freqEl) { freqEl.value = ""; freqEl.disabled = false; }
-          if (gainEl) { gainEl.value = "";    gainEl.disabled = false; }
-          if (qEl)    { qEl.value    = "";  qEl.disabled    = false; }
+          if (gainEl) { gainEl.value = ""; gainEl.disabled = false; }
+          if (qEl)    { qEl.value    = ""; qEl.disabled    = false; }
 
           updateInputStates(typeEl);
         } else {
