@@ -692,11 +692,510 @@
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
 
+    const defaultSliderValues = {
+      spkIndBoost: 3,
+      spkOverAllBoost: 0,
+      spkHighShelfMin: -6,
+      spkHighShelfMax: 6,
+      subIndividualMaxBoost: 6,
+      subOverallMaxBoost: 3,
+      subLowShelfMin: -6,
+      subLowShelfMax: 6
+    };
+
+    const sliders = [
+      { id: "spkIndBoost", label: "spkIndBoostLabel", variable: "speakerIndividualMaxBoost" },
+      { id: "spkOverAllBoost", label: "spkOverAllBoostLabel", variable: "speakerOverallMaxBoost" },
+      { id: "spkHighShelfMin", label: "spkHighShelfMinLabel", variable: "speakerHighShelfMin" },
+      { id: "spkHighShelfMax", label: "spkHighShelfMaxLabel", variable: "speakerHighShelfMax" },
+      { id: "subIndividualMaxBoost", label: "subIndividualMaxBoostLabel", variable: "subwooferIndividualMaxBoost" },
+      { id: "subOverallMaxBoost", label: "subOverallMaxBoostLabel", variable: "subwooferOverallMaxBoost" },
+      { id: "subLowShelfMin", label: "subLowShelfMinLabel", variable: "subwooferLowShelfMin" },
+      { id: "subLowShelfMax", label: "subLowShelfMaxLabel", variable: "subwooferLowShelfMax" }
+    ];
+
     const startButton = document.getElementById('button2');
     startButton.addEventListener('click', function(event) {
       if (event.shiftKey && !useAudyFiltering) {
         useAudyFiltering = true;
       }
+    });
+    function toggleAdvance() {
+      const content = document.getElementById("advancedContent");
+      const container = document.getElementById("advancedContainer");
+      const toggleText = document.getElementById("advanceToggleText");
+
+      const isVisible = content.style.display === "block";
+      content.style.display = isVisible ? "none" : "block";
+      container.classList.toggle("expanded", !isVisible);
+      toggleText.textContent = isVisible ? "[ + ] Advanced Settings" : "[ − ] Advanced Settings";
+      toggleText.classList.toggle("expanded-font", !isVisible);
+    }
+    function applySliderState() {
+      // lock sliders and use the last selected values
+      sliders.forEach(({ id, label, variable }) => {
+        const slider = document.getElementById(id);
+        const output = document.getElementById(label);
+        if (slider && output) {
+          slider.disabled = true;
+          slider.style.opacity = "0.5";
+          slider.style.pointerEvents = "none";
+          output.textContent = `${slider.value} dB`;
+          window[variable] = parseFloat(slider.value);
+        }
+      });
+    }
+
+    sliders.forEach(({ id, label, variable }) => {
+      const slider = document.getElementById(id);
+      const output = document.getElementById(label);
+
+      if (slider && output) {
+        slider.addEventListener("input", () => {
+          const value = parseFloat(slider.value);
+          output.textContent = `${value} dB`;
+          window[variable] = value;
+        });
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      // TODO: not sure what this does or if it's necessary
+      sliders.forEach(({ id, label, variable }) => {
+        const slider = document.getElementById(id);
+        const output = document.getElementById(label);
+        if (slider && output) {
+          slider.value = defaultSliderValues[id];
+          output.textContent = `${defaultSliderValues[id]} dB`;
+          window[variable] = defaultSliderValues[id];
+        }
+      });
+    });
+
+    const optimizeBtn = document.getElementById("button2");
+    if (optimizeBtn) {
+      optimizeBtn.addEventListener("click", (e) => {
+        applySliderState();
+
+        const content = document.getElementById("advancedContent");
+        const container = document.getElementById("advancedContainer");
+        const toggleText = document.getElementById("advanceToggleText");
+
+        if (content && container && toggleText) {
+          content.style.display = "none";
+          container.classList.remove("expanded");
+          toggleText.textContent = "[ + ] Advanced Settings";
+          toggleText.classList.remove("expanded-font");
+        }
+      });
+    }
+
+    // ============================
+    // Export Filters
+    // ============================
+    function exportFilters() {
+      const filtersPerSpeaker = 20;
+      const exportData = {};
+
+      commandId.slice(1).forEach(prefix => {
+        const p = prefix.toLowerCase();
+        exportData[p] = [];
+
+        for (let i = 1; i <= filtersPerSpeaker; i++) {
+          const typeEl = document.getElementById(`${p}Type${i}`);
+          const freqEl = document.getElementById(`${p}Freq${i}`);
+          const gainEl = document.getElementById(`${p}Gain${i}`);
+          const qEl    = document.getElementById(`${p}Q${i}`);
+
+          if (typeEl) {
+            exportData[p].push({
+              type: typeEl.value || "None",
+              freq: freqEl?.value || "",
+              gain: gainEl?.value || "",
+              q:    qEl?.value || ""
+            });
+          }
+        }
+      });
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "filters.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ============================
+    // Import Filters
+    // ============================
+    document.getElementById("importFile").addEventListener("change", e => {
+      if (e.target.files.length > 0) {
+        importFilters(e.target.files[0]);
+      }
+    });
+
+    function importFilters(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const data = JSON.parse(e.target.result);
+        Object.keys(data).forEach(prefix => {
+          const p = prefix.toLowerCase();
+          const container =
+            document.getElementById(`speaker-${prefix}`) ||
+            document.getElementById(`speaker-${prefix.toUpperCase()}`) ||
+            document.getElementById(`speaker-${prefix.toLowerCase()}`);
+
+          let lastUsed = 0;
+
+          data[prefix].forEach((f, i) => {
+            const idx = i + 1;
+            const typeEl = document.getElementById(`${p}Type${idx}`);
+            const freqEl = document.getElementById(`${p}Freq${idx}`);
+            const gainEl = document.getElementById(`${p}Gain${idx}`);
+            const qEl    = document.getElementById(`${p}Q${idx}`);
+
+            if (typeEl) typeEl.value = f.type || "None";
+            if (freqEl) freqEl.value = f.freq || "";
+            if (gainEl) gainEl.value = f.gain || "";
+            if (qEl)    qEl.value    = f.q    || "";
+
+            if (typeEl && f.type && f.type !== "None") {
+              lastUsed = idx;
+            }
+          });
+
+          if (container && lastUsed > 0) {
+            for (let i = 1; i <= Math.min(lastUsed + 1, 20); i++) {
+              showFilterColumn(container, prefix, i);
+            }
+          }
+
+          updateFilterChain(p);
+        });
+      };
+      reader.readAsText(file);
+    }
+
+    // ========================
+    // Create Dynamic Speakers
+    // ========================
+    function createSpeakerTable(prefix, name, numFilters = 20) {
+      const container = document.createElement("div");
+      container.className = "speaker-content";
+      container.id = "speaker-" + prefix;
+
+      let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="margin:0;">${name}</h3>
+          <button class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
+        </div>
+        <table class="filter-table">
+          <thead>
+            <tr><th></th>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<th id="${prefix.toLowerCase()}Header${i}">Filter ${i}</th>`;
+      }
+      html += `</tr></thead><tbody>`;
+
+      html += `<tr><td>Type</td>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<td><select id="${prefix.toLowerCase()}Type${i}" data-filter="${i}" class="filter-input"></select></td>`;
+      }
+      html += `</tr>`;
+
+      html += `<tr><td>Freq (Hz)</td>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" min="10" max="20000" value="" step="0.5" data-filter="${i}" class="filter-input"></td>`;
+      }
+      html += `</tr>`;
+
+      html += `<tr><td>Gain (dB)</td>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" min="-20" max="10" value="" step="0.1" data-filter="${i}" class="filter-input"></td>`;
+      }
+      html += `</tr>`;
+
+      html += `<tr><td>Q</td>`;
+      for (let i = 1; i <= numFilters; i++) {
+        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" min="0.1" max="10" value="" step="0.01" data-filter="${i}" class="filter-input"></td>`;
+      }
+      html += `</tr>`;
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+      document.getElementById("speakersContainer").appendChild(container);
+
+      for (let i = 4; i <= numFilters; i++) {
+        hideFilterColumn(container, prefix, i);
+      }
+
+      const inputs = container.querySelectorAll(".filter-input");
+      inputs.forEach(input => {
+        const handler = () => {
+          const idx = parseInt(input.dataset.filter, 10);
+          if (idx < numFilters && hasValueInColumn(container, prefix, idx)) {
+            showFilterColumn(container, prefix, idx + 1);
+          }
+        };
+        input.addEventListener("input", handler);
+        input.addEventListener("change", handler);
+      });
+    }
+
+      function hideFilterColumn(container, prefix, idx) {
+        container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
+          el.closest("td").style.display = "none";
+        });
+        const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
+        if (header) header.style.display = "none";
+      }
+
+      function showFilterColumn(container, prefix, idx) {
+        container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
+          el.closest("td").style.display = "";
+        });
+        const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
+        if (header) header.style.display = "";
+      }
+
+      function hasValueInColumn(container, prefix, idx) {
+        const els = container.querySelectorAll(`[data-filter='${idx}']`);
+        return Array.from(els).some(el => String(el.value).trim() !== "");
+      }
+
+    // ============================
+    // Clear Filters
+    // ============================
+    function clearSpeakerFilters(prefix) {
+      const container = document.getElementById("speaker-" + prefix);
+
+      for (let i = 1; i <= 20; i++) {
+        const typeEl = document.getElementById(`${prefix.toLowerCase()}Type${i}`);
+        const freqEl = document.getElementById(`${prefix.toLowerCase()}Freq${i}`);
+        const gainEl = document.getElementById(`${prefix.toLowerCase()}Gain${i}`);
+        const qEl    = document.getElementById(`${prefix.toLowerCase()}Q${i}`);
+
+        if (!typeEl) continue;
+
+        if (i === 1) {
+          typeEl.value = "None";
+          typeEl.disabled = false;
+
+          if (freqEl) { freqEl.value = ""; freqEl.disabled = false; }
+          if (gainEl) { gainEl.value = "";    gainEl.disabled = false; }
+          if (qEl)    { qEl.value    = "";  qEl.disabled    = false; }
+
+          updateInputStates(typeEl);
+        } else {
+          typeEl.value = "None";
+          typeEl.disabled = true;
+
+          if (freqEl) { freqEl.value = ""; freqEl.disabled = true; }
+          if (gainEl) { gainEl.value = ""; gainEl.disabled = true; }
+          if (qEl)    { qEl.value    = ""; qEl.disabled    = true; }
+        }
+
+        if (i <= 3) {
+          showFilterColumn(container, prefix, i);
+        } else {
+          hideFilterColumn(container, prefix, i);
+        }
+      }
+    }
+
+    function clearAllFilters() {
+      commandId.slice(1).forEach(prefix => {
+        clearSpeakerFilters(prefix);
+      });
+    }
+
+    // ============================
+    // Expnad / Collapse Filters +-
+    // ============================
+    function toggleAllSpeakers() {
+      if (startButton.disabled) { return; }
+
+      const contents = document.querySelectorAll(".speaker-content");
+      const toggleBtn = document.getElementById("toggleAll");
+
+      const isCollapsed = Array.from(contents).every(el => el.style.display === "none");
+
+      contents.forEach(el => {
+        el.style.display = isCollapsed ? "block" : "none";
+      });
+
+      const controls = document.getElementById("filtersControls");
+      if (controls) {
+        controls.style.display = isCollapsed ? "block" : "none";
+      }
+
+      if (toggleBtn) {
+        toggleBtn.textContent = isCollapsed ? "[ – ] EQ Filters" : "[ + ] EQ Filters";
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggleBtn = document.getElementById("toggleAll");
+      if (toggleBtn) {
+        toggleBtn.textContent = "[ + ] EQ Filters";
+        toggleBtn.disabled = false;
+      }
+
+      const optimizeBtn = document.getElementById("button2");
+      if (optimizeBtn && toggleBtn) {
+        optimizeBtn.addEventListener("click", () => {
+          const contents = document.querySelectorAll(".speaker-content");
+          contents.forEach(el => el.style.display = "none");
+
+          toggleBtn.textContent = "[ + ] EQ Filters";
+
+          const controls = document.getElementById("filtersControls");
+          if (controls) controls.style.display = "none";
+        });
+      }
+    });
+
+    // ============================
+    // Filter Dropdowns
+    // ============================
+    const filterTypes = [
+      "None", "PK", "LS", "HS" /*, "All pass", "Modal",
+      "LP", "HP", "LP1", "HP1", "LP Q", "HP Q",
+      "LS 6dB", "HS 6dB", "LS 12dB", "HS 12dB",
+      "LS Q", "HS Q", "Notch", "Notch Q"*/
+    ];
+    function populateFilterDropdowns() {
+      const allSelects = document.querySelectorAll("select[id*='Type']");
+
+      allSelects.forEach(select => {
+        select.innerHTML = "";
+
+        filterTypes.forEach(type => {
+          const option = document.createElement("option");
+          option.value = type;
+          option.textContent = type;
+
+          if (type === "None") {
+            option.selected = true;
+          }
+
+          select.appendChild(option);
+        });
+
+        select.addEventListener("change", () => {
+          updateInputStates(select);
+          const idPrefix = select.id.replace(/Type\d+$/, "");
+          updateFilterChain(idPrefix);
+        });
+      });
+
+      commandId.slice(1).forEach(p => updateFilterChain(p.toLowerCase()));
+    }
+
+    function updateInputStates(select) {
+      const type = select.value;
+      const idPrefix = select.id.replace(/Type\d+$/, "");
+      const filterIndex = select.id.match(/\d+$/)[0];
+
+      const freqEl = document.getElementById(`${idPrefix}Freq${filterIndex}`);
+      const gainEl = document.getElementById(`${idPrefix}Gain${filterIndex}`);
+      const qEl    = document.getElementById(`${idPrefix}Q${filterIndex}`);
+
+      if (type === "None") {
+        freqEl.disabled = true;
+        gainEl.disabled = true;
+        qEl.disabled = true;
+        return;
+      }
+
+      const noGainTypes = ["LP","HP","LP1","HP1","LP Q","HP Q","Notch","Notch Q","All pass"];
+      const noQTypes    = ["Modal","LP","HP","LP1","HP1","LS","HS","LS 6dB","HS 6dB","LS 12dB","HS 12dB","Notch"];
+
+      if (gainEl) {
+        if (noGainTypes.includes(type)) {
+          gainEl.disabled = true;
+          gainEl.value = "";
+        } else {
+          gainEl.disabled = false;
+        }
+      }
+
+      if (qEl) {
+        if (noQTypes.includes(type)) {
+          qEl.disabled = true;
+          qEl.value = "";
+        } else {
+          qEl.disabled = false;
+        }
+      }
+    }
+
+    function updateFilterChain(idPrefix) {
+      const filtersPerSpeaker = 20;
+      const spkUpper = idPrefix.toUpperCase();
+      const pos = Array.isArray(commandId) ? commandId.indexOf(spkUpper) : -1;
+      const base = pos > 0 ? (pos - 1) * (filtersPerSpeaker * 4) : 0;
+      let tabIndex = base + 1;
+
+      for (let i = 1; i <= filtersPerSpeaker; i++) {
+        const typeEl = document.getElementById(`${idPrefix}Type${i}`);
+        const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
+        const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
+        const qEl    = document.getElementById(`${idPrefix}Q${i}`);
+
+        if (!typeEl) continue;
+
+        if (i === 1) {
+          typeEl.disabled = false;
+          if (freqEl) freqEl.disabled = false;
+          updateInputStates(typeEl);
+        } else {
+          const prevType = document.getElementById(`${idPrefix}Type${i-1}`)?.value;
+          const enableNow = prevType && prevType !== "None";
+
+          typeEl.disabled = !enableNow;
+          if (freqEl) freqEl.disabled = !enableNow;
+
+          if (!enableNow) {
+            typeEl.value = "None";
+            if (freqEl) freqEl.value = "";
+            if (gainEl) { gainEl.value = ""; gainEl.disabled = true; }
+            if (qEl)    { qEl.value    = ""; qEl.disabled    = true; }
+          } else {
+            updateInputStates(typeEl);
+          }
+        }
+
+        if (typeEl) typeEl.tabIndex = tabIndex++;
+        if (freqEl) freqEl.tabIndex = tabIndex++;
+        if (gainEl) gainEl.tabIndex = tabIndex++;
+        if (qEl)    qEl.tabIndex    = tabIndex++;
+      }
+    }
+
+    // ============================
+    // Tabindex assignment
+    // ============================
+    document.addEventListener("DOMContentLoaded", () => {
+      const filtersPerSpeaker = 20;
+      let tabIndex = 1;
+
+      commandId.slice(1).forEach(prefix => {
+        const idPrefix = prefix.toLowerCase();
+        for (let i = 1; i <= filtersPerSpeaker; i++) {
+          const typeEl = document.getElementById(`${idPrefix}Type${i}`);
+          const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
+          const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
+          const qEl    = document.getElementById(`${idPrefix}Q${i}`);
+
+          [typeEl, freqEl, gainEl, qEl].forEach(el => {
+            if (el) el.setAttribute("tabindex", tabIndex++);
+          });
+        }
+      });
     });
     function populateCustomFilterTable() {
       // ============================
@@ -1440,531 +1939,6 @@
       // return the tc level offset
       return tcLevelOffset;
     }
-
-
-// ========================
-// Advance Settings
-// ========================
-
-    // ========================
-    // Slider Customization
-    // ========================
-    function toggleAdvance() {
-      const content = document.getElementById("advancedContent");
-      const container = document.getElementById("advancedContainer");
-      const toggleText = document.getElementById("advanceToggleText");
-
-      const isVisible = content.style.display === "block";
-      content.style.display = isVisible ? "none" : "block";
-      container.classList.toggle("expanded", !isVisible);
-      toggleText.textContent = isVisible ? "[ + ] Advanced Settings" : "[ − ] Advanced Settings";
-      toggleText.classList.toggle("expanded-font", !isVisible);
-    }
-
-    const defaultSliderValues = {
-      spkIndBoost: 3,
-      spkOverAllBoost: 0,
-      spkHighShelfMin: -6,
-      spkHighShelfMax: 6,
-      subIndividualMaxBoost: 6,
-      subOverallMaxBoost: 3,
-      subLowShelfMin: -6,
-      subLowShelfMax: 6
-    };
-
-    const sliders = [
-      { id: "spkIndBoost", label: "spkIndBoostLabel", variable: "speakerIndividualMaxBoost" },
-      { id: "spkOverAllBoost", label: "spkOverAllBoostLabel", variable: "speakerOverallMaxBoost" },
-      { id: "spkHighShelfMin", label: "spkHighShelfMinLabel", variable: "speakerHighShelfMin" },
-      { id: "spkHighShelfMax", label: "spkHighShelfMaxLabel", variable: "speakerHighShelfMax" },
-      { id: "subIndividualMaxBoost", label: "subIndividualMaxBoostLabel", variable: "subwooferIndividualMaxBoost" },
-      { id: "subOverallMaxBoost", label: "subOverallMaxBoostLabel", variable: "subwooferOverallMaxBoost" },
-      { id: "subLowShelfMin", label: "subLowShelfMinLabel", variable: "subwooferLowShelfMin" },
-      { id: "subLowShelfMax", label: "subLowShelfMaxLabel", variable: "subwooferLowShelfMax" }
-    ];
-
-    function applySliderState(lock) {
-      sliders.forEach(({ id, label, variable }) => {
-        const slider = document.getElementById(id);
-        const output = document.getElementById(label);
-
-        if (slider && output) {
-          if (lock) {
-            const def = defaultSliderValues[id];
-            slider.value = def;
-            output.textContent = `${def} dB`;
-            window[variable] = def;
-            slider.disabled = true;
-            slider.style.opacity = "0.5";
-            slider.style.pointerEvents = "none";
-          } else {
-            slider.disabled = false;
-            slider.style.opacity = "1";
-            slider.style.pointerEvents = "auto";
-            output.textContent = `${slider.value} dB`;
-            window[variable] = parseFloat(slider.value);
-          }
-        }
-      });
-    }
-
-    sliders.forEach(({ id, label, variable }) => {
-      const slider = document.getElementById(id);
-      const output = document.getElementById(label);
-
-      if (slider && output) {
-        slider.addEventListener("input", () => {
-          const value = parseFloat(slider.value);
-          output.textContent = `${value} dB`;
-          window[variable] = value;
-        });
-      }
-    });
-
-    window.addEventListener("DOMContentLoaded", () => {
-      sliders.forEach(({ id, label, variable }) => {
-        const slider = document.getElementById(id);
-        const output = document.getElementById(label);
-        if (slider && output) {
-          slider.value = defaultSliderValues[id];
-          output.textContent = `${defaultSliderValues[id]} dB`;
-          window[variable] = defaultSliderValues[id];
-        }
-      });
-    });
-
-    const optimizeBtn = document.getElementById("button2");
-    if (optimizeBtn) {
-      optimizeBtn.addEventListener("click", (e) => {
-        if (e.altKey) {
-          applySliderState(true);
-          console.info("ALT + Button2 pressed → sliders reset to default & disabled.");
-        } else {
-          applySliderState(false);
-          console.info("Button2 pressed → sliders active.");
-        }
-        const content = document.getElementById("advancedContent");
-        const container = document.getElementById("advancedContainer");
-        const toggleText = document.getElementById("advanceToggleText");
-
-        if (content && container && toggleText) {
-          content.style.display = "none";
-          container.classList.remove("expanded");
-          toggleText.textContent = "[ + ] Advanced Settings";
-          toggleText.classList.remove("expanded-font");
-        }
-      });
-    }
-
-    // ============================
-    // Export Filters
-    // ============================
-    function exportFilters() {
-      const filtersPerSpeaker = 20;
-      const exportData = {};
-
-      commandId.slice(1).forEach(prefix => {
-        const p = prefix.toLowerCase();
-        exportData[p] = [];
-
-        for (let i = 1; i <= filtersPerSpeaker; i++) {
-          const typeEl = document.getElementById(`${p}Type${i}`);
-          const freqEl = document.getElementById(`${p}Freq${i}`);
-          const gainEl = document.getElementById(`${p}Gain${i}`);
-          const qEl    = document.getElementById(`${p}Q${i}`);
-
-          if (typeEl) {
-            exportData[p].push({
-              type: typeEl.value || "None",
-              freq: freqEl?.value || "",
-              gain: gainEl?.value || "",
-              q:    qEl?.value || ""
-            });
-          }
-        }
-      });
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: "application/json"});
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "filters.json";
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    // ============================
-    // Import Filters
-    // ============================
-    document.getElementById("importFile").addEventListener("change", e => {
-      if (e.target.files.length > 0) {
-        importFilters(e.target.files[0]);
-      }
-    });
-
-    function importFilters(file) {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const data = JSON.parse(e.target.result);
-        Object.keys(data).forEach(prefix => {
-          const p = prefix.toLowerCase();
-          const container =
-            document.getElementById(`speaker-${prefix}`) ||
-            document.getElementById(`speaker-${prefix.toUpperCase()}`) ||
-            document.getElementById(`speaker-${prefix.toLowerCase()}`);
-
-          let lastUsed = 0;
-
-          data[prefix].forEach((f, i) => {
-            const idx = i + 1;
-            const typeEl = document.getElementById(`${p}Type${idx}`);
-            const freqEl = document.getElementById(`${p}Freq${idx}`);
-            const gainEl = document.getElementById(`${p}Gain${idx}`);
-            const qEl    = document.getElementById(`${p}Q${idx}`);
-
-            if (typeEl) typeEl.value = f.type || "None";
-            if (freqEl) freqEl.value = f.freq || "";
-            if (gainEl) gainEl.value = f.gain || "";
-            if (qEl)    qEl.value    = f.q    || "";
-
-            if (typeEl && f.type && f.type !== "None") {
-              lastUsed = idx;
-            }
-          });
-
-          if (container && lastUsed > 0) {
-            for (let i = 1; i <= Math.min(lastUsed + 1, 20); i++) {
-              showFilterColumn(container, prefix, i);
-            }
-          }
-
-          updateFilterChain(p);
-        });
-      };
-      reader.readAsText(file);
-    }
-
-    // ========================
-    // Create Dynamic Speakers
-    // ========================
-    function createSpeakerTable(prefix, name, numFilters = 20) {
-      const container = document.createElement("div");
-      container.className = "speaker-content";
-      container.id = "speaker-" + prefix;
-
-      let html = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0;">${name}</h3>
-          <button class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
-        </div>
-        <table class="filter-table">
-          <thead>
-            <tr><th></th>`;
-      for (let i = 1; i <= numFilters; i++) {
-        html += `<th id="${prefix.toLowerCase()}Header${i}">Filter ${i}</th>`;
-      }
-      html += `</tr></thead><tbody>`;
-
-      html += `<tr><td>Type</td>`;
-      for (let i = 1; i <= numFilters; i++) {
-        html += `<td><select id="${prefix.toLowerCase()}Type${i}" data-filter="${i}" class="filter-input"></select></td>`;
-      }
-      html += `</tr>`;
-
-      html += `<tr><td>Freq (Hz)</td>`;
-      for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Freq${i}" min="10" max="20000" value="" step="0.5" data-filter="${i}" class="filter-input"></td>`;
-      }
-      html += `</tr>`;
-
-      html += `<tr><td>Gain (dB)</td>`;
-      for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Gain${i}" min="-20" max="10" value="" step="0.1" data-filter="${i}" class="filter-input"></td>`;
-      }
-      html += `</tr>`;
-
-      html += `<tr><td>Q</td>`;
-      for (let i = 1; i <= numFilters; i++) {
-        html += `<td><input type="number" id="${prefix.toLowerCase()}Q${i}" min="0.1" max="10" value="" step="0.01" data-filter="${i}" class="filter-input"></td>`;
-      }
-      html += `</tr>`;
-
-      html += `</tbody></table>`;
-      container.innerHTML = html;
-      document.getElementById("speakersContainer").appendChild(container);
-
-      for (let i = 4; i <= numFilters; i++) {
-        hideFilterColumn(container, prefix, i);
-      }
-
-      const inputs = container.querySelectorAll(".filter-input");
-      inputs.forEach(input => {
-        const handler = () => {
-          const idx = parseInt(input.dataset.filter, 10);
-          if (idx < numFilters && hasValueInColumn(container, prefix, idx)) {
-            showFilterColumn(container, prefix, idx + 1);
-          }
-        };
-        input.addEventListener("input", handler);
-        input.addEventListener("change", handler);
-      });
-    }
-
-      function hideFilterColumn(container, prefix, idx) {
-        container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
-          el.closest("td").style.display = "none";
-        });
-        const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
-        if (header) header.style.display = "none";
-      }
-
-      function showFilterColumn(container, prefix, idx) {
-        container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
-          el.closest("td").style.display = "";
-        });
-        const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
-        if (header) header.style.display = "";
-      }
-
-      function hasValueInColumn(container, prefix, idx) {
-        const els = container.querySelectorAll(`[data-filter='${idx}']`);
-        return Array.from(els).some(el => String(el.value).trim() !== "");
-      }
-
-    // ============================
-    // Clear Filters
-    // ============================
-    function clearSpeakerFilters(prefix) {
-      const container = document.getElementById("speaker-" + prefix);
-
-      for (let i = 1; i <= 20; i++) {
-        const typeEl = document.getElementById(`${prefix.toLowerCase()}Type${i}`);
-        const freqEl = document.getElementById(`${prefix.toLowerCase()}Freq${i}`);
-        const gainEl = document.getElementById(`${prefix.toLowerCase()}Gain${i}`);
-        const qEl    = document.getElementById(`${prefix.toLowerCase()}Q${i}`);
-
-        if (!typeEl) continue;
-
-        if (i === 1) {
-          typeEl.value = "None";
-          typeEl.disabled = false;
-
-          if (freqEl) { freqEl.value = ""; freqEl.disabled = false; }
-          if (gainEl) { gainEl.value = "";    gainEl.disabled = false; }
-          if (qEl)    { qEl.value    = "";  qEl.disabled    = false; }
-
-          updateInputStates(typeEl);
-        } else {
-          typeEl.value = "None";
-          typeEl.disabled = true;
-
-          if (freqEl) { freqEl.value = ""; freqEl.disabled = true; }
-          if (gainEl) { gainEl.value = ""; gainEl.disabled = true; }
-          if (qEl)    { qEl.value    = ""; qEl.disabled    = true; }
-        }
-
-        if (i <= 3) {
-          showFilterColumn(container, prefix, i);
-        } else {
-          hideFilterColumn(container, prefix, i);
-        }
-      }
-    }
-
-    function clearAllFilters() {
-      commandId.slice(1).forEach(prefix => {
-        clearSpeakerFilters(prefix);
-      });
-    }
-
-    // ============================
-    // Expnad / Collapse Filters +-
-    // ============================
-    function toggleAllSpeakers() {
-      if (startButton.disabled) { return; }
-
-      const contents = document.querySelectorAll(".speaker-content");
-      const toggleBtn = document.getElementById("toggleAll");
-
-      const isCollapsed = Array.from(contents).every(el => el.style.display === "none");
-
-      contents.forEach(el => {
-        el.style.display = isCollapsed ? "block" : "none";
-      });
-
-      const controls = document.getElementById("filtersControls");
-      if (controls) {
-        controls.style.display = isCollapsed ? "block" : "none";
-      }
-
-      if (toggleBtn) {
-        toggleBtn.textContent = isCollapsed ? "[ – ] EQ Filters" : "[ + ] EQ Filters";
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const toggleBtn = document.getElementById("toggleAll");
-      if (toggleBtn) {
-        toggleBtn.textContent = "[ + ] EQ Filters";
-        toggleBtn.disabled = false;
-      }
-
-      const optimizeBtn = document.getElementById("button2");
-      if (optimizeBtn && toggleBtn) {
-        optimizeBtn.addEventListener("click", () => {
-          const contents = document.querySelectorAll(".speaker-content");
-          contents.forEach(el => el.style.display = "none");
-
-          toggleBtn.textContent = "[ + ] EQ Filters";
-
-          const controls = document.getElementById("filtersControls");
-          if (controls) controls.style.display = "none";
-        });
-      }
-    });
-
-    // ============================
-    // Filter Dropdowns
-    // ============================
-    const filterTypes = [
-      "None", "PK", "LS", "HS" /*, "All pass", "Modal",
-      "LP", "HP", "LP1", "HP1", "LP Q", "HP Q",
-      "LS 6dB", "HS 6dB", "LS 12dB", "HS 12dB",
-      "LS Q", "HS Q", "Notch", "Notch Q"*/
-    ];
-    function populateFilterDropdowns() {
-      const allSelects = document.querySelectorAll("select[id*='Type']");
-
-      allSelects.forEach(select => {
-        select.innerHTML = "";
-
-        filterTypes.forEach(type => {
-          const option = document.createElement("option");
-          option.value = type;
-          option.textContent = type;
-
-          if (type === "None") {
-            option.selected = true;
-          }
-
-          select.appendChild(option);
-        });
-
-        select.addEventListener("change", () => {
-          updateInputStates(select);
-          const idPrefix = select.id.replace(/Type\d+$/, "");
-          updateFilterChain(idPrefix);
-        });
-      });
-
-      commandId.slice(1).forEach(p => updateFilterChain(p.toLowerCase()));
-    }
-
-    function updateInputStates(select) {
-      const type = select.value;
-      const idPrefix = select.id.replace(/Type\d+$/, "");
-      const filterIndex = select.id.match(/\d+$/)[0];
-
-      const freqEl = document.getElementById(`${idPrefix}Freq${filterIndex}`);
-      const gainEl = document.getElementById(`${idPrefix}Gain${filterIndex}`);
-      const qEl    = document.getElementById(`${idPrefix}Q${filterIndex}`);
-
-      if (type === "None") {
-        freqEl.disabled = true;
-        gainEl.disabled = true;
-        qEl.disabled = true;
-        return;
-      }
-
-      const noGainTypes = ["LP","HP","LP1","HP1","LP Q","HP Q","Notch","Notch Q","All pass"];
-      const noQTypes    = ["Modal","LP","HP","LP1","HP1","LS","HS","LS 6dB","HS 6dB","LS 12dB","HS 12dB","Notch"];
-
-      if (gainEl) {
-        if (noGainTypes.includes(type)) {
-          gainEl.disabled = true;
-          gainEl.value = "";
-        } else {
-          gainEl.disabled = false;
-        }
-      }
-
-      if (qEl) {
-        if (noQTypes.includes(type)) {
-          qEl.disabled = true;
-          qEl.value = "";
-        } else {
-          qEl.disabled = false;
-        }
-      }
-    }
-
-    function updateFilterChain(idPrefix) {
-      const filtersPerSpeaker = 20;
-      const spkUpper = idPrefix.toUpperCase();
-      const pos = Array.isArray(commandId) ? commandId.indexOf(spkUpper) : -1;
-      const base = pos > 0 ? (pos - 1) * (filtersPerSpeaker * 4) : 0;
-      let tabIndex = base + 1;
-
-      for (let i = 1; i <= filtersPerSpeaker; i++) {
-        const typeEl = document.getElementById(`${idPrefix}Type${i}`);
-        const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
-        const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
-        const qEl    = document.getElementById(`${idPrefix}Q${i}`);
-
-        if (!typeEl) continue;
-
-        if (i === 1) {
-          typeEl.disabled = false;
-          if (freqEl) freqEl.disabled = false;
-          updateInputStates(typeEl);
-        } else {
-          const prevType = document.getElementById(`${idPrefix}Type${i-1}`)?.value;
-          const enableNow = prevType && prevType !== "None";
-
-          typeEl.disabled = !enableNow;
-          if (freqEl) freqEl.disabled = !enableNow;
-
-          if (!enableNow) {
-            typeEl.value = "None";
-            if (freqEl) freqEl.value = "";
-            if (gainEl) { gainEl.value = ""; gainEl.disabled = true; }
-            if (qEl)    { qEl.value    = ""; qEl.disabled    = true; }
-          } else {
-            updateInputStates(typeEl);
-          }
-        }
-
-        if (typeEl) typeEl.tabIndex = tabIndex++;
-        if (freqEl) freqEl.tabIndex = tabIndex++;
-        if (gainEl) gainEl.tabIndex = tabIndex++;
-        if (qEl)    qEl.tabIndex    = tabIndex++;
-      }
-    }
-
-    // ============================
-    // Tabindex assignment
-    // ============================
-    document.addEventListener("DOMContentLoaded", () => {
-      const filtersPerSpeaker = 20;
-      let tabIndex = 1;
-
-      commandId.slice(1).forEach(prefix => {
-        const idPrefix = prefix.toLowerCase();
-        for (let i = 1; i <= filtersPerSpeaker; i++) {
-          const typeEl = document.getElementById(`${idPrefix}Type${i}`);
-          const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
-          const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
-          const qEl    = document.getElementById(`${idPrefix}Q${i}`);
-
-          [typeEl, freqEl, gainEl, qEl].forEach(el => {
-            if (el) el.setAttribute("tabindex", tabIndex++);
-          });
-        }
-      });
-    });
-
-
     async function updateEQFilterSettings(start, end, indMaxBoost, ovMaxBoost, LSMin, LSMax, HSMin, HSMax) {
       await postSafe(`http://localhost:4735/eq/match-target-settings`, {
         startFrequency: start, endFrequency: end,
