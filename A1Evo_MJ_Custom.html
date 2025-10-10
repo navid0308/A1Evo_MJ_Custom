@@ -462,8 +462,8 @@
     }
     .clear-btn {
       background-color: #1f1f1f; 
-      color: #FFA500;            
-      border: 1px solid #FFA500;  
+      color: #FF5511;            
+      border: 1px solid #FF5511;  
       border-radius: 4px;
       padding: 1px 6px;        
       font-size: 10px;       
@@ -472,9 +472,8 @@
       width: auto;             
       display: inline-block;
     }
-
     .clear-btn:hover {
-      background-color: #FFA500;  
+      background-color: #FF5511;  
       color: #1f1f1f;          
     }
   </style>
@@ -815,8 +814,8 @@
 
       let html = `
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0;">${name}</h3>
-          <button class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
+          <h3 style="margin:0 0 10px 0;">${name}</h3>
+          <button style="margin:0 0 5px 0;" class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
         </div>
         <table class="filter-table">
           <thead>
@@ -871,26 +870,26 @@
       });
     }
 
-      function hideFilterColumn(container, prefix, idx) {
-        container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
-          el.closest("td").style.display = "none";
-        });
-        const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
-        if (header) header.style.display = "none";
-      }
+    function hideFilterColumn(container, prefix, idx) {
+      container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
+        el.closest("td").style.display = "none";
+      });
+      const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
+      if (header) header.style.display = "none";
+    }
 
-      function showFilterColumn(container, prefix, idx) {
-        container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
-          el.closest("td").style.display = "";
-        });
-        const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
-        if (header) header.style.display = "";
-      }
+    function showFilterColumn(container, prefix, idx) {
+      container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
+        el.closest("td").style.display = "";
+      });
+      const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
+      if (header) header.style.display = "";
+    }
 
-      function hasValueInColumn(container, prefix, idx) {
-        const els = container.querySelectorAll(`[data-filter='${idx}']`);
-        return Array.from(els).some(el => String(el.value).trim() !== "");
-      }
+    function hasValueInColumn(container, prefix, idx) {
+      const els = container.querySelectorAll(`[data-filter='${idx}']`);
+      return Array.from(els).some(el => String(el.value).trim() !== "");
+    }
 
     // ============================
     // Clear Filters
