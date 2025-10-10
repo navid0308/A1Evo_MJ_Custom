@@ -461,16 +461,17 @@
       font-size: 13px;
     }
     .clear-btn {
-      background-color: #1f1f1f; 
-      color: #FF5511;            
-      border: 1px solid #FF5511;  
+      background-color: #1f1f1f;
+      color: #FF5511;
+      border: 1px solid #FF5511;
       border-radius: 4px;
-      padding: 1px 6px;        
-      font-size: 10px;       
+      padding: 2px 6px;
+      font-size: 11px;
       font-weight: bold;
       cursor: pointer;
-      width: auto;             
+      width: auto;
       display: inline-block;
+      margin:4px;
     }
     .clear-btn:hover {
       background-color: #FF5511;  
@@ -625,15 +626,14 @@
     <span class="explanation">👉 Available <b>only</b> when "Optimize Calibration" is illuminated.</span>
     <div id="filtersControls" style="display:none; margin-top:6px;">
       <span title="Export Filters" onclick="exportFilters()"
-            style="cursor:pointer; font-size:12px; color:#33cc33; margin-right:12px;">
+            style="cursor:pointer; font-size:12px; color:#33cc33; margin:3px;">
         💾 Save Speaker Filters for Next Run
       </span>
       <label for="importFile" title="Import Filters"
-             style="cursor:pointer; font-size:12px; color:#33cc33;">
+             style="cursor:pointer; font-size:12px; color:#33cc33; margin:3px;">
         📂 Import Saved Speaker Filters
       </label>
-      <input type="file" id="importFile" style="display:none;" />
-          <span style="margin:10px 0; text-align:left;">
+      <input type="file" id="importFile" style="display:none; margin-top:2px;" />
       <button class="clear-btn" onclick="clearAllFilters()">Clear All</button>
     </div>
       <div id="speakersContainer"></div>
@@ -676,6 +676,13 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
+    // TODO: store the user inputs in variables instead of querying it from the document
+    const filterTypes = [
+      "None", "PK", "LS", "HS" /*, "All pass", "Modal",
+      "LP", "HP", "LP1", "HP1", "LP Q", "HP Q",
+      "LS 6dB", "HS 6dB", "LS 12dB", "HS 12dB",
+      "LS Q", "HS Q", "Notch", "Notch Q"*/
+    ];
     const sliders = [
       { id: "spkIndBoost", label: "spkIndBoostLabel", variable: "speakerIndividualMaxBoost" },
       { id: "spkOverAllBoost", label: "spkOverAllBoostLabel", variable: "speakerOverallMaxBoost" },
@@ -774,7 +781,6 @@
             document.getElementById(`speaker-${prefix.toLowerCase()}`);
 
           let lastUsed = 0;
-
           data[prefix].forEach((f, i) => {
             const idx = i + 1;
             const typeEl = document.getElementById(`${p}Type${idx}`);
@@ -791,22 +797,18 @@
               lastUsed = idx;
             }
           });
-
           if (container && lastUsed > 0) {
             for (let i = 1; i <= Math.min(lastUsed + 1, 20); i++) {
               showFilterColumn(container, prefix, i);
             }
           }
-
           updateFilterChain(p);
         });
       };
       reader.readAsText(file);
     }
-
-    // ========================
-    // Create Dynamic Speakers
-    // ========================
+    // create filter table for a specific command id
+    // TODO: understand this
     function createSpeakerTable(prefix, name, numFilters = 20) {
       const container = document.createElement("div");
       container.className = "speaker-content";
@@ -869,7 +871,7 @@
         input.addEventListener("change", handler);
       });
     }
-
+    // helper function
     function hideFilterColumn(container, prefix, idx) {
       container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
         el.closest("td").style.display = "none";
@@ -877,7 +879,7 @@
       const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
       if (header) header.style.display = "none";
     }
-
+    // helper function
     function showFilterColumn(container, prefix, idx) {
       container.querySelectorAll(`[data-filter='${idx}']`).forEach(el => {
         el.closest("td").style.display = "";
@@ -885,7 +887,7 @@
       const header = container.querySelector(`#${prefix.toLowerCase()}Header${idx}`);
       if (header) header.style.display = "";
     }
-
+    // helper function
     function hasValueInColumn(container, prefix, idx) {
       const els = container.querySelectorAll(`[data-filter='${idx}']`);
       return Array.from(els).some(el => String(el.value).trim() !== "");
@@ -938,7 +940,7 @@
     }
 
     // ============================
-    // Expnad / Collapse Filters +-
+    // Expand / Collapse Filters +-
     // ============================
     function toggleAllSpeakers() {
       if (startButton.disabled) { return; }
@@ -962,6 +964,7 @@
       }
     }
 
+    // TODO: figure out what it does and if this is necessary
     document.addEventListener("DOMContentLoaded", () => {
       const toggleBtn = document.getElementById("toggleAll");
       if (toggleBtn) {
@@ -986,12 +989,6 @@
     // ============================
     // Filter Dropdowns
     // ============================
-    const filterTypes = [
-      "None", "PK", "LS", "HS" /*, "All pass", "Modal",
-      "LP", "HP", "LP1", "HP1", "LP Q", "HP Q",
-      "LS 6dB", "HS 6dB", "LS 12dB", "HS 12dB",
-      "LS Q", "HS Q", "Notch", "Notch Q"*/
-    ];
     function populateFilterDropdowns() {
       const allSelects = document.querySelectorAll("select[id*='Type']");
 
@@ -1101,9 +1098,7 @@
       }
     }
 
-    // ============================
-    // Tabindex assignment
-    // ============================
+    // TODO: figure out what it does and if this is necessary
     document.addEventListener("DOMContentLoaded", () => {
       const filtersPerSpeaker = 20;
       let tabIndex = 1;
@@ -1136,6 +1131,12 @@
         CH:  "Center Height",
         FDL: "Front Dolby Left",
         FDR: "Front Dolby Right",
+        FHL: "Front Height Left",
+        FHR: "Front Height Right",
+        FWL: "Front Wide Left",
+        FWR: "Front Wide Right",
+        RHL: "Rear Height Left",
+        RHR: "Rear Height Right",
         SLA: "Surround Left",
         SRA: "Surround Right",
         SBL: "Surround Back Left",
@@ -1144,8 +1145,6 @@
         SDR: "Surround Dolby Right",
         SHL: "Surround Height Left",
         SHR: "Surround Height Right",
-        FWL: "Front Wide Left",
-        FWR: "Front Wide Right",
         TFL: "Top Front Left",
         TFR: "Top Front Right",
         TRL: "Top Rear Left",
@@ -1369,18 +1368,8 @@
         el.style.fontSize = '0.8em';
         el.style.padding = '8px 16px';
       });
-      const versionNumber = document.querySelector('.version-number');
-      if (versionNumber) {
-        versionNumber.style.float = 'none';
-        versionNumber.style.display = 'inline-block';
-        versionNumber.style.verticalAlign = 'middle';
-        versionNumber.style.marginLeft = '10px';
-      }
-      const logContainer = document.getElementById('logContainer');
-      logContainer.style.maxHeight = '440px';
-      logContainer.style.transition = 'max-height 0.3s ease';
-      document.querySelector('.customization-options').classList.add('new-style');
-      document.querySelector('.notice').style.fontSize = '0.5em';
+      // collapnse and lock advanced settings
+      lockSliders();
       const content = document.getElementById("advancedContent");
       const container = document.getElementById("advancedContainer");
       const toggleText = document.getElementById("advancedToggleText");
@@ -1388,7 +1377,18 @@
       container.classList.remove("expanded");
       toggleText.textContent = "[ + ] Advanced Settings";
       toggleText.classList.remove("expanded-font");
-      lockSliders();
+      const versionNumber = document.querySelector('.version-number');
+      if (versionNumber) {
+        versionNumber.style.float = 'none';
+        versionNumber.style.display = 'inline-block';
+        versionNumber.style.verticalAlign = 'right';
+        versionNumber.style.marginLeft = '10px';
+      }
+      const logContainer = document.getElementById('logContainer');
+      logContainer.style.maxHeight = '440px';
+      logContainer.style.transition = 'max-height 0.3s ease';
+      document.querySelector('.customization-options').classList.add('new-style');
+      document.querySelector('.notice').style.fontSize = '0.5em';
       runOptimizer();
     }
     function updateCheckboxStates() {
