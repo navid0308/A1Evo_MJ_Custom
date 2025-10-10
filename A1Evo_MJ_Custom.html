@@ -284,6 +284,9 @@
       color: #ddd;
       transition: background 0.3s ease, color 0.3s ease;
     }
+    .toggle-all:hover {
+      color: #eee;
+    }
     .toggle-expand {
       background: #3B82F6;
       color: #fff;
@@ -460,6 +463,24 @@
       color: #ddd;
       font-size: 13px;
     }
+    .import-export-btn {
+      background-color: #1f1f1f;
+      color: #33cc33;
+      border: 1px solid #33cc33;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 11px;
+      font-weight: bold;
+      font-style: normal;
+      cursor: pointer;
+      width: auto;
+      display: inline-block;
+      margin:4px;
+    }
+    .import-export-btn:hover {
+      background-color: #33cc33;
+      color: #1f1f1f;
+    }
     .clear-btn {
       background-color: #1f1f1f;
       color: #FF5511;
@@ -468,14 +489,15 @@
       padding: 2px 6px;
       font-size: 11px;
       font-weight: bold;
+      font-style: normal;
       cursor: pointer;
       width: auto;
       display: inline-block;
       margin:4px;
     }
     .clear-btn:hover {
-      background-color: #FF5511;  
-      color: #1f1f1f;          
+      background-color: #FF5511;
+      color: #1f1f1f;
     }
   </style>
 </head>
@@ -622,19 +644,28 @@
         </div>
       </div>
     </div>
-    <div class="toggle-all" onclick="toggleAllSpeakers()" id="toggleAll">[ + ] EQ Filters</div>
-    <span class="explanation">👉 Available <b>only</b> when "Optimize Calibration" is illuminated.</span>
-    <div id="filtersControls" style="display:none; margin-top:6px;">
-      <span title="Export Filters" onclick="exportFilters()"
-            style="cursor:pointer; font-size:12px; color:#33cc33; margin:3px;">
-        💾 Save Speaker Filters for Next Run
-      </span>
-      <label for="importFile" title="Import Filters"
-             style="cursor:pointer; font-size:12px; color:#33cc33; margin:3px;">
-        📂 Import Saved Speaker Filters
-      </label>
-      <input type="file" id="importFile" style="display:none; margin-top:2px;" />
-      <button class="clear-btn" onclick="clearAllFilters()">Clear All</button>
+    <div class="toggle-all" onclick="toggleAllSpeakers()" id="toggleAll">
+    [ + ] EQ Filters
+    </div>
+    <span class="explanation">
+    👉 Available <b>only</b> when "Optimize Calibration" is illuminated.
+    </span>
+    <!-- Controls start hidden -->
+    <div id="filtersControls" style="display:none; margin-top:6px; justify-content:space-between; align-items:center;">
+      <div>
+        <label for="importFile" class="import-export-btn" title="Import Filters"
+        style="display:inline-block; text-align:center; cursor: Pointer;">
+        📂 Import Filters
+        </label>
+        <input type="file" id="importFile" style="display:none;" onchange="importFilters(this.files[0])"/>
+        <button class="import-export-btn" onclick="exportFilters()" title="Export Filters"
+        style="display:inline-block; text-align:center; cursor: Pointer;">
+        💾 Export Filters
+        </button>
+      </div>
+      <button class="clear-btn" onclick="clearAllFilters()">
+      🗑 Clear All
+      </button>
     </div>
       <div id="speakersContainer"></div>
     </div>
@@ -956,7 +987,7 @@
 
       const controls = document.getElementById("filtersControls");
       if (controls) {
-        controls.style.display = isCollapsed ? "block" : "none";
+        controls.style.display = isCollapsed ? "flex" : "none";
       }
 
       if (toggleBtn) {
