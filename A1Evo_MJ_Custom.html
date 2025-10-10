@@ -1061,9 +1061,9 @@
       const qEl    = document.getElementById(`${idPrefix}Q${filterIndex}`);
 
       if (type === "None") {
-        freqEl.disabled = true;
-        gainEl.disabled = true;
-        qEl.disabled = true;
+        if (freqEl) { freqEl.value = ""; freqEl.disabled = true; }
+        if (gainEl) { gainEl.value = ""; gainEl.disabled = true; }
+        if (qEl)    { qEl.value    = ""; qEl.disabled    = true; }
         return;
       }
 
