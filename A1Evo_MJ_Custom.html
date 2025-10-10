@@ -843,16 +843,8 @@
       };
       reader.readAsText(file);
     }
-    function isNumeric(str) {
-      return !isNaN(parseFloat(str)) && isFinite(Number(str));
-    }
-    // checks if input in filter table is within range
     function checkValue(object) {
       if (object.value === "") { return; }
-      if (!isNumeric(Object.value)) {
-        object.value = "";
-        return;
-      }
       if (parseInt(object.value) > parseInt(object.max)) {
         object.value = object.max;
       }
@@ -1089,12 +1081,17 @@
       const noGainTypes = ["LP","HP","LP1","HP1","LP Q","HP Q","Notch","Notch Q","All pass"];
       const noQTypes    = ["Modal","LP","HP","LP1","HP1","LS","HS","LS 6dB","HS 6dB","LS 12dB","HS 12dB","Notch"];
 
+      if (freqEl) {
+        freqEl.value = "1000";
+      }
+
       if (gainEl) {
         if (noGainTypes.includes(type)) {
           gainEl.disabled = true;
           gainEl.value = "";
         } else {
           gainEl.disabled = false;
+          gainEl.value = "0";
         }
       }
 
@@ -1104,6 +1101,7 @@
           qEl.value = "";
         } else {
           qEl.disabled = false;
+          qEl.value = "1";
         }
       }
     }
