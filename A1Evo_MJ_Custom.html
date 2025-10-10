@@ -447,7 +447,7 @@
     .toggle-advance span:hover {
       color: #FFB347;
     }
-    #advanceToggleText {
+    #advancedToggleText {
       font-size: 14px;
       transition: font-size 0.3s ease;
     }
@@ -521,16 +521,14 @@
         Avoid subwoofer polarity inversion
         <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
       </label>
-
-    <div class="advanced-container" id="advancedContainer">
-      <div class="toggle-advance">
-        <span id="advanceToggleText" onclick="toggleAdvance()">[ + ] Advanced Settings</span>
-      </div>
+      <div class="advanced-container" id="advancedContainer">
+        <div class="toggle-advance">
+          <span id="advancedToggleText" onclick="advancedSettingsToggle()">[ + ] Advanced Settings</span>
+        </div>
       <div class="advanced-content" id="advancedContent">
       <!-- Speaker Section -->
       <div class="section">
       <h3 style="color:#FFA500; font-size: 14px;">Speaker Filter Boost (REW filtering)</h3>
-
       <div class="slider-row">
         <div class="slider-half">
           <div class="slider-label">
@@ -542,7 +540,6 @@
             <div class="tooltip">Speaker individual boost</div>
           </div>
         </div>
-
         <div class="slider-half">
           <div class="slider-label">
             <span>Speaker Overall Max Boost</span>
@@ -554,7 +551,6 @@
           </div>
         </div>
       </div>
-
       <div class="slider-row">
         <div class="slider-half">
           <div class="slider-label">
@@ -566,7 +562,6 @@
             <div class="tooltip">Speaker minimum high-shelf filter</div>
           </div>
         </div>
-
         <div class="slider-half">
           <div class="slider-label">
             <span>Speaker Max High-shelf</span>
@@ -579,11 +574,9 @@
         </div>
       </div>
     </div>
-
     <!-- Subwoofer Section -->
     <div class="section">
       <h3 style="color:#FFA500; font-size: 14px;">Subwoofer Filter Boost (REW filtering)</h3>
-
       <div class="slider-row">
         <div class="slider-half">
           <div class="slider-label">
@@ -595,7 +588,6 @@
             <div class="tooltip">Subwoofer individual boost</div>
           </div>
         </div>
-
         <div class="slider-half">
           <div class="slider-label">
             <span>Subwoofer Overall Max Boost</span>
@@ -607,7 +599,6 @@
           </div>
         </div>
       </div>
-
       <div class="slider-row">
         <div class="slider-half">
           <div class="slider-label">
@@ -619,7 +610,6 @@
             <div class="tooltip">Subwoofer minimum low-shelf filter</div>
           </div>
         </div>
-
         <div class="slider-half">
           <div class="slider-label">
             <span>Subwoofer Max Low-shelf</span>
@@ -632,16 +622,14 @@
         </div>
       </div>
     </div>
-
     <div class="toggle-all" onclick="toggleAllSpeakers()" id="toggleAll">[ + ] EQ Filters</div>
-
     <span class="explanation">👉 Available <b>only</b> when "Optimize Calibration" is illuminated.</span>
     <div id="filtersControls" style="display:none; margin-top:6px;">
-      <span title="Export Filters" onclick="exportFilters()" 
+      <span title="Export Filters" onclick="exportFilters()"
             style="cursor:pointer; font-size:12px; color:#33cc33; margin-right:12px;">
         💾 Save Speaker Filters for Next Run
       </span>
-      <label for="importFile" title="Import Filters" 
+      <label for="importFile" title="Import Filters"
              style="cursor:pointer; font-size:12px; color:#33cc33;">
         📂 Import Saved Speaker Filters
       </label>
@@ -649,9 +637,7 @@
           <span style="margin:10px 0; text-align:left;">
       <button class="clear-btn" onclick="clearAllFilters()">Clear All</button>
     </div>
-    <div id="speakersContainer"></div>
-
-
+      <div id="speakersContainer"></div>
     </div>
   </div>
 </small>
@@ -691,18 +677,6 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
-
-    const defaultSliderValues = {
-      spkIndBoost: 3,
-      spkOverAllBoost: 0,
-      spkHighShelfMin: -6,
-      spkHighShelfMax: 6,
-      subIndividualMaxBoost: 6,
-      subOverallMaxBoost: 3,
-      subLowShelfMin: -6,
-      subLowShelfMax: 6
-    };
-
     const sliders = [
       { id: "spkIndBoost", label: "spkIndBoostLabel", variable: "speakerIndividualMaxBoost" },
       { id: "spkOverAllBoost", label: "spkOverAllBoostLabel", variable: "speakerOverallMaxBoost" },
@@ -713,18 +687,28 @@
       { id: "subLowShelfMin", label: "subLowShelfMinLabel", variable: "subwooferLowShelfMin" },
       { id: "subLowShelfMax", label: "subLowShelfMaxLabel", variable: "subwooferLowShelfMax" }
     ];
-
+    // add listener to update slider values in real-time
+    sliders.forEach(({ id, label, variable }) => {
+      const slider = document.getElementById(id);
+      const output = document.getElementById(label);
+      slider.addEventListener("input", () => {
+        const value = parseFloat(slider.value);
+        output.textContent = `${value} dB`;
+        window[variable] = value;
+      });
+    });
+    // record audyssey filtering mode selection
     const startButton = document.getElementById('button2');
     startButton.addEventListener('click', function(event) {
       if (event.shiftKey && !useAudyFiltering) {
         useAudyFiltering = true;
+        Object.freeze(useAudyFiltering);
       }
     });
-    function toggleAdvance() {
+    function advancedSettingsToggle() {
       const content = document.getElementById("advancedContent");
       const container = document.getElementById("advancedContainer");
-      const toggleText = document.getElementById("advanceToggleText");
-
+      const toggleText = document.getElementById("advancedToggleText");
       const isVisible = content.style.display === "block";
       content.style.display = isVisible ? "none" : "block";
       container.classList.toggle("expanded", !isVisible);
@@ -743,49 +727,18 @@
         window[variable] = parseFloat(slider.value);
       });
     }
-
-    sliders.forEach(({ id, label, variable }) => {
-      const slider = document.getElementById(id);
-      const output = document.getElementById(label);
-
-      if (slider && output) {
-        slider.addEventListener("input", () => {
-          const value = parseFloat(slider.value);
-          output.textContent = `${value} dB`;
-          window[variable] = value;
-        });
-      }
-    });
-
-    window.addEventListener("DOMContentLoaded", () => {
-      // TODO: not sure what this does or if it's necessary
-      sliders.forEach(({ id, label, variable }) => {
-        const slider = document.getElementById(id);
-        const output = document.getElementById(label);
-        if (slider && output) {
-          slider.value = defaultSliderValues[id];
-          output.textContent = `${defaultSliderValues[id]} dB`;
-          window[variable] = defaultSliderValues[id];
-        }
-      });
-    });
-    // ============================
-    // Export Filters
-    // ============================
+    // export filters
     function exportFilters() {
       const filtersPerSpeaker = 20;
       const exportData = {};
-
       commandId.slice(1).forEach(prefix => {
         const p = prefix.toLowerCase();
         exportData[p] = [];
-
         for (let i = 1; i <= filtersPerSpeaker; i++) {
           const typeEl = document.getElementById(`${p}Type${i}`);
           const freqEl = document.getElementById(`${p}Freq${i}`);
           const gainEl = document.getElementById(`${p}Gain${i}`);
           const qEl    = document.getElementById(`${p}Q${i}`);
-
           if (typeEl) {
             exportData[p].push({
               type: typeEl.value || "None",
@@ -796,26 +749,20 @@
           }
         }
       });
-
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: "application/json"});
       const url = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
       a.download = "filters.json";
       a.click();
       URL.revokeObjectURL(url);
     }
-
-    // ============================
-    // Import Filters
-    // ============================
+    // import filters
     document.getElementById("importFile").addEventListener("change", e => {
       if (e.target.files.length > 0) {
         importFilters(e.target.files[0]);
       }
     });
-
     function importFilters(file) {
       const reader = new FileReader();
       reader.onload = e => {
@@ -1437,7 +1384,7 @@
       document.querySelector('.notice').style.fontSize = '0.5em';
       const content = document.getElementById("advancedContent");
       const container = document.getElementById("advancedContainer");
-      const toggleText = document.getElementById("advanceToggleText");
+      const toggleText = document.getElementById("advancedToggleText");
       content.style.display = "none";
       container.classList.remove("expanded");
       toggleText.textContent = "[ + ] Advanced Settings";
@@ -1608,7 +1555,6 @@
         console.error("Audyssey filtering not supported with manual measurements!");
         throw new Error;
       }
-      Object.freeze(useAudyFiltering);
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
       if (isCirrusLogic && isAudy) {mCount--;};
       let baseMessage = "Resetting IR windows, EQ type, target shape and smoothing for all measurements..."
