@@ -707,6 +707,8 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
+    let speakerIndividualMaxBoost, speakerOverallMaxBoost, speakerHighShelfMin, speakerHighShelfMax;
+    let subwooferIndividualMaxBoost, subwooferOverallMaxBoost, subwooferLowShelfMin, subwooferLowShelfMax;
     // TODO: store the user inputs in variables instead of querying it from the document
     const filterTypes = [
       "None", "PK", "LS", "HS" /*, "All pass", "Modal",
@@ -1432,7 +1434,7 @@
       if (versionNumber) {
         versionNumber.style.float = 'none';
         versionNumber.style.display = 'inline-block';
-        versionNumber.style.verticalAlign = 'right';
+        versionNumber.style.verticalAlign = 'middle';
         versionNumber.style.marginLeft = '10px';
       }
       const logContainer = document.getElementById('logContainer');
@@ -1587,6 +1589,17 @@
       if (useAudyFiltering) {
         console.warn(`  ***Audyssey filtering enabled***`);
       }
+      else {
+        console.warn(`  ***REW Boost Parameters***`);
+        console.info(`    *Speaker*`);
+        console.info(`      Individual Max Boost: ${speakerIndividualMaxBoost}dB, Overall Max Boost: ${speakerOverallMaxBoost}dB`);
+        console.info(`      High-Shelf Min: ${speakerHighShelfMin}dB, High-Shelf Max: ${speakerHighShelfMax}dB`);
+        if (!noSub) {
+          console.info(`    *Subwoofer*`);
+          console.info(`      Individual Max Boost: ${subwooferIndividualMaxBoost}dB, Overall Max Boost: ${subwooferOverallMaxBoost}dB`);
+          console.info(`      Low-Shelf Min: ${subwooferLowShelfMin}dB, Low-Shelf Max: ${subwooferLowShelfMax}dB`);
+        }
+      }
       console.info(`****************************************************************************************************`);
     }
     async function bootUp() {
@@ -1604,6 +1617,24 @@
       else if (!isAudy && useAudyFiltering) {
         console.error("Audyssey filtering not supported with manual measurements!");
         throw new Error;
+      }
+      if (!useAudyFiltering) {
+        speakerIndividualMaxBoost = window.speakerIndividualMaxBoost;
+        Object.freeze(speakerIndividualMaxBoost);
+        speakerOverallMaxBoost = window.speakerOverallMaxBoost;
+        Object.freeze(speakerOverallMaxBoost);
+        speakerHighShelfMin = window.speakerHighShelfMin;
+        Object.freeze(speakerHighShelfMin);
+        speakerHighShelfMax = window.speakerHighShelfMax;
+        Object.freeze(speakerHighShelfMax);
+        subwooferIndividualMaxBoost = window.subwooferIndividualMaxBoost;
+        Object.freeze(subwooferIndividualMaxBoost);
+        subwooferOverallMaxBoost = window.subwooferOverallMaxBoost;
+        Object.freeze(subwooferOverallMaxBoost);
+        subwooferLowShelfMin = window.subwooferLowShelfMin;
+        Object.freeze(subwooferLowShelfMin);
+        subwooferLowShelfMax = window.subwooferLowShelfMax;
+        Object.freeze(subwooferLowShelfMax);
       }
       if (!mCount) { console.error(`There are no measurements in REW!`); throw new Error; }
       if (isCirrusLogic && isAudy) {mCount--;};
@@ -2108,9 +2139,6 @@
           console.warn(`${isSub ? "Subwoofer" : "Speaker"} filter type "${type}" at row ${i} not handled explicitly.`);
         }
       }
-      
-      /***Customization end***/
-
       // combine custom filters with autoEQ filters
       const customFilter = await postNext("Generate filters measurement", idx);
       const customFilterIdx = Object.keys(customFilter.results)[0];
@@ -2119,17 +2147,6 @@
       await postDelete(baseEQFilterIdx);
     }
     async function generateREWFilters() {
-      /***Customization start***/
-      const speakerIndividualMaxBoost = window.speakerIndividualMaxBoost;
-      const speakerOverallMaxBoost = window.speakerOverallMaxBoost;
-      const speakerHighShelfMin = window.speakerHighShelfMin;
-      const speakerHighShelfMax = window.speakerHighShelfMax;
-      const subwooferIndividualMaxBoost = window.subwooferIndividualMaxBoost;
-      const subwooferOverallMaxBoost = window.subwooferOverallMaxBoost;
-      const subwooferLowShelfMin = window.subwooferLowShelfMin;
-      const subwooferLowShelfMax = window.subwooferLowShelfMax;
-
-      /***Customization end***/
       console.log(`Generating min. phase EQ filters...`);
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
