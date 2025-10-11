@@ -84,10 +84,10 @@
       transition: all 0.3s ease;
       cursor: pointer;
       width: 250px;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
     }
     button:hover {
       background-color: #357ebd;
-      transform: translateY(-2px);
       box-shadow: 0 6px 10px rgba(96, 96, 96, 0.3);
     }
     button:disabled {
@@ -468,14 +468,15 @@
       color: #33cc33;
       border: 1px solid #33cc33;
       border-radius: 4px;
-      padding: 2px 6px;
-      font-size: 11px;
+      padding: 5px 10px;
+      font-size: 12px;
       font-weight: bold;
       font-style: normal;
       cursor: pointer;
       width: auto;
       display: inline-block;
       margin:4px;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
     }
     .import-export-btn:hover {
       background-color: #33cc33;
@@ -486,7 +487,7 @@
       color: #FF5511;
       border: 1px solid #FF5511;
       border-radius: 4px;
-      padding: 2px 6px;
+      padding: 4px 8px;
       font-size: 11px;
       font-weight: bold;
       font-style: normal;
@@ -648,23 +649,23 @@
     [ + ] EQ Filters
     </div>
     <span class="explanation">
-    👉 Available <b>only</b> when "Optimize Calibration" is illuminated.
+    Available <b>only</b> when "Optimize Calibration" is illuminated.
     </span>
     <!-- Controls start hidden -->
     <div id="filtersControls" style="display:none; margin-top:6px; justify-content:space-between; align-items:center;">
       <div>
         <!--Import button-->
         <label for="importFile" class="import-export-btn" title="Import Filters" style="display:inline-block; text-align:center; cursor: Pointer;">
-        📂 Import Filters
+        Import Filters
         </label>
         <input type="file" id="importFile" style="display:none;"/>
         <!--Export button-->
-        <button class="import-export-btn" onclick="exportFilters()" title="Export Filters" style="display:inline-block; text-align:center; cursor: Pointer;">
-        💾 Export Filters
+        <button class="import-export-btn" id="exportFile" onclick="exportFilters()" title="Export Filters" style="display:inline-block; text-align:center; cursor: Pointer;">
+        Export Filters
         </button>
       </div>
       <button class="clear-btn" onclick="clearAllFilters()">
-      🗑 Clear All
+      Clear All
       </button>
     </div>
       <div id="speakersContainer"></div>
@@ -697,7 +698,7 @@
       "AV7703", "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012"];
 
     const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
-    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter;
+    let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter, isStarted = false;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
     let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, useAudyFiltering = false;
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
@@ -766,6 +767,21 @@
         window[variable] = parseFloat(slider.value);
       });
     }
+    function lockEQTable() {
+      const filtersPerSpeaker = 20;
+      commandId.slice(1).forEach(prefix => {
+        const idPrefix = prefix.toLowerCase();
+        for (let i = 1; i <= filtersPerSpeaker; i++) {
+          const typeEl = document.getElementById(`${idPrefix}Type${i}`);
+          const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
+          const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
+          const qEl    = document.getElementById(`${idPrefix}Q${i}`);
+          [typeEl, freqEl, gainEl, qEl].forEach(el => {
+            el.disabled = true;
+          });
+        }
+      });
+    }
     // export filters
     function exportFilters() {
       const filtersPerSpeaker = 20;
@@ -794,7 +810,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "filters.json";
+      a.download = `filters_${getCurrentTimestamp()}.json`;
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -869,7 +885,7 @@
       let html = `
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <h3 style="margin:0 0 10px 0;">${name}</h3>
-          <button style="margin:0 0 5px 0;" class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
+          <button style="margin:0 0 10px 0;" class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
         </div>
         <table class="filter-table">
           <thead>
@@ -995,7 +1011,7 @@
     // Expand / Collapse Filters +-
     // ============================
     function toggleAllSpeakers() {
-      if (startButton.disabled) { return; }
+      if (startButton.disabled && !isStarted) { return; }
 
       const contents = document.querySelectorAll(".speaker-content");
       const toggleBtn = document.getElementById("toggleAll");
@@ -1015,29 +1031,6 @@
         toggleBtn.textContent = isCollapsed ? "[ – ] EQ Filters" : "[ + ] EQ Filters";
       }
     }
-
-    // TODO: figure out what it does and if this is necessary
-    document.addEventListener("DOMContentLoaded", () => {
-      const toggleBtn = document.getElementById("toggleAll");
-      if (toggleBtn) {
-        toggleBtn.textContent = "[ + ] EQ Filters";
-        toggleBtn.disabled = false;
-      }
-
-      const optimizeBtn = document.getElementById("button2");
-      if (optimizeBtn && toggleBtn) {
-        optimizeBtn.addEventListener("click", () => {
-          const contents = document.querySelectorAll(".speaker-content");
-          contents.forEach(el => el.style.display = "none");
-
-          toggleBtn.textContent = "[ + ] EQ Filters";
-
-          const controls = document.getElementById("filtersControls");
-          if (controls) controls.style.display = "none";
-        });
-      }
-    });
-
     // ============================
     // Filter Dropdowns
     // ============================
@@ -1423,11 +1416,27 @@
         el.style.marginBottom = '0.5em';
       });
       document.querySelectorAll('button').forEach(el => {
-        el.style.fontSize = '0.8em';
-        el.style.padding = '8px 16px';
+        el.disabled = true;
+      });
+      document.querySelectorAll('input').forEach(el => {
+        el.disabled = true;
+      });
+      document.querySelector('label[for="importFile"]').remove();
+      const clearButtons = document.getElementsByClassName("clear-btn");
+      [...clearButtons].forEach(el => {
+        el.remove();
       });
       // collapnse and lock advanced settings
       lockSliders();
+      lockEQTable();
+      // collapse EQ filters section
+      const contents = document.querySelectorAll(".speaker-content");
+      const toggleButton = document.getElementById("toggleAll");
+      const controls = document.getElementById("filtersControls");
+      contents.forEach(el => el.style.display = "none");
+      toggleButton.textContent = "[ + ] EQ Filters";
+      controls.style.display = "none";
+      // collapse advanced settings section
       const content = document.getElementById("advancedContent");
       const container = document.getElementById("advancedContainer");
       const toggleText = document.getElementById("advancedToggleText");
@@ -1437,7 +1446,7 @@
       toggleText.classList.remove("expanded-font");
       const versionNumber = document.querySelector('.version-number');
       if (versionNumber) {
-        versionNumber.style.float = 'none';
+        versionNumber.style.float = 'right';
         versionNumber.style.display = 'inline-block';
         versionNumber.style.verticalAlign = 'middle';
         versionNumber.style.marginLeft = '10px';
@@ -1448,6 +1457,8 @@
       document.querySelector('.customization-options').classList.add('new-style');
       document.querySelector('.notice').style.fontSize = '0.5em';
       runOptimizer();
+      isStarted = true;
+      Object.freeze(isStarted);
     }
     function updateCheckboxStates() {
       if (noCenter) { // if no center, disable dialogue enhancer
@@ -1533,6 +1544,7 @@
       }
       console.info(`****************************************************************************************************`);
       console.info("Enjoy your EVO'lved sound!");
+      document.getElementById('exportFile').disabled = false;
     }
     async function addmicCal() {
       console.info("Applying Audyssey microphone calibration file to measurements...");
@@ -3191,6 +3203,17 @@
       const urlBlob = URL.createObjectURL(blob);
       var downloadLink = document.createElement("a");
       downloadLink.href = urlBlob;
+      const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
+      downloadLink.download = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
+                                                    + (dialogueEnhancer ? "DE_" : "")
+                                                    + swInvMsg + `${tcName}_`
+                                                    + `A1EvoMJC_${getCurrentTimestamp()}.ady`);
+      downloadLink.style.display = "none";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    }
+    function getCurrentTimestamp() {
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -3198,15 +3221,7 @@
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
-      const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      downloadLink.download = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
-                                                    + (dialogueEnhancer ? "DE_" : "")
-                                                    + swInvMsg + `${tcName}_`
-                                                    + `A1EvoMJC_${timestamp}.ady`);
-      downloadLink.style.display = "none";
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
+      return timestamp;
     }
     async function enableBlock() {
       await fetch('http://localhost:4735/application/blocking', {
