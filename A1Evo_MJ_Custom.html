@@ -828,9 +828,21 @@
     document.getElementById("importFile").addEventListener('click', function() {
       this.value = null; // Clear the value when the input is clicked; ensures same filename can be used
     });
+    function isValidJSON(jsonString) {
+      try {
+        JSON.parse(jsonString);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
     function importFilters(file) {
       const reader = new FileReader();
       reader.onload = e => {
+        if (!isValidJSON(e.target.result)) {
+          console.warn(`Ignoring file '${file.name}' - not a valid .json file.`);
+          return;
+        }
         const data = JSON.parse(e.target.result);
         Object.keys(data).forEach(prefix => {
           const p = prefix.toLowerCase();
