@@ -252,7 +252,7 @@
     .filter-table {
       border-collapse: collapse;
       width: 100%;
-      font-size: 11px;
+      font-size: 12px;
       text-align: left;
       background-color: #2a2a2a;
       color: #ddd;
@@ -265,7 +265,7 @@
     .filter-table input,
     .filter-table select {
       width: 60px;
-      font-size: 11px;
+      font-size: 12px;
       background-color: #1f1f1f;
       color: #fff;
       border: 1px solid #444;
@@ -274,7 +274,7 @@
     .toggle-all {
       cursor: pointer;
       font-weight: bold;
-      font-size: 12px;
+      font-size: 13px;
       padding: 6px 10px;
       border: 1px solid #444;
       margin-bottom: 10px;
@@ -452,6 +452,7 @@
     }
     #advancedToggleText {
       font-size: 14px;
+      vertical-align: middle;
       transition: font-size 0.3s ease;
     }
     .advanced-content {
@@ -488,7 +489,7 @@
       border: 1px solid #FF5511;
       border-radius: 4px;
       padding: 4px 8px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: bold;
       font-style: normal;
       cursor: pointer;
@@ -546,7 +547,9 @@
       </label>
       <div class="advanced-container" id="advancedContainer">
         <div class="toggle-advance">
-          <span id="advancedToggleText" onclick="advancedSettingsToggle()">[ + ] Advanced Settings</span>
+          <span id="advancedToggleText" onclick="advancedSettingsToggle()">
+            [ + ] Advanced Settings
+          </span>
         </div>
       <div class="advanced-content" id="advancedContent">
       <!-- Speaker Section -->
