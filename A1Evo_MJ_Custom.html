@@ -468,7 +468,7 @@
       color: #33cc33;
       border: 1px solid #33cc33;
       border-radius: 4px;
-      padding: 5px 10px;
+      padding: 5px 8px;
       font-size: 12px;
       font-weight: bold;
       font-style: normal;
@@ -646,27 +646,27 @@
       </div>
     </div>
     <div class="toggle-all" onclick="toggleAllSpeakers()" id="toggleAll">
-    [ + ] EQ Filters
+      [ + ] EQ Filters
     </div>
     <span class="explanation">
-    Available <b>only</b> when "Optimize Calibration" is illuminated.
+      👉 Available <b>only</b> when "Optimize Calibration" is illuminated.
     </span>
     <!-- Controls start hidden -->
     <div id="filtersControls" style="display:none; margin-top:6px; justify-content:space-between; align-items:center;">
-      <div>
+      <div style="display:flex;">
         <!--Import button-->
-        <label for="importFile" class="import-export-btn" title="Import Filters" style="display:inline-block; text-align:center; cursor: Pointer;">
-        Import Filters
+        <label for="importFile" class="import-export-btn" title="Import Filters"
+          style="display:inline-block; text-align:center; cursor: Pointer;">
+          📂 Import Filters
         </label>
         <input type="file" id="importFile" style="display:none;"/>
         <!--Export button-->
-        <button class="import-export-btn" id="exportFile" onclick="exportFilters()" title="Export Filters" style="display:inline-block; text-align:center; cursor: Pointer;">
-        Export Filters
+        <button class="import-export-btn" id="exportFile" onclick="exportFilters()" title="Export Filters"
+          style="display:inline-block; text-align:center; cursor: Pointer;">
+          💾 Export Filters
         </button>
       </div>
-      <button class="clear-btn" onclick="clearAllFilters()">
-      Clear All
-      </button>
+      <button class="clear-btn" onclick="clearAllFilters()">Clear All</button>
     </div>
       <div id="speakersContainer"></div>
     </div>
