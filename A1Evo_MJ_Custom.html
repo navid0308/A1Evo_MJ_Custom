@@ -249,6 +249,26 @@
       font-size: 15px;
       font-weight: bold;
     }
+    .speaker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: inherit;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      margin: 0;
+      padding: 0 0 6px 0;
+    }
+    .speaker-header h3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: bold;
+      color: #FFA500;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
     .filter-table {
       border-collapse: collapse;
       width: 100%;
@@ -900,10 +920,11 @@
       container.id = "speaker-" + prefix;
 
       let html = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0 0 10px 0;">${name}</h3>
-          <button style="margin:0 0 10px 0;" class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
+        <div class="speaker-header">
+          <h3>${name}</h3>
+          <button class="clear-btn" onclick="clearSpeakerFilters('${prefix}')">Clear</button>
         </div>
+        <div class="table-wrapper">
         <table class="filter-table">
           <thead>
             <tr><th></th>`;
@@ -1231,7 +1252,7 @@
           if (subAdded) return;
           subAdded = true;
         }
-        createSpeakerTable(spk, `${speakerNames[spk]} (${spk})`, 20);
+        createSpeakerTable(spk, `${speakerNames[spk]} (${spk.replace(/[0-9]/g, '')})`, 20);
       });
       populateFilterDropdowns();
 
