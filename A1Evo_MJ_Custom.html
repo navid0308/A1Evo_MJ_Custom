@@ -769,8 +769,10 @@
     }
     function lockEQTable() {
       const filtersPerSpeaker = 20;
+      const ignoreList = ["sw2", "sw3", "sw4"];
       commandId.slice(1).forEach(prefix => {
         const idPrefix = prefix.toLowerCase();
+        if (ignoreList.includes(idPrefix)) { return; }
         for (let i = 1; i <= filtersPerSpeaker; i++) {
           const typeEl = document.getElementById(`${idPrefix}Type${i}`);
           const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
@@ -786,10 +788,10 @@
     function exportFilters() {
       const filtersPerSpeaker = 20;
       const exportData = {};
-      const doNotExportList = ["sw2", "sw3", "sw4"];
+      const ignoreList = ["sw2", "sw3", "sw4"];
       commandId.slice(1).forEach(prefix => {
-        if (doNotExportList.includes(prefix.toLowerCase())) { return; }
         const p = prefix.toLowerCase();
+        if (ignoreList.includes(p)) { return; }
         exportData[p] = [];
         for (let i = 1; i <= filtersPerSpeaker; i++) {
           const typeEl = document.getElementById(`${p}Type${i}`);
@@ -1427,8 +1429,8 @@
         el.remove();
       });
       // collapnse and lock advanced settings
-      lockSliders();
       lockEQTable();
+      lockSliders();
       // collapse EQ filters section
       const contents = document.querySelectorAll(".speaker-content");
       const toggleButton = document.getElementById("toggleAll");
