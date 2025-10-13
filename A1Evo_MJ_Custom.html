@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.0.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.0.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -682,7 +682,7 @@
           style="display:inline-block; text-align:center; cursor: Pointer;">
           📂 Import Filters
         </label>
-        <input type="file" id="importFile" style="display:none;"/>
+        <input type="file" id="importFile" accept=".json" style="display:none;"/>
         <!--Export button-->
         <button class="import-export-btn" id="exportFile" onclick="exportFilters()" title="Export Filters"
           style="display:inline-block; text-align:center; cursor: Pointer;">
@@ -1582,7 +1582,11 @@
       }
       console.info(`****************************************************************************************************`);
       console.info("Enjoy your EVO'lved sound!");
+      // enable export filter and change optimize to export logs button
       document.getElementById('exportFile').disabled = false;
+      document.getElementById("button2").onclick = saveLogs;
+      document.getElementById("button2").innerText = "Save Logs";
+      document.getElementById("button2").disabled = false;
     }
     async function addmicCal() {
       console.info("Applying Audyssey microphone calibration file to measurements...");
@@ -3245,7 +3249,8 @@
       downloadLink.download = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
                                                     + (dialogueEnhancer ? "DE_" : "")
                                                     + swInvMsg + `${tcName}_`
-                                                    + `A1EvoMJC_${getCurrentTimestamp()}.ady`);
+                                                    + `MJC${getCurrentVersion()}`
+                                                    + `_${getCurrentTimestamp()}.ady`);
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
       downloadLink.click();
@@ -3260,6 +3265,21 @@
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const timestamp = `${year}-${month}${day}-${hours}${minutes}`;
       return timestamp;
+    }
+    function getCurrentVersion() {
+      const verEl = document.querySelector(".version-number");
+      const versionNumber = verEl.innerText.trim();
+      return versionNumber.split(" ").at(-1);
+    }
+    function saveLogs() {
+      const logText = document.getElementById("logContainer").innerText;
+      const blob = new Blob([logText], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${fileName.split(".ady")[0]}_${getCurrentVersion()}_${getCurrentTimestamp()}.log`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
     async function enableBlock() {
       await fetch('http://localhost:4735/application/blocking', {
