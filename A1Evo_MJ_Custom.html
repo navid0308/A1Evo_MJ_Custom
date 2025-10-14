@@ -2452,7 +2452,7 @@
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
       for (let i = 0; i < arrLength; i++) {
-        if ((rpArray[i] - tcArray[i]) >= -subwooferLowShelfMax) {
+        if ((rpArray[i] - tcArray[i]) >= Math.min(-3, -subwooferLowShelfMax)) {
           break;
         }
         rolloff *= octave;
