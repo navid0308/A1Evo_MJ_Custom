@@ -1996,10 +1996,12 @@
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function updateEQTargetSettings(idx, start, end, isSub) {
-      // line up response to target similar to REW; limit SW TC level determination range to 20-120hz if bandwidth exceeds it
-      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "1%2F6")
-                                  : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "1%2F6");
-      await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
+      // line up response to target similar to REW
+      // limit SW TC level determination range to 20-120hz if bandwidth exceeds it
+      // limit SP TC level determination range to 200-2000hz if bandwidth exceeds it
+      const tcLevel = isSub ? await getSPL(idx, Math.max(20, start), Math.min(120, end), "1%2F6")
+                            : await getSPL(idx, Math.max(200, start), Math.min(2000, end), "1%2F6");
+      await fetchSafe('target-level', idx, tcLevel);
       await postNext('Smooth', idx, { smoothing: "Var" });
       await postNext('Smooth', idx, { smoothing: "Var" });
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
@@ -2010,6 +2012,7 @@
         bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
       }, "Update processed");
       // return the tc level offset
+      const tcLevelOffset = 75.0 - tcLevel;
       return tcLevelOffset;
     }
     async function updateEQFilterSettings(start, end, indMaxBoost, ovMaxBoost, LSMin, LSMax, HSMin, HSMax) {
@@ -2257,7 +2260,7 @@
         await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
         // compensate equalized response & trims for auto level as well as tc level offset
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const trimOffset = tcLevelOffset + Math.round(ALOffset * 2) / 2; //round to nearest 0.5
+        const trimOffset = Math.round((tcLevelOffset + ALOffset) * 2) / 2; //round to nearest 0.5
         if (trimOffset != 0) {
           await postNext('Add SPL offset', mlpEqResponseIdx, { offset: trimOffset }); // offset "-mlp-equalized"
           await postNext('Add SPL offset', eqResponseIdx, { offset: trimOffset }); // offset "-avg-equalized"
@@ -2387,29 +2390,27 @@
       return xo;
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
-      // finds low -3dB point
+      // finds low -3dB point from mean SPL
+      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
-      const arraySPL= isSub ? response2array(response, 30, 80) : response2array(response, 500, 2000);
-      const targetSPL = arraySPL.reduce((acc, val) => acc + val, 0) / arraySPL.length;
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
       for (let i = 0; i < rpArray.length; i++) {
-        if ((rpArray[i] - targetSPL) >= -3) { break; }
+        if ((rpArray[i] - idxSPL) >= -3) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
     async function getAbsHigh3dBPoint(idx, isSub=true, start=10, end=320) {
-      // finds high -3dB point
+      // finds high -3dB point from mean SPL
+      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
-      const arraySPL= isSub ? response2array(response, 30, 80) : response2array(response, 500, 2000);
-      const targetSPL = arraySPL.reduce((acc, val) => acc + val, 0) / arraySPL.length;
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - targetSPL) >= -3) { break; }
+        if ((rpArray[i] - idxSPL) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
@@ -2962,13 +2963,19 @@
       }
       return responseArray;
     }
-    async function getTrim(idx, start, end, smoothing="1%2F1") {
-      const targetArray = response2array(targetResponse, start, end);
-      const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
+    async function getSPL(idx, start, end, smoothing="1%2F1") {
+      // calculates average SPL between start and end frequencies
       const freqResponse = await fetchSafe(`frequency-response?smoothing=${smoothing}&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
-      const offset = targetSPL - freqSPL;
+      return freqSPL;
+    }
+    async function getTrim(idx, start, end) {
+      // calculates SPL offset against target curve @75dB
+      const idxSPL = await getSPL(idx, start, end, "1%2F1");
+      const targetArray = response2array(targetResponse, start, end);
+      const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
+      const offset = targetSPL - idxSPL;
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
     async function getSpeakerTrim(idx) {
