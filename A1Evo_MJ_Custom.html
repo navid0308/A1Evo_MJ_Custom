@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.0.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.0.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1527,7 +1527,7 @@
       await enableBlock();
       await bootUp();
       await groundWorks();
-      await calculateRolloffs();
+      await calculateSPRolloffs();
       await calculateSubBandwidth();
       await optimizeSubDelay();
       await finalizeXO();
@@ -2386,65 +2386,37 @@
       }
       return xo;
     }
-    async function getAbsLow3dBPointForSub(idx, start=10, end=320) {
-      // finds low -3dB point from SPL between 30-80hz
+    async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
+      // finds low -3dB point
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
-      const subArray = response2array(response, 30, 80);
-      const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length
+      const arraySPL= isSub ? response2array(response, 30, 80) : response2array(response, 500, 2000);
+      const targetSPL = arraySPL.reduce((acc, val) => acc + val, 0) / arraySPL.length;
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
       for (let i = 0; i < rpArray.length; i++) {
-        if ((rpArray[i] - subSPL) >= -3) { break; }
+        if ((rpArray[i] - targetSPL) >= -3) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
-    async function getAbsHigh3dBPointForSub(idx, start=10, end=320) {
-      // finds high -3dB point from SPL between 30-80hz
+    async function getAbsHigh3dBPoint(idx, isSub=true, start=10, end=320) {
+      // finds high -3dB point
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
-      const subArray = response2array(response, 30, 80);
-      const subSPL = subArray.reduce((acc, val) => acc + val, 0) / subArray.length
+      const arraySPL= isSub ? response2array(response, 30, 80) : response2array(response, 500, 2000);
+      const targetSPL = arraySPL.reduce((acc, val) => acc + val, 0) / arraySPL.length;
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - subSPL) >= -3) { break; }
+        if ((rpArray[i] - targetSPL) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
     }
-    async function getLow3dBPointFromTC(idx, start=10, end=320) {
-      // finds low -3dB point from target
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
-      const rpArray = response2array(response, start, end);
-      const tcArray = response2array(targetResponse, start, end);
-      const arrLength = Math.min(rpArray.length, tcArray.length);
-      const octave = Math.pow(2, 1/96);
-      let rolloff = start;
-      for (let i = 0; i < arrLength; i++) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
-        rolloff *= octave;
-      }
-      return Math.min(rolloff, end);
-    }
-    async function getHigh3dBPointFromTC(idx, start=10, end=320) {
-      // finds high -3dB point from target
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
-      const rpArray = response2array(response, start, end);
-      const tcArray = response2array(targetResponse, start, end);
-      const arrLength = Math.min(rpArray.length, tcArray.length);
-      const octave = Math.pow(2, 1/96);
-      let rolloff = end;
-      for (let i = arrLength - 1; i >= 0; i--) {
-        if ((rpArray[i] - tcArray[i]) >= -3) { break; }
-        rolloff /= octave;
-      }
-      return Math.max(rolloff, start);
-    }
-    async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
+    async function getHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -2466,8 +2438,8 @@
       }
       return Math.min(rolloff, end);
     }
-    async function calculateRolloffs() {
-      console.log("Calculating speaker -3dB points from target curve...");
+    async function calculateSPRolloffs() {
+      console.log("Calculating speaker -3dB points...");
       for (let i = 1; i <= nSpeakers; i++) {
         const spIdx = cmdIdAVGIndices[commandId[i]];
         // check if single channel or speaker pair
@@ -2480,7 +2452,7 @@
           const pairAvg = await postNext('Magn plus phase average', [spIdx, spIdxR]); // do not use VA. it unfairly benefits single channel speakers
           idx = Object.keys(pairAvg.results)[0];
         }
-        const rolloff = await getLow3dBPointFromTC(idx);
+        const rolloff = await getAbsLow3dBPoint(idx, false);
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -2488,8 +2460,8 @@
         }
         customCrossover[i] = initialXO;
         // used for EQ limits
-        const rolloffLF = await getLow3dBPointFromTC(spIdx); // speaker specific, not pair specific
-        const rolloffHF = await getSpeakerHFRolloff(spIdx); // speaker specific, not pair specific
+        const rolloffLF = await getAbsLow3dBPoint(spIdx, false); // speaker specific, not pair specific
+        const rolloffHF = await getHFRolloff(spIdx); // speaker specific, not pair specific
         m3dBPoints[i] = [Math.round(rolloffLF), Math.round(rolloffHF)];
         if (!singleChannel) {
           // assign initialXO to the right channel of the speaker pair
@@ -2497,8 +2469,8 @@
           await postDelete(idx); // cleanup
           // used for EQ limits
           const spIdxR = cmdIdAVGIndices[commandId[i + 1]]
-          const rolloffLFR = await getLow3dBPointFromTC(spIdxR); // speaker specific, not pair specific
-          const rolloffHFR = await getSpeakerHFRolloff(spIdxR); // speaker specific, not pair specific
+          const rolloffLFR = await getAbsLow3dBPoint(spIdxR, false); // speaker specific, not pair specific
+          const rolloffHFR = await getHFRolloff(spIdxR); // speaker specific, not pair specific
           m3dBPoints[i + 1] = [Math.round(rolloffLFR), Math.round(rolloffHFR)];
           i++;
         }
@@ -2508,12 +2480,12 @@
     }
     async function calculateSubBandwidth() {
       if (noSub) { return; } // no need to go further without subwoofer
-      console.log("Calculating subwoofer -3dB points from target curve...")
+      console.log("Calculating subwoofer -3dB points...")
       // find low freq -3dB point & set minXO
-      const subLowFreq = await getLow3dBPointFromTC(cmdIdAVGIndices[commandId[nChannels]]);
+      const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
       minXO = findNearestXO(2 * subLowFreq);
       // find high freq -3dB point and set maxXO
-      const subHighFreq = await getHigh3dBPointFromTC(cmdIdAVGIndices[commandId[nChannels]]);
+      const subHighFreq = await getAbsHigh3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
       maxXO = findNearestXO(subHighFreq);
       if (minXO >= maxXO) {
         minXO = maxXO;
@@ -2852,8 +2824,8 @@
       console.info(`Alignment order based on IR peak time: ${sortedSwList}`);
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
-      let startFreq = Math.round(await getAbsLow3dBPointForSub(currSubIdx));
-      let endFreq = Math.round(await getAbsHigh3dBPointForSub(currSubIdx));
+      let startFreq = Math.round(await getAbsLow3dBPoint(currSubIdx));
+      let endFreq = Math.round(await getAbsHigh3dBPoint(currSubIdx));
       const refSubIRPeak = measurements[currSubIdx].timeOfIRPeakSeconds;
       for (let i = 1; i < swIndices.length; i++) {
         const thisSubIdx = swIndices[i][0];
@@ -2866,8 +2838,8 @@
         const IRPeakDelta = 1000 * Math.abs(refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
         const loDelayLimit = Math.max(-2 * IRPeakDelta, loDelay);
         const hiDelayLimit = Math.min(IRPeakDelta, hiDelay);
-        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPointForSub(thisSubIdx)));
-        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPointForSub(thisSubIdx)));
+        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
+        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx)));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
         const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
                                                                                   startFreq, endFreq, loDelayLimit, hiDelayLimit);
