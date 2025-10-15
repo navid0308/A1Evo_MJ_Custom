@@ -2506,8 +2506,9 @@
     }
     async function calculateSubBandwidth() {
       console.log("Calculating subwoofer bandwidth...")
-      // find low freq point based on max low shelf & set minXO
-      const subLowFreq = await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]]); // used for EQ
+      // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
+      const subLowFreq = useAudyFiltering ? await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]])
+                                          : await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]])
       minXO = findNearestXO(2 * subLowFreq);
       // find high freq -3dB point and set maxXO
       const subHighFreq = await getAbsHigh3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
