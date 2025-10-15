@@ -2259,6 +2259,8 @@
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
         const trimOffset = Math.round((tcLevelOffset + ALOffset) * 2) / 2; //round to nearest 0.5
         if (trimOffset != 0) {
+          await postNext('Add SPL offset', mlpIdx, { offset: trimOffset }); // offset "-mlp"
+          await postNext('Add SPL offset', avgIdx, { offset: trimOffset }); // offset "-avg"
           await postNext('Add SPL offset', mlpEqResponseIdx, { offset: trimOffset }); // offset "-mlp-equalized"
           await postNext('Add SPL offset', eqResponseIdx, { offset: trimOffset }); // offset "-avg-equalized"
           const customLevelOriginal = customLevel[i];
