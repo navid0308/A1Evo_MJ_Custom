@@ -838,6 +838,7 @@
       a.download = `filters_${getCurrentTimestamp()}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      console.log(`Exported EQ filters - please save '${a.download}' when prompted.`);
     }
     // import filters
     document.getElementById("importFile").addEventListener("change", e => {
@@ -902,6 +903,7 @@
         });
       };
       reader.readAsText(file);
+      console.log(`Successfully imported EQ filters from '${file.name}'.`);
     }
     function checkValue(object) {
       if (object.value === "") { return; }
