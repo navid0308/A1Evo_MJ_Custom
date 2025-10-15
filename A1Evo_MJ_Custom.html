@@ -2464,7 +2464,7 @@
           const pairAvg = await postNext('Magn plus phase average', [spIdx, spIdxR]); // do not use VA. it unfairly benefits single channel speakers
           idx = Object.keys(pairAvg.results)[0];
         }
-        const rolloff = await getAbsLow3dBPoint(idx, false);
+        const rolloff = await getAbsLow3dBPoint(idx, false, 20);
         let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
@@ -2472,7 +2472,7 @@
         }
         customCrossover[i] = initialXO;
         // used for EQ limits
-        const rolloffLF = await getAbsLow3dBPoint(spIdx, false); // speaker specific, not pair specific
+        const rolloffLF = await getAbsLow3dBPoint(spIdx, false, 20); // speaker specific, not pair specific
         const rolloffHF = await getSpeakerHFRolloff(spIdx); // speaker specific, not pair specific
         m3dBPoints[i] = [Math.round(rolloffLF), Math.round(rolloffHF)];
         if (!singleChannel) {
@@ -2481,7 +2481,7 @@
           await postDelete(idx); // cleanup
           // used for EQ limits
           const spIdxR = cmdIdAVGIndices[commandId[i + 1]]
-          const rolloffLFR = await getAbsLow3dBPoint(spIdxR, false); // speaker specific, not pair specific
+          const rolloffLFR = await getAbsLow3dBPoint(spIdxR, false, 20); // speaker specific, not pair specific
           const rolloffHFR = await getSpeakerHFRolloff(spIdxR); // speaker specific, not pair specific
           m3dBPoints[i + 1] = [Math.round(rolloffLFR), Math.round(rolloffHFR)];
           i++;
