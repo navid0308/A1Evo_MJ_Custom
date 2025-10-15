@@ -2065,7 +2065,7 @@
           }]
         }, "Filters set");
       } catch (error) {
-        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB> - measurement #${idx}`);
+        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB> to measurement #${idx}`);
         throw error;
       }
     }
@@ -2086,7 +2086,7 @@
           }]
         }, "Filters set");
       } catch (error) {
-        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB> - measurement #${idx}`);
+        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB> to measurement #${idx}`);
         throw error;
       }
     }
@@ -2107,7 +2107,7 @@
           }]
         }, "Filters set");
       } catch (error) {
-        console.error(`Failed to add ${type} filter <${freq}Hz> - measurement #${idx}`);
+        console.error(`Failed to add ${type} filter <${freq}Hz> to measurement #${idx}`);
         throw error;
       }
     }
@@ -2129,7 +2129,7 @@
           }]
         }, "Filters set");
       } catch (error) {
-        console.error(`Failed to add ${type} filter <${freq}Hz Q=${q}> - measurement #${idx}`);
+        console.error(`Failed to add ${type} filter <${freq}Hz Q=${q}> to measurement #${idx}`);
         throw error;
       }
     }
@@ -2153,7 +2153,7 @@
           }]
         }, "Filters set");
       } catch (error) {
-        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB Q=${q}> - measurement #${idx}`);
+        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB Q=${q}> to measurement #${idx}`);
         throw error;
       }
     }
@@ -2232,7 +2232,13 @@
         }
         // add DE filter
         if (commandId[i] === "C" && dialogueEnhancer) {
-          await addPEQFilter(avgIdx, "PK", 1500, 3, 0.5);
+          try {
+            await addPEQFilter(avgIdx, "PK", 1500, 3, 0.5);
+          }
+          catch (error) {
+            console.error("Failed to add dialogue enhancer filter - no more EQ slots left in REW!");
+            throw new Error;
+          }
         }
         // cleanup EQ params
         await postSafe(`${baseUrl}/${avgIdx}/target-settings`, { shape: "None" }, "Update processed");
@@ -2294,7 +2300,13 @@
         await clearFilters(avgIdx);
         // add DE if needed
         if (commandId[i] === "C" && dialogueEnhancer) {
-          await addPEQFilter(avgIdx, "PK", 1500, 3, 0.5);
+          try {
+            await addPEQFilter(avgIdx, "PK", 1500, 3, 0.5);
+          }
+          catch (error) {
+            console.error("Failed to add dialogue enhancer filter - no more EQ slots left in REW!");
+            throw new Error;
+          }
         }
         const customFilter = await postNext('Generate filters measurement', avgIdx);
         const customFilterIdx = Object.keys(customFilter.results)[0];
