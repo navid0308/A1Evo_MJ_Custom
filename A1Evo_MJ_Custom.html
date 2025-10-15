@@ -1362,7 +1362,7 @@
         if (isCirrusLogic) {
           zip.file("_micCal.txt", micCal);
         }
-        console.log(`Please save ${fileName.substring(0, fileName.lastIndexOf('.'))}_extractedMeasurements.zip file when prompted.`);
+        console.log(`Please save '${fileName.substring(0, fileName.lastIndexOf('.'))}_extractedMeasurements.zip' file when prompted.`);
         console.info("Checking for measurements...");
         await Promise.all(filePromises.flat());
         try {
@@ -1646,7 +1646,7 @@
         console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
       }
       if (useAudyFiltering) {
-        console.warn(`  ***Audyssey filtering enabled***`);
+        console.warn(`  ***Audyssey Filtering Enabled***`);
       }
       else {
         console.warn(`  ***REW Boost Parameters***`);
@@ -1999,8 +1999,8 @@
       // line up response to target similar to REW
       // limit SW TC level determination range to 20-120hz if bandwidth exceeds it
       // limit SP TC level determination range to 200-2000hz if bandwidth exceeds it
-      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "Var", true)
-                                  : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "Var", true);
+      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "1%2F6", true)
+                                  : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "1%2F6", true);
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postNext('Smooth', idx, { smoothing: "Var" });
       await postNext('Smooth', idx, { smoothing: "Var" });
@@ -2505,10 +2505,9 @@
       }
     }
     async function calculateSubBandwidth() {
-      console.log("Calculating subwoofer -3dB points...")
-      // find low freq -3dB point & set minXO
-      const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      const subLowFreqExt = await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]]); // used for EQ
+      console.log("Calculating subwoofer bandwidth...")
+      // find low freq point based on max low shelf & set minXO
+      const subLowFreq = await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]]); // used for EQ
       minXO = findNearestXO(2 * subLowFreq);
       // find high freq -3dB point and set maxXO
       const subHighFreq = await getAbsHigh3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
@@ -2517,7 +2516,7 @@
         minXO = maxXO;
         console.warn(`Subwoofer has very little bandwidth and can only support ${minXO}hz crossover!`);
       }
-      m3dBPoints[nChannels] = [Math.round(subLowFreqExt), Math.round(subHighFreq)];
+      m3dBPoints[nChannels] = [Math.round(subLowFreq), Math.round(subHighFreq)];
       Object.freeze(minXO);
       Object.freeze(maxXO);
       console.info(`${commandId[nChannels].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
