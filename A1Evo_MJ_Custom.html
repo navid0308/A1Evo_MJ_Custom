@@ -1528,15 +1528,13 @@
       await bootUp();
       await groundWorks();
       await calculateSpeakerRolloffs();
-      await calculateSubBandwidth();
-      await optimizeSubDelay();
-      await finalizeXO();
-      if (useAudyFiltering) {
-        await generateTargetCurves();
+      if (!noSub) {
+        await calculateSubBandwidth();
+        await optimizeSubDelay();
+        await finalizeXO();
       }
-      else {
-        await generateREWFilters();
-      }
+      if (useAudyFiltering) { await generateTargetCurves(); }
+      else { await generateREWFilters(); }
       finalizeTrims();
       finalizeDistances();
       await drawResults();
@@ -1999,9 +1997,9 @@
       // line up response to target similar to REW
       // limit SW TC level determination range to 20-120hz if bandwidth exceeds it
       // limit SP TC level determination range to 200-2000hz if bandwidth exceeds it
-      const tcLevel = isSub ? await getSPL(idx, Math.max(20, start), Math.min(120, end), "1%2F6")
-                            : await getSPL(idx, Math.max(200, start), Math.min(2000, end), "1%2F6");
-      await fetchSafe('target-level', idx, tcLevel);
+      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "Var", true)
+                                  : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "Var", true);
+      await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postNext('Smooth', idx, { smoothing: "Var" });
       await postNext('Smooth', idx, { smoothing: "Var" });
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
@@ -2012,7 +2010,6 @@
         bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
       }, "Update processed");
       // return the tc level offset
-      const tcLevelOffset = 75.0 - tcLevel;
       return tcLevelOffset;
     }
     async function updateEQFilterSettings(start, end, indMaxBoost, ovMaxBoost, LSMin, LSMax, HSMin, HSMax) {
@@ -2492,7 +2489,6 @@
       }
     }
     async function calculateSubBandwidth() {
-      if (noSub) { return; } // no need to go further without subwoofer
       console.log("Calculating subwoofer -3dB points...")
       // find low freq -3dB point & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
@@ -2528,7 +2524,6 @@
       }
     }
     async function optimizeSubDelay() {
-      if (noSub) { return; } // no need to go further without subwoofer
       const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
         mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
@@ -2651,7 +2646,6 @@
       }
     }
     async function finalizeXO(start=20, end=250) {
-      if (noSub) { return; } // no need to go further without subwoofer
       console.log("Finalizing crossover frequencies for maximum output at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const targetArray = response2array(targetResponse, start, end);
@@ -2970,12 +2964,13 @@
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       return freqSPL;
     }
-    async function getTrim(idx, start, end) {
+    async function getTrim(idx, start, end, smoothing="1%2F1", raw=false){
       // calculates SPL offset against target curve @75dB
-      const idxSPL = await getSPL(idx, start, end, "1%2F1");
+      const idxSPL = await getSPL(idx, start, end, smoothing);
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const offset = targetSPL - idxSPL;
+      if (raw) { return offset; } // raw trim, no rounding
       return Math.round(offset * 2) / 2; // round to nearest 0.5
     }
     async function getSpeakerTrim(idx) {
