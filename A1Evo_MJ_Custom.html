@@ -3253,7 +3253,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${fileName.split(".ady")[0]}_MJCv${getCurrentVersion()}_${getCurrentTimestamp()}.log`;
+      a.download = `${fileName.split(".ady")[0]}_MJC${getCurrentVersion()}_${getCurrentTimestamp()}.log`;
       a.click();
       URL.revokeObjectURL(url);
     }
