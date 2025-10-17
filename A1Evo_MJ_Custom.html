@@ -2554,7 +2554,7 @@
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
       const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], avgInitialXO);
       const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
-      let [requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
+      const [requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
       // cleanup
       await postDelete(subwooferWithLPFIdx);
       await postDelete(avgSpeakerWithHPFIdx);
