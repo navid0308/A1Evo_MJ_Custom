@@ -2461,7 +2461,7 @@
           rolloff = checkFreq;
         }
         // if HF peak exceeds lowest point by 3dB, set roll-off before that peak
-        // if HF drops below target by -3dB, stop there otherwise high shelf will fail
+        // if HF drops below target by -3dB (Audy) or max high shelf (REW), stop there otherwise high shelf will fail
         if ((rpArray[i] - lowestSPL >= 3) || ((rpArray[i] - tcArray[i]) <= dropSPL)) { break; }
         checkFreq *= octave;
       }
