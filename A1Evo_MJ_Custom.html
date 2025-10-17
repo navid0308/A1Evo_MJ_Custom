@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.0.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.1.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1999,7 +1999,7 @@
       // line up response to target similar to REW
       // limit SW TC level determination range to 20-120hz if bandwidth exceeds it
       // limit SP TC level determination range to 200-2000hz if bandwidth exceeds it
-      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "1%2F6", true)
+      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "1%2F48", true)
                                   : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "1%2F6", true);
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postNext('Smooth', idx, { smoothing: "Var" });
@@ -2404,20 +2404,22 @@
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds low -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F48") : await getSPL(idx, 500, 2000, "1%2F6");
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
+      let dropSPL = -3;
+      if (!useAudyFiltering && isSub) { dropSPL = Math.min(-3, -subwooferLowShelfMax); } // for REW filtering, account low freq ext gain from LS
       for (let i = 0; i < rpArray.length; i++) {
-        if ((rpArray[i] - idxSPL) >= -3) { break; }
+        if ((rpArray[i] - idxSPL) >= dropSPL) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
     async function getAbsHigh3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F48") : await getSPL(idx, 500, 2000, "1%2F6");
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2428,23 +2430,22 @@
       }
       return Math.max(rolloff, start);
     }
-    async function getSubwooferLFRolloff(idx, start=10, end=320) {
-      // goal of this function is to find the subwoofer roll-off point within which low shelf can work
+    async function getAbsHigh6dBPoint(idx, isSub=true, start=10, end=320) {
+      // finds high -6dB point from mean SPL
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F48") : await getSPL(idx, 500, 2000, "1%2F6");
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
-      const tcArray = response2array(targetResponse, start, end);
-      const arrLength = Math.min(rpArray.length, tcArray.length);
       const octave = Math.pow(2, 1/96);
-      let rolloff = start;
-      for (let i = 0; i < arrLength; i++) {
-        if ((rpArray[i] - tcArray[i]) >= Math.min(-3, -subwooferLowShelfMax)) { break; }
-        rolloff *= octave;
+      let rolloff = end;
+      for (let i = rpArray.length - 1; i >= 0; i--) {
+        if ((rpArray[i] - idxSPL) >= -6) { break; }
+        rolloff /= octave;
       }
-      return Math.min(rolloff, end);
+      return Math.max(rolloff, start);
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -2452,14 +2453,16 @@
       let checkFreq = start;
       let rolloff = checkFreq;
       let lowestSPL = rpArray[0];
+      let dropSPL = -3;
+      if (!useAudyFiltering) { dropSPL = Math.min(-3, -speakerHighShelfMax); }
       for (let i = 0; i < arrLength; i++) {
         if (rpArray[i] < lowestSPL) {
           lowestSPL = rpArray[i];
           rolloff = checkFreq;
         }
         // if HF peak exceeds lowest point by 3dB, set roll-off before that peak
-        // also if HF drops below target by max speaker high shelf, stop there otherwise high shelf will fail
-        if ((rpArray[i] - lowestSPL >= 3) || ((rpArray[i] - tcArray[i]) <= Math.min(-3, -speakerHighShelfMax))) { break; }
+        // if HF drops below target by -3dB (Audy) or max high shelf (REW), stop there otherwise high shelf will fail
+        if ((rpArray[i] - lowestSPL >= 3) || ((rpArray[i] - tcArray[i]) <= dropSPL)) { break; }
         checkFreq *= octave;
       }
       return Math.min(rolloff, end);
@@ -2507,11 +2510,10 @@
     async function calculateSubBandwidth() {
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
-      const subLowFreq = useAudyFiltering ? await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]])
-                                          : await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]])
+      const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
       minXO = findNearestXO(2 * subLowFreq);
-      // find high freq -3dB point and set maxXO
-      const subHighFreq = await getAbsHigh3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
+      // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
+      const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
       maxXO = findNearestXO(subHighFreq);
       if (minXO >= maxXO) {
         minXO = maxXO;
@@ -2546,33 +2548,23 @@
       }
       const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
       console.log(`Optimizing subwoofer delay for ALL speakers at MLP using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
-      const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices)); // same results with RMS & VA since goal is max output
+      const avgSpeaker = await postNext('Vector average', Array.from(mlpSPIndices)); // use VA for better phase cleanliness
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
       const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], avgInitialXO);
       const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
-      let [isPossible, requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
+      const [requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
       // cleanup
       await postDelete(subwooferWithLPFIdx);
       await postDelete(avgSpeakerWithHPFIdx);
       await postDelete(avgSpeakerIdx);
       // apply optimal delay
-      let subMoves = 0;
-      if (isPossible) {
-        subMoves = requiredDelay;
-      }
-      else {
-        console.warn(`Required delay for alignment is too large! Subwoofer(s) set to max possible distance but results will not be optimal.`);
-        const [loDelay, ] = getDelayRangeOfFinalSub();
-        subMoves = loDelay;
-        isInverted = false;
-      }
+      const subMoves = requiredDelay / 1000;
       if (isInverted) {
         await postSafe(`${baseUrl}/${cmdIdMLPIndices[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
         await postSafe(`${baseUrl}/${cmdIdAVGIndices[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
       }
-      subMoves /= 1000;
       await postNext('Offset t=0', cmdIdMLPIndices[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
       await postNext('Offset t=0', cmdIdAVGIndices[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
       if (bassMode === "Directional") {
@@ -2865,12 +2857,8 @@
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx)));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
-        const [isPossible, requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
-                                                                                  startFreq, endFreq, loDelayLimit, hiDelayLimit);
-        if (!isPossible || !sumIndex) {
-          console.error("Failed to align multiple subwoofers!");
-          throw new Error;
-        }
+        const [requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
+                                                                      startFreq, endFreq, loDelayLimit, hiDelayLimit);
         currSubIdx = sumIndex;
         mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
         invertSub[nSpeakers + thisSubNumber] = isInverted;
@@ -3016,7 +3004,7 @@
     async function align4system(ind1, ind2, start=20, end=250) {
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
-      let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity;
+      let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "Var" });
       await postNext('Smooth', ind2, { smoothing: "Var" });
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
@@ -3026,43 +3014,36 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Starting...")
-      for (let checkFreq = 20; checkFreq <= 250; checkFreq++) {
-        console.infoUpdate(`Checking: @${checkFreq}Hz, Best: ${requiredDelay.toFixed(2)}ms @${bestFreq}hz Inverted: ${isInverted}`);
-        const postAlignResult = await postAlign('Align IRs', checkFreq);
-        if (postAlignResult.message === 'Delay too large') { continue; }
-
-        const invertB = await fetchAlign('invert-b');
-        const delayB = parseFloat(await fetchAlign('delay-b'));
-        if (noInversion && invertB) { continue; };
-
+      for (let i = loDelay; i <= hiDelay; i += 0.05) {
+        console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
+        await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
-        const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
+        let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
+        let tempSumInverted = false;
+        if (!noInversion) {
+          await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
+          const tempSumArrayInv = response2array(tempSumInv, start, end);
+          const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
+          if (tempMagSum < tempMagSumInv) {
+            tempMagSum = tempMagSumInv;
+            tempSumInverted = true;
+          }
+          await postSafe("http://localhost:4735/alignment-tool/invert-b", false, "Value set");
+        }
         if (maxSum < tempMagSum) {
           maxSum = tempMagSum;
-          bestFreq = checkFreq;
-          isPossible = true;
-          requiredDelay = delayB;
-          isInverted = invertB;
+          requiredDelay = i;
+          isInverted = tempSumInverted;
         }
       }
-      if (isPossible) {
-        const postAlignResult = await postAlign('Align IRs', bestFreq);
-        const delayB = await fetchAlign('delay-b');
-        requiredDelay = parseFloat(delayB);
-        isInverted = await fetchAlign('invert-b');
-        const alignedSum = await postAlign('Aligned sum');
-        const parsed = JSON.parse(alignedSum.message);
-        const key = Object.keys(parsed.results)[0];
-        const sumIndex = parseInt(key);
-        await postDelete(sumIndex);
-        console.infoUpdate(`Optimal alignment: @${bestFreq}Hz, required delay: ${requiredDelay.toFixed(2)}ms, isInverted: ${isInverted}`);
-      }
-      return [isPossible, requiredDelay, isInverted];
+      console.infoUpdate(`Optimal delay: ${requiredDelay.toFixed(2)}ms, Inverted: ${isInverted}`);
+      return [requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
-      let isInverted = false, isPossible = false, requiredDelay = NaN, bestFreq = NaN, maxSum = -Infinity, sumIndex = null;
+      let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
@@ -3072,43 +3053,37 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Starting...")
-      for (let checkFreq = 20; checkFreq <= 250; checkFreq++) {
-        console.infoUpdate(`Checking: @${checkFreq}Hz, Best: ${requiredDelay.toFixed(2)}ms @${bestFreq}hz Inverted: ${isInverted}`);
-        const postAlignResult = await postAlign('Align IRs', checkFreq);
-        if (postAlignResult.message === 'Delay too large' && previousDelay != postAlignResult.delay) {
-          previousDelay = postAlignResult.delay;
-          continue;
-        }
-
-        const invertB = await fetchAlign('invert-b');
-        const delayB = parseFloat(await fetchAlign('delay-b'));
-        if (noInversion && invertB) { continue; };
-
+      for (let i = loDelay; i <= hiDelay; i += 0.05) {
+        console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
+        await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
-        const tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
+        let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
+        let tempSumInverted = false;
+        if (!noInversion) {
+          await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
+          const tempSumArrayInv = response2array(tempSumInv, start, end);
+          const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
+          if (tempMagSum < tempMagSumInv) {
+            tempMagSum = tempMagSumInv;
+            tempSumInverted = true;
+          }
+          await postSafe("http://localhost:4735/alignment-tool/invert-b", false, "Value set");
+        }
         if (maxSum < tempMagSum) {
           maxSum = tempMagSum;
-          bestFreq = checkFreq;
-          isPossible = true;
-          requiredDelay = delayB;
-          isInverted = invertB;
+          requiredDelay = i;
+          isInverted = tempSumInverted;
         }
       }
-      if (isPossible) {
-        const postAlignResult = await postAlign('Align IRs', bestFreq);
-        const delayB = await fetchAlign('delay-b');
-        requiredDelay = parseFloat(delayB);
-        isInverted = await fetchAlign('invert-b');
-        const measurements = await fetch_mREW();
-        const mCount = Object.keys(measurements).length;
-        const alignedSum = await postAlign('Aligned sum');
-        const parsed = JSON.parse(alignedSum.message);
-        const key = Object.keys(parsed.results)[0];
-        sumIndex = parseInt(key);
-        console.infoUpdate(`Optimal alignment: @${bestFreq}Hz, required delay: ${requiredDelay.toFixed(2)}ms, isInverted: ${isInverted}`);
-      }
-      return [isPossible, requiredDelay, isInverted, sumIndex];
+      console.infoUpdate(`Optimal delay: ${requiredDelay.toFixed(2)}ms, Inverted: ${isInverted}`);
+      await postSafe("http://localhost:4735/alignment-tool/delay-b", requiredDelay, "Value set");
+      await postSafe("http://localhost:4735/alignment-tool/invert-b", isInverted, "Value set");
+      const alignedSum = await postAlign('Aligned sum');
+      const parsed = JSON.parse(alignedSum.message);
+      const sumIndex = Object.keys(parsed.results)[0];
+      return [requiredDelay, isInverted, sumIndex];
     }
     async function genSub(i, freq) {
       // if no freq provided, just copy response
@@ -3280,7 +3255,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${fileName.split(".ady")[0]}_${getCurrentVersion()}_${getCurrentTimestamp()}.log`;
+      a.download = `${fileName.split(".ady")[0]}_MJC${getCurrentVersion()}_${getCurrentTimestamp()}.log`;
       a.click();
       URL.revokeObjectURL(url);
     }
