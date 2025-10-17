@@ -2546,7 +2546,7 @@
       }
       const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
       console.log(`Optimizing subwoofer delay for ALL speakers at MLP using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
-      const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices)); // same results with RMS & VA since goal is max output
+      const avgSpeaker = await postNext('Vector average', Array.from(mlpSPIndices)); // use VA for better phase cleanliness
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
