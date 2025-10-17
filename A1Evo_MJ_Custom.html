@@ -2131,7 +2131,7 @@
           }]
         }, "Filters set");
       } catch (error) {
-        console.error(`Failed to add ${type} filter <${freq}Hz Q=${q}> to measurement #${idx}`);
+        console.error(`Failed to add ${type} filter <${freq}Hz ${q}Q> to measurement #${idx}`);
         throw error;
       }
     }
@@ -2155,7 +2155,7 @@
           }]
         }, "Filters set");
       } catch (error) {
-        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB Q=${q}> to measurement #${idx}`);
+        console.error(`Failed to add ${type} filter <${freq}Hz ${gain}dB ${q}Q> to measurement #${idx}`);
         throw error;
       }
     }
