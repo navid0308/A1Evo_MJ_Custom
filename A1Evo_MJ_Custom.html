@@ -2409,8 +2409,10 @@
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
+      let dropSPL = -3;
+      if (!useAudyFiltering && isSub) { dropSPL = Math.min(-3, -subwooferLowShelfMax); } // for REW filtering, account low freq ext gain from LS
       for (let i = 0; i < rpArray.length; i++) {
-        if ((rpArray[i] - idxSPL) >= (isSub ? Math.min(-3, -subwooferLowShelfMax) : -3)) { break; }
+        if ((rpArray[i] - idxSPL) >= dropSPL) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
