@@ -2445,7 +2445,7 @@
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -2453,6 +2453,8 @@
       let checkFreq = start;
       let rolloff = checkFreq;
       let lowestSPL = rpArray[0];
+      let dropSPL = -3;
+      if (!useAudyFiltering) { dropSPL = Math.min(-3, -speakerHighShelfMax); }
       for (let i = 0; i < arrLength; i++) {
         if (rpArray[i] < lowestSPL) {
           lowestSPL = rpArray[i];
@@ -2460,7 +2462,7 @@
         }
         // if HF peak exceeds lowest point by 3dB, set roll-off before that peak
         // if HF drops below target by -3dB, stop there otherwise high shelf will fail
-        if ((rpArray[i] - lowestSPL >= 3) || ((rpArray[i] - tcArray[i]) <= -3)) { break; }
+        if ((rpArray[i] - lowestSPL >= 3) || ((rpArray[i] - tcArray[i]) <= dropSPL)) { break; }
         checkFreq *= octave;
       }
       return Math.min(rolloff, end);
