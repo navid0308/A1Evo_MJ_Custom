@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.1.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.1.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1996,14 +1996,9 @@
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function updateEQTargetSettings(idx, start, end, isSub) {
-      // line up response to target similar to REW
-      // limit SW TC level determination range to 20-120hz if bandwidth exceeds it
-      // limit SP TC level determination range to 200-2000hz if bandwidth exceeds it
-      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(20, start), Math.min(120, end), "1%2F48", true)
-                                  : await getTrim(idx, Math.max(200, start), Math.min(2000, end), "1%2F6", true);
+      // aggressively line up response to target curve
+      const tcLevelOffset = await getTrim(idx, start, end, "1%2F6", true);
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
-      await postNext('Smooth', idx, { smoothing: "Var" });
-      await postNext('Smooth', idx, { smoothing: "Var" });
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
         lowFreqCutoffHz: (isSub && start === 10) ? 0 : start,
@@ -2214,7 +2209,9 @@
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
+        // line up response to target aggressively and set target type
         const tcLevelOffset = await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        // plug in boost parameters
         if (isSub) {
           await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
             subwooferIndividualMaxBoost, subwooferOverallMaxBoost,
@@ -2225,6 +2222,9 @@
             speakerIndividualMaxBoost, speakerOverallMaxBoost,
             0, 0, speakerHighShelfMin, speakerHighShelfMax); // no LS
         }
+        // smooth and EQ
+        await postNext('Smooth', mlpIdx, { smoothing: "Var" });
+        await postNext('Smooth', avgIdx, { smoothing: "Var" });
         try {
           await postNext('Match target', avgIdx);
         }
@@ -2404,7 +2404,7 @@
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds low -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F48") : await getSPL(idx, 500, 2000, "1%2F6");
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2419,7 +2419,7 @@
     }
     async function getAbsHigh3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F48") : await getSPL(idx, 500, 2000, "1%2F6");
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2432,7 +2432,7 @@
     }
     async function getAbsHigh6dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -6dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F48") : await getSPL(idx, 500, 2000, "1%2F6");
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
