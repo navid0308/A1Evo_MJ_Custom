@@ -720,7 +720,7 @@
       "-S940H", "X1400H", "X1500H", "X2400H", "X2500H", "X3400H", "X3500H", "X4300H", "X4400H", "X4500H", "X6300H", "X6400H", "X6500H",
       "AV7703", "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012"];
 
-    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500, rewDelay = 5;
+    const baseUrl = 'http://localhost:4735/measurements', retryDelay = 500;
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter, isStarted = false;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
     let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, useAudyFiltering = false;
@@ -3014,7 +3014,7 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.05) {
+      for (let i = loDelay; i <= hiDelay; i += 0.075) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
@@ -3053,7 +3053,7 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.05) {
+      for (let i = loDelay; i <= hiDelay; i += 0.075) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
@@ -3267,7 +3267,6 @@
       });
     }
     async function fetch_mREW(indice = null, method = 'GET', _body = null) {
-      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       let body;
       let requestUrl;
       if (indice === null) { requestUrl = baseUrl; } else { requestUrl = baseUrl + `/${indice}` };
@@ -3291,7 +3290,6 @@
       }
     }
     async function postNext(processName, indices, parameters = null) {
-      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       let requestUrl;
       let body;
       if (Array.isArray(indices)) {
@@ -3347,7 +3345,6 @@
       }
     }
     async function postSafe(requestUrl, parameters, message) {
-      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const fetchData = async () => {
         const response = await fetch(requestUrl, {
           method: 'POST',
@@ -3379,7 +3376,6 @@
       }
     }
     async function postDelete(indice) {
-      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const mDeleted = `Measurement ${indice} deleted`
       while (true) {
         try {
@@ -3402,7 +3398,6 @@
       }
     }
     async function fetchSafe(extUrl, indice, parameters = null) {
-      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const requestUrl = `${baseUrl}/${indice}/${extUrl}`;
       let options;
       if (parameters === null) {
@@ -3433,7 +3428,6 @@
       }
     }
     async function postAlign(processName, frequency = null) {
-      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       const requestUrl = `http://localhost:4735/alignment-tool/command`;
       const body = { command: processName };
       if (frequency != null) {
@@ -3499,7 +3493,6 @@
       }
     }
     async function fetchAlign(extUrl) {
-      if (!window.navigator.platform.startsWith("Win")) { await new Promise(resolve => setTimeout(resolve, rewDelay)); }
       try {
         const requestUrl = `http://localhost:4735/alignment-tool/${extUrl}`;
         const response = await fetch(requestUrl, {
