@@ -1997,8 +1997,8 @@
     }
     async function updateEQTargetSettings(idx, start, end, isSub) {
       // aggressively line up response to target curve
-      const tcLevelOffset = isSub ? await getTrim(idx, start, Math.min(end, 120), "1%2F6", true)
-                                  : await getTrim(idx, Math.max(start, 200), end, "1%2F6", true);
+      const tcLevelOffset = isSub ? await getTrim(idx, start, Math.min(end, 120), "1%2F48", true)
+                                  : await getTrim(idx, Math.max(start, 200), end, "1%2F48", true);
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
