@@ -2408,8 +2408,8 @@
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds low -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
@@ -2423,8 +2423,8 @@
     }
     async function getAbsHigh3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
@@ -2436,8 +2436,8 @@
     }
     async function getAbsHigh6dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -6dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
