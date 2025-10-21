@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.1.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.1.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1916,7 +1916,6 @@
       console.infoUpdate("Time aligned speakers.");
     }
     async function initializeSubwoofers() {
-      if (noSub) { return; }
       if (bassMode === "Directional") {
         await alignMultipleSubwoofers();
       }
@@ -1988,7 +1987,7 @@
       console.log(`Optimizing${useAudyFiltering ? " " : " spatial averaging, "}volume & time alignment...`);
       await initializeTrims();
       await timeAlignSpeakers();
-      await initializeSubwoofers();
+      if (!noSub) { await initializeSubwoofers(); }
       await spatialAverage();
       if (noSub) { return; }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
@@ -1997,8 +1996,8 @@
     }
     async function updateEQTargetSettings(idx, start, end, isSub) {
       // aggressively line up response to target curve
-      const tcLevelOffset = isSub ? await getTrim(idx, start, Math.min(end, 120), "1%2F48", true)
-                                  : await getTrim(idx, Math.max(start, 200), end, "1%2F48", true);
+      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(start, 20), Math.min(end, 120), "1%2F48", true)
+                                  : await getTrim(idx, Math.max(start, 200), Math.min(end, 2000), "1%2F48", true);
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
@@ -2391,17 +2390,21 @@
       if (channelCmdId.includes("R") && commandId.includes(channelCmdId.replace("R", "L"))) { return false; } // where L/R is in the middle
       return true;
     }
-    function findNearestXO(freq) {
-      let xo = Infinity;
-      let minDelta = Infinity;
-      for (let i=0; i < freqIndex.length; i++) {
-        const delta = Math.abs(freqIndex[i] - freq);
-        if (delta < minDelta) {
-          minDelta = delta;
-          xo = freqIndex[i];
+    function findPrevXO(freq) {
+      for (let i = freqIndex.length - 1; i >= 0; i--) {
+        if (freqIndex[i] <= freq) {
+          return freqIndex[i];
         }
       }
-      return xo;
+      return freqIndex.at(0);
+    }
+    function findNextXO(freq) {
+      for (let i = 0; i < freqIndex.length; i++) {
+        if (freq <= freqIndex[i]) {
+          return freqIndex[i];
+        }
+      }
+      return freqIndex.at(-1);
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds low -3dB point from mean SPL
@@ -2483,7 +2486,7 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getAbsLow3dBPoint(idx, false, 20);
-        let initialXO = findNearestXO(rolloff);
+        let initialXO = findNextXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           initialXO = "L";
@@ -2512,10 +2515,10 @@
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      minXO = findNearestXO(2 * subLowFreq);
+      minXO = findNextXO(2 * subLowFreq);
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
       const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      maxXO = findNearestXO(subHighFreq);
+      maxXO = findPrevXO(subHighFreq);
       if (minXO >= maxXO) {
         minXO = maxXO;
         console.warn(`Subwoofer has very little bandwidth and can only support ${minXO}hz crossover!`);
@@ -2527,7 +2530,6 @@
       sanityCheckInitialXO(); // update initialXOs based on subwoofer bandwidth
     }
     function sanityCheckInitialXO() {
-      if (noSub) { return; } // no need to go further without subwoofer
       for (let i = 1; i <= nSpeakers; i++) {
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[1 + i]}`).padStart(9, ".");
