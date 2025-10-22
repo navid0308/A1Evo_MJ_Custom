@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.1.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.1.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -544,7 +544,7 @@
   <ol start="5">
     <li class="smaller-font">When prompted, download and 'save' the .zip (measurements) on your computer. Make sure the zip file is unblocked: right-click > properties > unblock</li>
     <li class="smaller-font">Start REW, go to the 'EQ' / 'House Curve', and select a target curve of your choice</li>
-    <li class="smaller-font">***If you do not select a target curve, A1Evo will EQ to a gentle downward slope & enable Dynamic EQ***</li>
+    <li class="smaller-font">***If you do not select a target curve, MJC will EQ to a gentle downward slope & enable Dynamic EQ***</li>
     <li class="smaller-font">Open the zip file and select ALL (keyboard shortcut: "CTRL+A" for Windows / "Command+A" for Mac) the files in that folder</li>
     <li class="smaller-font">Left click on the selection and drag & drop them onto REW. Wait until all measurements are imported and 'Optimize calibration' button is enabled</li>
     <li class="smaller-font">In REW left column you should be seeing your Audyssey speaker measurements with increasing index numbers sorted in alphabetical order</li>
@@ -699,7 +699,7 @@
   <div class="button-container">
     <button id="button2" onclick="startButton_clicked()" disabled>Optimize calibration</button>
   </div>
-  <div class="notice">*A1Evo will perform best with the default options with majority of systems</div>
+  <div class="notice">*MJC will perform best with the default options with majority of systems</div>
   <h2 class="log-heading">Progress log:</h2>
   <pre id="logContainer"></pre>
 </div>
@@ -1635,7 +1635,7 @@
       console.info(`****************************************************************************************************`);
       console.log("Optimization parameters:")
       if (targetCurveName === "") {
-        console.info("  No target curve - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
+        console.info("  No target curve - MJC will EQ to a gentle downward slope & enable Dynamic EQ.");
       } else {
         console.info(`  Active target curve: ${targetCurveName}.`);
       }
