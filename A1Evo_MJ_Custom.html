@@ -2560,23 +2560,32 @@
       }
     }
     async function optimizeSubDelay() {
-      const mlpSPIndices = [];
+      console.log("Optimizing subwoofer delay for ALL speakers at MLP..."); 
+      const spWithHPFIndices = [];
+      const subWithLPFIndices = [];
+      // generate speakers with corresponding HPF
       for (let i = 1; i <= nSpeakers; i++) {
-        mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
+        const spWithHPF = await genSpeaker(cmdIdMLPIndices[commandId[i]], customCrossover[i]);
+        const spWithHPFIdx = Object.keys(spWithHPF.results)[0];
+        spWithHPFIndices.push(spWithHPFIdx);
       }
-      const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
-      console.log(`Optimizing subwoofer delay for ALL speakers at MLP using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
-      const avgSpeaker = await postNext('Vector average', Array.from(mlpSPIndices)); // use VA for better phase cleanliness
-      const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
-      const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
-      const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
-      const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], avgInitialXO);
-      const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
-      const [requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
-      // cleanup
-      await postDelete(subwooferWithLPFIdx);
-      await postDelete(avgSpeakerWithHPFIdx);
-      await postDelete(avgSpeakerIdx);
+      // generate subwoofer with corresponding LPF
+      for (let i = 1; i <= nSpeakers; i++) {
+        const subWithHPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], customCrossover[i]);
+        const subWithHPFIdx = Object.keys(subWithHPF.results)[0];
+        subWithLPFIndices.push(subWithHPFIdx);
+      }
+      // average and align
+      const avgSPWithHPF = await postNext('Vector average', Array.from(spWithHPFIndices)); // use VA for better phase cleanliness
+      const avgSPWithHPFIdx = Object.keys(avgSPWithHPF.results)[0];
+      const avgSubWithLPF = await postNext('Vector average', Array.from(subWithLPFIndices)); // use VA for better phase cleanliness
+      const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
+      const [requiredDelay, isInverted] = await align4system(avgSPWithHPFIdx, avgSubWithLPFIdx);
+      // cleanup in reverse order of creation
+      await postDelete(avgSubWithLPFIdx);
+      await postDelete(avgSPWithHPFIdx);
+      for (let i = subWithLPFIndices.length - 1; i >= 0; i--) { await postDelete(subWithLPFIndices[i]); }
+      for (let i = spWithHPFIndices.length - 1; i >= 0; i--) { await postDelete(spWithHPFIndices[i]); }
       // apply optimal delay
       const subMoves = requiredDelay / 1000;
       if (isInverted) {
