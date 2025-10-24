@@ -2575,12 +2575,22 @@
         const subWithHPFIdx = Object.keys(subWithHPF.results)[0];
         subWithLPFIndices.push(subWithHPFIdx);
       }
-      // average and align
+      // average the speaker and subwoofer responses
       const avgSPWithHPF = await postNext('Vector average', Array.from(spWithHPFIndices)); // use VA for better phase cleanliness
       const avgSPWithHPFIdx = Object.keys(avgSPWithHPF.results)[0];
       const avgSubWithLPF = await postNext('Vector average', Array.from(subWithLPFIndices)); // use VA for better phase cleanliness
       const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
-      const [requiredDelay, isInverted] = await align4system(avgSPWithHPFIdx, avgSubWithLPFIdx);
+      // determine proximity based delay range similar to how it's calculated for multiple subwoofers
+      const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
+      const measurements = await fetch_mREW();
+      const IRPeakDelta = -1000 * measurements[cmdIdMLPIndices[commandId[nChannels]]].timeOfIRPeakSeconds; // speakers are at t=0 by now
+      let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+      let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+      loDelayLimit = Math.max(loDelayLimit, loDelay);
+      hiDelayLimit = Math.min(hiDelayLimit, hiDelay);
+      const [requiredDelay, isInverted] = await align4system(avgSPWithHPFIdx, avgSubWithLPFIdx,
+                                                             undefined, undefined,
+                                                             loDelayLimit, hiDelayLimit);
       // cleanup in reverse order of creation
       await postDelete(avgSubWithLPFIdx);
       await postDelete(avgSPWithHPFIdx);
@@ -2875,12 +2885,14 @@
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
         // set low delay limit to -2x of IR peak difference against reference subwoofer
-        // set high delay limit to 1x of IR peak difference against reference subwoofer
+        // set high delay limit to 0.5x of IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-        const IRPeakDelta = 1000 * Math.abs(refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
-        const loDelayLimit = Math.max(-2 * IRPeakDelta, loDelay);
-        const hiDelayLimit = Math.min(IRPeakDelta, hiDelay);
+        const IRPeakDelta = 1000 * (refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
+        let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+        let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+        loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
+        hiDelayLimit = Math.min(hiDelayLimit, hiDelay); // sanity check
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx)));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
@@ -3028,9 +3040,8 @@
         }
       }
     }
-    async function align4system(ind1, ind2, start=20, end=250) {
-      const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
-      console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
+    async function align4system(ind1, ind2, start=20, end=250, loDelay, hiDelay) {
+      console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "Var" });
       await postNext('Smooth', ind2, { smoothing: "Var" });
