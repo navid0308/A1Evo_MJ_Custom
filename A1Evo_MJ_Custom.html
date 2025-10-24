@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJC - PureEQ v2.1.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.2.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -544,7 +544,7 @@
   <ol start="5">
     <li class="smaller-font">When prompted, download and 'save' the .zip (measurements) on your computer. Make sure the zip file is unblocked: right-click > properties > unblock</li>
     <li class="smaller-font">Start REW, go to the 'EQ' / 'House Curve', and select a target curve of your choice</li>
-    <li class="smaller-font">***If you do not select a target curve, A1Evo will EQ to a gentle downward slope & enable Dynamic EQ***</li>
+    <li class="smaller-font">***If you do not select a target curve, MJC will EQ to a gentle downward slope & enable Dynamic EQ***</li>
     <li class="smaller-font">Open the zip file and select ALL (keyboard shortcut: "CTRL+A" for Windows / "Command+A" for Mac) the files in that folder</li>
     <li class="smaller-font">Left click on the selection and drag & drop them onto REW. Wait until all measurements are imported and 'Optimize calibration' button is enabled</li>
     <li class="smaller-font">In REW left column you should be seeing your Audyssey speaker measurements with increasing index numbers sorted in alphabetical order</li>
@@ -699,7 +699,7 @@
   <div class="button-container">
     <button id="button2" onclick="startButton_clicked()" disabled>Optimize calibration</button>
   </div>
-  <div class="notice">*A1Evo will perform best with the default options with majority of systems</div>
+  <div class="notice">*MJC will perform best with the default options with majority of systems</div>
   <h2 class="log-heading">Progress log:</h2>
   <pre id="logContainer"></pre>
 </div>
@@ -1635,7 +1635,7 @@
       console.info(`****************************************************************************************************`);
       console.log("Optimization parameters:")
       if (targetCurveName === "") {
-        console.info("  No target curve - A1Evo will EQ to a gentle downward slope & enable Dynamic EQ.");
+        console.info("  No target curve - MJC will EQ to a gentle downward slope & enable Dynamic EQ.");
       } else {
         console.info(`  Active target curve: ${targetCurveName}.`);
       }
@@ -1996,8 +1996,23 @@
     }
     async function updateEQTargetSettings(idx, start, end, isSub) {
       // aggressively line up response to target curve
-      const tcLevelOffset = isSub ? await getTrim(idx, Math.max(start, 20), Math.min(end, 120), "1%2F48", true)
-                                  : await getTrim(idx, Math.max(start, 200), Math.min(end, 2000), "1%2F48", true);
+      let tcLevelOffset = 0;
+      if (isSub) {
+        const offsets = [];
+        offsets.push(await getTrim(idx, Math.max(start, 20), Math.min(end, 120), "1%2F6", true));
+        offsets.push(await getTrim(idx, Math.max(start, 20),          end,       "1%2F6", true));
+        offsets.push(await getTrim(idx,          start,      Math.min(end, 120), "1%2F6", true));
+        offsets.push(await getTrim(idx,          start,               end,       "1%2F6", true));
+        tcLevelOffset = Math.max(...offsets);
+      }
+      else {
+        const offsets = [];
+        offsets.push(await getTrim(idx, Math.max(start, 200), Math.min(end, 2000), "1%2F6", true));
+        offsets.push(await getTrim(idx, Math.max(start, 200),          end,        "1%2F6", true));
+        offsets.push(await getTrim(idx,          start,       Math.min(end, 2000), "1%2F6", true));
+        offsets.push(await getTrim(idx,          start,                end,        "1%2F6", true));
+        tcLevelOffset = Math.max(...offsets);
+      }
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
@@ -2449,7 +2464,7 @@
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
-      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -2545,23 +2560,42 @@
       }
     }
     async function optimizeSubDelay() {
-      const mlpSPIndices = [];
+      console.log("Optimizing subwoofer delay for ALL speakers at MLP..."); 
+      const spWithHPFIndices = [];
+      const subWithLPFIndices = [];
+      // generate speakers with corresponding HPF
       for (let i = 1; i <= nSpeakers; i++) {
-        mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
+        const spWithHPF = await genSpeaker(cmdIdMLPIndices[commandId[i]], customCrossover[i]);
+        const spWithHPFIdx = Object.keys(spWithHPF.results)[0];
+        spWithHPFIndices.push(spWithHPFIdx);
       }
-      const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
-      console.log(`Optimizing subwoofer delay for ALL speakers at MLP using average initial XO ${avgInitialXO.toFixed(2)}hz...`); 
-      const avgSpeaker = await postNext('Vector average', Array.from(mlpSPIndices)); // use VA for better phase cleanliness
-      const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
-      const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
-      const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
-      const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], avgInitialXO);
-      const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
-      const [requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx);
-      // cleanup
-      await postDelete(subwooferWithLPFIdx);
-      await postDelete(avgSpeakerWithHPFIdx);
-      await postDelete(avgSpeakerIdx);
+      // generate subwoofer with corresponding LPF
+      for (let i = 1; i <= nSpeakers; i++) {
+        const subWithHPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], customCrossover[i]);
+        const subWithHPFIdx = Object.keys(subWithHPF.results)[0];
+        subWithLPFIndices.push(subWithHPFIdx);
+      }
+      // average the speaker and subwoofer responses
+      const avgSPWithHPF = await postNext('Vector average', Array.from(spWithHPFIndices)); // use VA for better phase cleanliness
+      const avgSPWithHPFIdx = Object.keys(avgSPWithHPF.results)[0];
+      const avgSubWithLPF = await postNext('Vector average', Array.from(subWithLPFIndices)); // use VA for better phase cleanliness
+      const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
+      // determine proximity based delay range similar to how it's calculated for multiple subwoofers
+      const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
+      const measurements = await fetch_mREW();
+      const IRPeakDelta = -1000 * measurements[cmdIdMLPIndices[commandId[nChannels]]].timeOfIRPeakSeconds; // speakers are at t=0 by now
+      let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+      let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+      loDelayLimit = Math.max(loDelayLimit, loDelay);
+      hiDelayLimit = Math.min(hiDelayLimit, hiDelay);
+      const [requiredDelay, isInverted] = await align4system(avgSPWithHPFIdx, avgSubWithLPFIdx,
+                                                             undefined, undefined,
+                                                             loDelayLimit, hiDelayLimit);
+      // cleanup in reverse order of creation
+      await postDelete(avgSubWithLPFIdx);
+      await postDelete(avgSPWithHPFIdx);
+      for (let i = subWithLPFIndices.length - 1; i >= 0; i--) { await postDelete(subWithLPFIndices[i]); }
+      for (let i = spWithHPFIndices.length - 1; i >= 0; i--) { await postDelete(spWithHPFIndices[i]); }
       // apply optimal delay
       const subMoves = requiredDelay / 1000;
       if (isInverted) {
@@ -2851,12 +2885,14 @@
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
         // set low delay limit to -2x of IR peak difference against reference subwoofer
-        // set high delay limit to 1x of IR peak difference against reference subwoofer
+        // set high delay limit to 0.5x of IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-        const IRPeakDelta = 1000 * Math.abs(refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
-        const loDelayLimit = Math.max(-2 * IRPeakDelta, loDelay);
-        const hiDelayLimit = Math.min(IRPeakDelta, hiDelay);
+        const IRPeakDelta = 1000 * (refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
+        let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+        let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+        loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
+        hiDelayLimit = Math.min(hiDelayLimit, hiDelay); // sanity check
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx)));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
@@ -3004,9 +3040,8 @@
         }
       }
     }
-    async function align4system(ind1, ind2, start=20, end=250) {
-      const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
-      console.info(`Available delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
+    async function align4system(ind1, ind2, start=20, end=250, loDelay, hiDelay) {
+      console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "Var" });
       await postNext('Smooth', ind2, { smoothing: "Var" });
