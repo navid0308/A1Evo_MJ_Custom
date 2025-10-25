@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.2.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.2.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2576,9 +2576,9 @@
         subWithLPFIndices.push(subWithHPFIdx);
       }
       // average the speaker and subwoofer responses
-      const avgSPWithHPF = await postNext('Vector average', Array.from(spWithHPFIndices)); // use VA for better phase cleanliness
+      const avgSPWithHPF = await postNext('Magn plus phase average', Array.from(spWithHPFIndices));
       const avgSPWithHPFIdx = Object.keys(avgSPWithHPF.results)[0];
-      const avgSubWithLPF = await postNext('Vector average', Array.from(subWithLPFIndices)); // use VA for better phase cleanliness
+      const avgSubWithLPF = await postNext('Magn plus phase average', Array.from(subWithLPFIndices));
       const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
       // determine proximity based delay range similar to how it's calculated for multiple subwoofers
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
