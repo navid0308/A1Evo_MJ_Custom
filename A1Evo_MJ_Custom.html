@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.2.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.3.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2844,18 +2844,40 @@
       }
       return maxDelta;
     }
+    async function getFirstPeak(idx) {
+      // finds the time in seconds of the first peak of an impulse response
+      const response = await fetchSafe('impulse-response?normalised=true', idx);
+      const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
+      const dataView = new DataView(bytes.buffer);
+      const totalSamples = bytes.length / 4;
+      const startTime = response.startTime;
+      const sampleInterval = response.sampleInterval;
+      let inPeak = false;
+      let maxPercent = -Infinity;
+      let peakSampleNumber = 0;
+      for (let i = 0; i < totalSamples; i++) {
+        const IRValuePercent = Math.abs(Math.round(dataView.getFloat32(i * 4) * 100));
+        if (!inPeak && IRValuePercent > 10) { inPeak = true; }
+        if (inPeak && maxPercent < IRValuePercent) {
+          maxPercent = IRValuePercent;
+          peakSampleNumber = i + 1;
+        }
+        if (inPeak && IRValuePercent < 5) { break; }
+      }
+      return startTime + sampleInterval * peakSampleNumber;
+    }
     async function alignMultipleSubwoofers() {
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds & IR peak times
+      // isolate SW commandIds & first IR peak times
       const swCmdIdsWithIRPeak = {};
       for (let i = 1; i < commandId.length; i++) {
         if (commandId[i].startsWith("SW")) {
           const mlpIdx = cmdIdIndices[commandId[i]][0];
-          swCmdIdsWithIRPeak[commandId[i]] = measurements[mlpIdx].timeOfIRPeakSeconds;
+          swCmdIdsWithIRPeak[commandId[i]] = await getFirstPeak(mlpIdx);
         }
       }
-      // sort subs using IR peak time
+      // sort subs using first IR peak time
       const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
       const swIndices = [];
       for (let i = 0; i < sortedSwList.length; i++) {
@@ -2867,21 +2889,22 @@
       else {
         console.warn("Converting to 'standard bass' mode for a better sound experience...");
       }
-      console.info(`Alignment order based on IR peak time: ${sortedSwList}`);
+      console.info(`Alignment order based on *first* IR peak time: ${sortedSwList}`);
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPoint(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPoint(currSubIdx));
-      const refSubIRPeak = measurements[currSubIdx].timeOfIRPeakSeconds;
+      const refSubIRPeak = await getFirstPeak(currSubIdx);
       for (let i = 1; i < swIndices.length; i++) {
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-        // set low delay limit to -2x of IR peak difference against reference subwoofer
-        // set high delay limit to 0.5x of IR peak difference against reference subwoofer
+        // set low delay limit to -2x of first IR peak difference against reference subwoofer
+        // set high delay limit to 0.5x of first IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-        const IRPeakDelta = 1000 * (refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
+        const thisSubIRPeak = await getFirstPeak(thisSubIdx);
+        const IRPeakDelta = 1000 * (refSubIRPeak - thisSubIRPeak);
         let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
         let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
         loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
