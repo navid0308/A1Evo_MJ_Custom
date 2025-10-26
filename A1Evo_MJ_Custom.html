@@ -2847,7 +2847,8 @@
     }
     async function getFirstPeak(idx) {
       // finds the time in seconds of the first peak of an impulse response
-      const response = await fetchSafe('impulse-response?normalised=true', idx);
+      await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "35" }, "Update processed");
+      const response = await fetchSafe('impulse-response?unit=percent&windowed=true&normalised=true&samplerate=48000', idx);
       const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
       const dataView = new DataView(bytes.buffer);
       const totalSamples = bytes.length / 4;
@@ -2865,6 +2866,7 @@
         }
         if (inPeak && IRValuePercent < 5) { break; }
       }
+      await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "false" }, "Update processed");
       return startTime + sampleInterval * peakSampleNumber;
     }
     async function alignMultipleSubwoofers() {
