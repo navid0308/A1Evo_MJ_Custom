@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.2.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.3.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1999,18 +1999,18 @@
       let tcLevelOffset = 0;
       if (isSub) {
         const offsets = [];
-        offsets.push(await getTrim(idx, Math.max(start, 20), Math.min(end, 120), "1%2F6", true));
-        offsets.push(await getTrim(idx, Math.max(start, 20),          end,       "1%2F6", true));
-        offsets.push(await getTrim(idx,          start,      Math.min(end, 120), "1%2F6", true));
-        offsets.push(await getTrim(idx,          start,               end,       "1%2F6", true));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 20), Math.min(end, 120)));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 20),          end      ));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,      Math.min(end, 120)));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,               end      ));
         tcLevelOffset = Math.max(...offsets);
       }
       else {
         const offsets = [];
-        offsets.push(await getTrim(idx, Math.max(start, 200), Math.min(end, 2000), "1%2F6", true));
-        offsets.push(await getTrim(idx, Math.max(start, 200),          end,        "1%2F6", true));
-        offsets.push(await getTrim(idx,          start,       Math.min(end, 2000), "1%2F6", true));
-        offsets.push(await getTrim(idx,          start,                end,        "1%2F6", true));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 200), Math.min(end, 2000)));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 200),          end       ));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,       Math.min(end, 2000)));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,                end       ));
         tcLevelOffset = Math.max(...offsets);
       }
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
@@ -2416,7 +2416,7 @@
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds low -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
+      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2431,7 +2431,7 @@
     }
     async function getAbsHigh3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
+      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2444,7 +2444,7 @@
     }
     async function getAbsHigh6dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -6dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80, "1%2F6") : await getSPL(idx, 500, 2000, "1%2F6");
+      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2573,12 +2573,15 @@
       const avgSPWithHPFIdx = Object.keys(avgSPWithHPF.results)[0];
       const avgSubWithLPF = await postNext('Magn plus phase average', Array.from(subWithLPFIndices));
       const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
-      // determine proximity based delay range similar to how it's calculated for multiple subwoofers
-      const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
+      // set low delay limit to -2x of first IR peak difference against t=0
+      // set high delay limit to 1x of first IR peak difference against t=0
+      // note: this attempts to find the most optimal alignment that's also closest to time alignment
       const measurements = await fetch_mREW();
-      const IRPeakDelta = -1000 * measurements[cmdIdMLPIndices[commandId[nChannels]]].timeOfIRPeakSeconds; // speakers are at t=0 by now
-      let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
-      let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+      const avgSubWithLPFIRPeak = await getFirstPeak(avgSubWithLPFIdx); // first IR peak
+      const IRPeakDelta = -1000 * avgSubWithLPFIRPeak; // speakers are at t=0 by now
+      let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -1 * IRPeakDelta;
+      let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -1 * IRPeakDelta;
+      const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       loDelayLimit = Math.max(loDelayLimit, loDelay);
       hiDelayLimit = Math.min(hiDelayLimit, hiDelay);
       const [requiredDelay, isInverted] = await align4system(avgSPWithHPFIdx, avgSubWithLPFIdx,
@@ -2844,18 +2847,42 @@
       }
       return maxDelta;
     }
+    async function getFirstPeak(idx) {
+      // finds the time in seconds of the first peak of an impulse response
+      await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "35" }, "Update processed");
+      const response = await fetchSafe('impulse-response?unit=percent&windowed=true&normalised=true&samplerate=48000', idx);
+      const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
+      const dataView = new DataView(bytes.buffer);
+      const totalSamples = bytes.length / 4;
+      const startTime = response.startTime;
+      const sampleInterval = response.sampleInterval;
+      let inPeak = false;
+      let maxPercent = -Infinity;
+      let peakSampleNumber = 0;
+      for (let i = 0; i < totalSamples; i++) {
+        const IRValuePercent = Math.abs(Math.round(dataView.getFloat32(i * 4) * 100));
+        if (!inPeak && IRValuePercent > 10) { inPeak = true; }
+        if (inPeak && maxPercent < IRValuePercent) {
+          maxPercent = IRValuePercent;
+          peakSampleNumber = i + 1;
+        }
+        if (inPeak && IRValuePercent < 5) { break; }
+      }
+      await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "false" }, "Update processed");
+      return startTime + sampleInterval * peakSampleNumber;
+    }
     async function alignMultipleSubwoofers() {
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds & IR peak times
+      // isolate SW commandIds & first IR peak times
       const swCmdIdsWithIRPeak = {};
       for (let i = 1; i < commandId.length; i++) {
         if (commandId[i].startsWith("SW")) {
           const mlpIdx = cmdIdIndices[commandId[i]][0];
-          swCmdIdsWithIRPeak[commandId[i]] = measurements[mlpIdx].timeOfIRPeakSeconds;
+          swCmdIdsWithIRPeak[commandId[i]] = await getFirstPeak(mlpIdx);
         }
       }
-      // sort subs using IR peak time
+      // sort subs using first IR peak time
       const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
       const swIndices = [];
       for (let i = 0; i < sortedSwList.length; i++) {
@@ -2867,23 +2894,24 @@
       else {
         console.warn("Converting to 'standard bass' mode for a better sound experience...");
       }
-      console.info(`Alignment order based on IR peak time: ${sortedSwList}`);
+      console.info(`Alignment order based on *first* IR peak time: ${sortedSwList}`);
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPoint(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPoint(currSubIdx));
-      const refSubIRPeak = measurements[currSubIdx].timeOfIRPeakSeconds;
+      const refSubIRPeak = await getFirstPeak(currSubIdx);
       for (let i = 1; i < swIndices.length; i++) {
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-        // set low delay limit to -2x of IR peak difference against reference subwoofer
-        // set high delay limit to 0.5x of IR peak difference against reference subwoofer
+        // set low delay limit to -2x of first IR peak difference against reference subwoofer
+        // set high delay limit to 1x of first IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
+        const thisSubIRPeak = await getFirstPeak(thisSubIdx);
+        const IRPeakDelta = 1000 * (refSubIRPeak - thisSubIRPeak);
+        let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -1 * IRPeakDelta;
+        let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -1 * IRPeakDelta;
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-        const IRPeakDelta = 1000 * (refSubIRPeak - measurements[thisSubIdx].timeOfIRPeakSeconds);
-        let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
-        let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
         loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
         hiDelayLimit = Math.min(hiDelayLimit, hiDelay); // sanity check
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
@@ -2993,28 +3021,31 @@
       }
       return responseArray;
     }
-    async function getSPL(idx, start, end, smoothing="1%2F1") {
+    async function getSPL(idx, start, end, smoothing="1%2F6") {
       // calculates average SPL between start and end frequencies
       const freqResponse = await fetchSafe(`frequency-response?smoothing=${smoothing}&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       return freqSPL;
     }
-    async function getTrim(idx, start, end, smoothing="1%2F1", raw=false){
+    async function getSPLOffsetFromTarget(idx, start, end, smoothing="1%2F6"){
       // calculates SPL offset against target curve @75dB
       const idxSPL = await getSPL(idx, start, end, smoothing);
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const offset = targetSPL - idxSPL;
-      if (raw) { return offset; } // raw trim, no rounding
-      return Math.round(offset * 2) / 2; // round to nearest 0.5
+      return offset; // raw dB offset
     }
     async function getSpeakerTrim(idx) {
-      const spTrim = await getTrim(idx, 500, 2000);
-      return spTrim;
+      // 1/1 smoothing best matches what SPL meter would read
+      const speakerSPLOffset = await getSPLOffsetFromTarget(idx, 500, 2000, "1%2F1");
+      const speakerTrim = Math.round(speakerSPLOffset * 2) / 2; // round to nearest 0.5;
+      return speakerTrim;
     }
     async function getSubTrim(idx) {
-      const subTrim = await getTrim(idx, 30, 80);
+      // 1/1 smoothing best matches what SPL meter would read
+      const subSPLOffset = await getSPLOffsetFromTarget(idx, 30, 80, "1%2F1");
+      const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
       return subTrim;
     }
     async function fixVolBug(indices) {
