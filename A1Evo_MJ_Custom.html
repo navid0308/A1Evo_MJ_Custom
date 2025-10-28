@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.3.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.3.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2574,13 +2574,13 @@
       const avgSubWithLPF = await postNext('Magn plus phase average', Array.from(subWithLPFIndices));
       const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
       // set low delay limit to -2x of first IR peak difference against t=0
-      // set high delay limit to 1x of first IR peak difference against t=0
+      // set high delay limit to 0.5x of first IR peak difference against t=0
       // note: this attempts to find the most optimal alignment that's also closest to time alignment
       const measurements = await fetch_mREW();
-      const avgSubWithLPFIRPeak = await getFirstPeak(avgSubWithLPFIdx); // first IR peak
+      const avgSubWithLPFIRPeak = await getFirstIRPeak(avgSubWithLPFIdx); // first IR peak
       const IRPeakDelta = -1000 * avgSubWithLPFIRPeak; // speakers are at t=0 by now
-      let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -1 * IRPeakDelta;
-      let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -1 * IRPeakDelta;
+      let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+      let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       loDelayLimit = Math.max(loDelayLimit, loDelay);
       hiDelayLimit = Math.min(hiDelayLimit, hiDelay);
@@ -2847,9 +2847,9 @@
       }
       return maxDelta;
     }
-    async function getFirstPeak(idx) {
+    async function getFirstIRPeak(idx, threshold=10) {
       // finds the time in seconds of the first peak of an impulse response
-      await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "35" }, "Update processed");
+      await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
       const response = await fetchSafe('impulse-response?unit=percent&windowed=true&normalised=true&samplerate=48000', idx);
       const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
       const dataView = new DataView(bytes.buffer);
@@ -2861,12 +2861,12 @@
       let peakSampleNumber = 0;
       for (let i = 0; i < totalSamples; i++) {
         const IRValuePercent = Math.abs(Math.round(dataView.getFloat32(i * 4) * 100));
-        if (!inPeak && IRValuePercent > 10) { inPeak = true; }
+        if (!inPeak && IRValuePercent > threshold) { inPeak = true; }
         if (inPeak && maxPercent < IRValuePercent) {
           maxPercent = IRValuePercent;
           peakSampleNumber = i + 1;
         }
-        if (inPeak && IRValuePercent < 5) { break; }
+        if (inPeak && IRValuePercent < threshold / 2) { break; }
       }
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "false" }, "Update processed");
       return startTime + sampleInterval * peakSampleNumber;
@@ -2879,7 +2879,7 @@
       for (let i = 1; i < commandId.length; i++) {
         if (commandId[i].startsWith("SW")) {
           const mlpIdx = cmdIdIndices[commandId[i]][0];
-          swCmdIdsWithIRPeak[commandId[i]] = await getFirstPeak(mlpIdx);
+          swCmdIdsWithIRPeak[commandId[i]] = await getFirstIRPeak(mlpIdx);
         }
       }
       // sort subs using first IR peak time
@@ -2899,18 +2899,18 @@
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPoint(currSubIdx));
       let endFreq = Math.round(await getAbsHigh3dBPoint(currSubIdx));
-      const refSubIRPeak = await getFirstPeak(currSubIdx);
+      const refSubIRPeak = await getFirstIRPeak(currSubIdx);
       for (let i = 1; i < swIndices.length; i++) {
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
         // set low delay limit to -2x of first IR peak difference against reference subwoofer
-        // set high delay limit to 1x of first IR peak difference against reference subwoofer
+        // set high delay limit to 0.5x of first IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
-        const thisSubIRPeak = await getFirstPeak(thisSubIdx);
+        const thisSubIRPeak = await getFirstIRPeak(thisSubIdx);
         const IRPeakDelta = 1000 * (refSubIRPeak - thisSubIRPeak);
-        let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -1 * IRPeakDelta;
-        let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -1 * IRPeakDelta;
+        let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+        let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
         hiDelayLimit = Math.min(hiDelayLimit, hiDelay); // sanity check
