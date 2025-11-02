@@ -556,14 +556,14 @@
   <div class="customization-options">
     <small>
       <label>
-        <input type="checkbox" id="audysseyFiltering" onchange="updateCheckboxStates()">
-        Use Audyssey Filtering
-        <span class="explanation">Preserves measurements in the .ady file and lets Audyssey handle the equalization. Not compatible with manual measurements.</span>
-      </label>
-      <label>
         <input type="checkbox" id="dialogueEnhancer" onchange="updateCheckboxStates()">
         Dialogue enhancer
         <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
+      </label>
+      <label>
+        <input type="checkbox" id="audysseyFiltering" onchange="updateCheckboxStates()">
+        Use Audyssey Filtering
+        <span class="explanation">Preserves measurements in the .ady file and lets Audyssey handle the equalization. Not compatible with manual measurements.</span>
       </label>
       <label>
         <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
@@ -1356,13 +1356,18 @@
         Object.freeze(flDist);
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
         let totalMeasurements = 0;
+        const systemDelay = parseInt(jsonData.systemDelay);
+        const responseLength = 16384;
+        const sampleInterval = 2.0833333333333333E-5;
+        const startTime = -systemDelay * sampleInterval;
+        const dataOffsetdB = 78.0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
         const filePromises = Object.entries(detectedChannels).map(([key, detectedChannel]) => {
           const { responseData, commandId } = detectedChannel;
           return Promise.all(Object.entries(responseData).map(([arrayKey, arrayData]) => {
             const dataString = arrayData.join('\n');
-            const rewHeader = `* Impulse Response data saved by REW\n0 // Peak value before normalisation\n0 // Peak index\n16384 // Response length\n2.0833333333333333E-5 // Sample interval (seconds)\n0.0 // Start time (seconds)\n78.0 // Data offset (dB)\n* Data start\n${dataString}`;
+            const rewHeader = `* Impulse Response data saved by REW\n${responseLength} // Response length\n${sampleInterval} // Sample interval (seconds)\n${startTime} // Start time (seconds)\n${dataOffsetdB} // Data offset (dB)\n* Data start\n${dataString}`;
             const measurementName = `${commandId}${arrayKey}.txt`;
             zip.file(measurementName, rewHeader);
             totalMeasurements++;
