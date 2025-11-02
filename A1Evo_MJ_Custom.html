@@ -1734,13 +1734,13 @@
         }
         else {
           const currTitle = measurements[i].title;
-          // checks for alphanumeric sort
-          if (!currTitle.localeCompare(prevTitle, undefined, { numeric: true, sensitivity: 'base' })) {
-            console.error(`Measurement #${i} '${currTitle}' failed sort check. To fix: All SPL > Sort (A to Z button).`);
-            throw new Error;
+          // checks for alphanumeric or lexicographic sort
+          if (currTitle.localeCompare(prevTitle, undefined, { numeric: true, sensitivity: 'base' }) || prevTitle < currTitle) {
+            prevTitle = currTitle;
           }
           else {
-            prevTitle = currTitle;
+            console.error(`Measurement #${i} '${currTitle}' failed sort check. To fix: All SPL > Sort (A to Z button).`);
+            throw new Error;
           }
         }
         // sanity check
@@ -1749,7 +1749,7 @@
           console.error(`Speaker name ${key} does not end with a numeric index.`);
           throw new Error;
         }
-        // group measurements by commandIds
+        // group measurements by commandIds, don't rely on sorting
         const idxLength = measurements[i].title.length - key.length - (key === "SW" ? 1 : 0);
         const mCmdId = measurements[i].title.slice(0, measurements[i].title.length - idxLength);
         let cmdId = "";
