@@ -2907,7 +2907,7 @@
       const sampleInterval = response.sampleInterval;
       const impulseArray = [];
       for (let i = 0; i < totalSamples; i++) {
-        impulseArray.push(dataView.getFloat32(i * 4));
+        impulseArray.push(dataView.getFloat32(i * 4) / 100);
       }
       combinedSubIRs4AF[pos] = impulseArray;
     }
