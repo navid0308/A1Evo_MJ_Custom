@@ -1621,13 +1621,18 @@
       const mCount = Object.keys(measurements).length;
       for (let i = 1; i < mCount; i++) {
         const name = measurements[i].title;
-        console.infoUpdate(`Applying Audyssey microphone calibration file to ${name}...`);
-        const irWindows = await fetchSafe('ir-windows', i);
-        const leftW = parseFloat(irWindows.leftWindowWidthms);
-        const rightW = parseFloat(irWindows.rightWindowWidthms);
-        const refTime = parseFloat(irWindows.refTimems);
-        await postNext('Arithmetic', [i, mCount], {function: "A * B"});
-        await postSafe(`${baseUrl}/${mCount + i}/ir-windows`, { leftWindowWidthms: leftW, rightWindowWidthms: rightW, refTimems: refTime }, "Update processed");
+        if (name.startsWith("SW")) {
+          await genSub(i); // response copy; applying _micCcal produces 2x IR samples and affects AF in directional on cirrus logic
+        }
+        else {
+          console.infoUpdate(`Applying Audyssey microphone calibration file to ${name}...`);
+          const irWindows = await fetchSafe('ir-windows', i);
+          const leftW = parseFloat(irWindows.leftWindowWidthms);
+          const rightW = parseFloat(irWindows.rightWindowWidthms);
+          const refTime = parseFloat(irWindows.refTimems);
+          await postNext('Arithmetic', [i, mCount], {function: "A * B"});
+          await postSafe(`${baseUrl}/${mCount + i}/ir-windows`, { leftWindowWidthms: leftW, rightWindowWidthms: rightW, refTimems: refTime }, "Update processed");
+        }
         await fetch_mREW(mCount + i, 'PUT', { title: name });
       }
       console.infoUpdate("Deleting processed measurements...");
