@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.3.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -559,6 +559,11 @@
         <input type="checkbox" id="dialogueEnhancer" onchange="updateCheckboxStates()">
         Dialogue enhancer
         <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
+      </label>
+      <label>
+        <input type="checkbox" id="audysseyFiltering" onchange="updateCheckboxStates()">
+        Use Audyssey Filtering
+        <span class="explanation">Preserves measurements in the .ady file and lets Audyssey handle the equalization. Not compatible with manual measurements.</span>
       </label>
       <label>
         <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
@@ -731,6 +736,7 @@
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
+    const combinedSubIRs4AF = [];
     let speakerIndividualMaxBoost, speakerOverallMaxBoost, speakerHighShelfMin, speakerHighShelfMax;
     let subwooferIndividualMaxBoost, subwooferOverallMaxBoost, subwooferLowShelfMin, subwooferLowShelfMax;
     // TODO: store the user inputs in variables instead of querying it from the document
@@ -760,14 +766,6 @@
         window[variable] = value;
       });
     });
-    // record audyssey filtering mode selection
-    const startButton = document.getElementById('button2');
-    startButton.addEventListener('click', function(event) {
-      if (event.shiftKey && !useAudyFiltering) {
-        useAudyFiltering = true;
-        Object.freeze(useAudyFiltering);
-      }
-    });
     function advancedSettingsToggle() {
       const content = document.getElementById("advancedContent");
       const container = document.getElementById("advancedContainer");
@@ -786,6 +784,18 @@
         slider.disabled = true;
         slider.style.opacity = "0.5";
         slider.style.pointerEvents = "none";
+        output.textContent = `${slider.value} dB`;
+        window[variable] = parseFloat(slider.value);
+      });
+    }
+    function unlockSliders() {
+      // unlock sliders
+      sliders.forEach(({ id, label, variable }) => {
+        const slider = document.getElementById(id);
+        const output = document.getElementById(label);
+        slider.disabled = false;
+        slider.style.opacity = "1.0";
+        slider.style.pointerEvents = "auto";
         output.textContent = `${slider.value} dB`;
         window[variable] = parseFloat(slider.value);
       });
@@ -1051,6 +1061,7 @@
     // Expand / Collapse Filters +-
     // ============================
     function toggleAllSpeakers() {
+      const startButton = document.getElementById('button2');
       if (startButton.disabled && !isStarted) { return; }
 
       const contents = document.querySelectorAll(".speaker-content");
@@ -1344,15 +1355,19 @@
         flDist = getFLDistance(jsonData.detectedChannels);
         Object.freeze(flDist);
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
-        updateCheckboxStates();
         let totalMeasurements = 0;
+        const systemDelay = parseInt(jsonData.systemDelay);
+        const responseLength = 16384;
+        const sampleInterval = 2.0833333333333333E-5;
+        const startTime = -systemDelay * sampleInterval;
+        const dataOffsetdB = 78.0;
         const zip = new JSZip();
         const { detectedChannels } = jsonData;
         const filePromises = Object.entries(detectedChannels).map(([key, detectedChannel]) => {
           const { responseData, commandId } = detectedChannel;
           return Promise.all(Object.entries(responseData).map(([arrayKey, arrayData]) => {
             const dataString = arrayData.join('\n');
-            const rewHeader = `* Impulse Response data saved by REW\n0 // Peak value before normalisation\n0 // Peak index\n16384 // Response length\n2.0833333333333333E-5 // Sample interval (seconds)\n0.0 // Start time (seconds)\n78.0 // Data offset (dB)\n* Data start\n${dataString}`;
+            const rewHeader = `* Impulse Response data saved by REW\n${responseLength} // Response length\n${sampleInterval} // Sample interval (seconds)\n${startTime} // Start time (seconds)\n${dataOffsetdB} // Data offset (dB)\n* Data start\n${dataString}`;
             const measurementName = `${commandId}${arrayKey}.txt`;
             zip.file(measurementName, rewHeader);
             totalMeasurements++;
@@ -1381,7 +1396,6 @@
         const checkMeasurementCount = async () => {
           const measurements = await fetch_mREW();
           let mCount = Object.keys(measurements).length;
-          isAudy = true;
           if (mCount > 0) {
             isAudy = await checkIfAudyMeasurement();
           }
@@ -1389,6 +1403,8 @@
           if (mCount === totalMeasurements && isAudy) {
             document.getElementById("button2").disabled = false;
             console.infoUpdate(`All ${isCirrusLogic ? mCount + 1 : mCount} measurements have now been successfully imported!`);
+            Object.freeze(isAudy);
+            updateCheckboxStates();
             clearInterval(intervalId);
           }
           else if (mCount > 0 && !isAudy) {
@@ -1396,6 +1412,8 @@
             console.infoUpdate("Skipping measurement count check "
               + (isCirrusLogic ? "and ignoring Audy mic cal " : "")
               + "- manual measurements detected!");
+            Object.freeze(isAudy);
+            updateCheckboxStates();
             clearInterval(intervalId);
           }
           else {
@@ -1415,8 +1433,8 @@
       const modifiedName = fileName.substring(0, dotIndex) + suffix;
       return modifiedName;
     }
-    async function checkIfAudyMeasurement() {
-      const response = await fetchSafe('impulse-response', 1);
+    async function checkIfAudyMeasurement(idx=1) {
+      const response = await fetchSafe('impulse-response', idx);
       const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
       const totalSamples = bytes.length / 4;
       return (totalSamples === 16384);
@@ -1501,6 +1519,10 @@
       Object.freeze(isStarted);
     }
     function updateCheckboxStates() {
+      if (!isAudy) { // disable audyssey filtering mode if manual measurements are used
+        document.getElementById('audysseyFiltering').checked = false;
+        document.getElementById('audysseyFiltering').disabled = true;
+      }
       if (noCenter) { // if no center, disable dialogue enhancer
         document.getElementById('dialogueEnhancer').checked = false;
         document.getElementById('dialogueEnhancer').disabled = true;
@@ -1509,11 +1531,16 @@
         document.getElementById('noInversion').checked = false;
         document.getElementById('noInversion').disabled = true;
       }
+      useAudyFiltering = document.getElementById('audysseyFiltering').checked;
       dialogueEnhancer = document.getElementById('dialogueEnhancer').checked;
       noInversion = document.getElementById('noInversion').checked;
+      if (useAudyFiltering) { lockSliders(); }
+      else { unlockSliders(); }
     }
     function lockOptions() {
       updateCheckboxStates(); // final sanity check
+      document.getElementById('audysseyFiltering').disabled = true;
+      Object.freeze(useAudyFiltering);
       document.getElementById('dialogueEnhancer').disabled = true;
       Object.freeze(dialogueEnhancer);
       document.getElementById('noInversion').disabled = true;
@@ -1594,13 +1621,18 @@
       const mCount = Object.keys(measurements).length;
       for (let i = 1; i < mCount; i++) {
         const name = measurements[i].title;
-        console.infoUpdate(`Applying Audyssey microphone calibration file to ${name}...`);
-        const irWindows = await fetchSafe('ir-windows', i);
-        const leftW = parseFloat(irWindows.leftWindowWidthms);
-        const rightW = parseFloat(irWindows.rightWindowWidthms);
-        const refTime = parseFloat(irWindows.refTimems);
-        await postNext('Arithmetic', [i, mCount], {function: "A * B"});
-        await postSafe(`${baseUrl}/${mCount + i}/ir-windows`, { leftWindowWidthms: leftW, rightWindowWidthms: rightW, refTimems: refTime }, "Update processed");
+        if (name.startsWith("SW")) {
+          await genSub(i); // response copy; applying _micCcal produces 2x IR samples and affects AF in directional on cirrus logic
+        }
+        else {
+          console.infoUpdate(`Applying Audyssey microphone calibration file to ${name}...`);
+          const irWindows = await fetchSafe('ir-windows', i);
+          const leftW = parseFloat(irWindows.leftWindowWidthms);
+          const rightW = parseFloat(irWindows.rightWindowWidthms);
+          const refTime = parseFloat(irWindows.refTimems);
+          await postNext('Arithmetic', [i, mCount], {function: "A * B"});
+          await postSafe(`${baseUrl}/${mCount + i}/ir-windows`, { leftWindowWidthms: leftW, rightWindowWidthms: rightW, refTimems: refTime }, "Update processed");
+        }
         await fetch_mREW(mCount + i, 'PUT', { title: name });
       }
       console.infoUpdate("Deleting processed measurements...");
@@ -1664,19 +1696,6 @@
     async function bootUp() {
       const measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      isAudy = true;
-      if (mCount > 0) {
-        isAudy = await checkIfAudyMeasurement();
-      }
-      Object.freeze(isAudy);
-      if (bassMode === "Directional" && useAudyFiltering && sOs === 300) {
-        console.error("Audyssey filtering not supported in directional bass mode on older AVRs!");
-        throw new Error;
-      }
-      else if (!isAudy && useAudyFiltering) {
-        console.error("Audyssey filtering not supported with manual measurements!");
-        throw new Error;
-      }
       if (!useAudyFiltering) {
         speakerIndividualMaxBoost = window.speakerIndividualMaxBoost;
         Object.freeze(speakerIndividualMaxBoost);
@@ -1709,22 +1728,24 @@
       await console.infoUpdate("Resetting default equalizer to 'Generic/Generic'...");
       await postSafe(`http://localhost:4735/eq/default-equaliser`, { manufacturer: "Generic", model: "Generic" }, "Default equaliser changed");
       console.infoUpdate(`Checking measurement names, indices and sorting...`);
-      let previousTitle = "";
+      let prevTitle = "";
       for (let i = 1; i < commandId.length; i++) {
         cmdIdIndices[commandId[i]] = [];
       }
       for (let i = 1; i <= mCount; i++) {
         // check sorting
-        if (previousTitle === "") {
-          previousTitle = measurements[i].title;
+        if (prevTitle === "") {
+          prevTitle = measurements[i].title;
         }
         else {
-          if (previousTitle >= measurements[i].title) {
-            console.error("Measurements must be sorted in REW. To fix: All SPL > Sort (A to Z button).");
-            throw new Error;
+          const currTitle = measurements[i].title;
+          // checks for alphanumeric or lexicographic sort
+          if (currTitle.localeCompare(prevTitle, undefined, { numeric: true, sensitivity: 'base' }) || prevTitle < currTitle) {
+            prevTitle = currTitle;
           }
           else {
-            previousTitle = measurements[i].title;
+            console.error(`Measurement #${i} '${currTitle}' failed sort check. To fix: All SPL > Sort (A to Z button).`);
+            throw new Error;
           }
         }
         // sanity check
@@ -1733,7 +1754,7 @@
           console.error(`Speaker name ${key} does not end with a numeric index.`);
           throw new Error;
         }
-        // group measurements by commandIds
+        // group measurements by commandIds, don't rely on sorting
         const idxLength = measurements[i].title.length - key.length - (key === "SW" ? 1 : 0);
         const mCmdId = measurements[i].title.slice(0, measurements[i].title.length - idxLength);
         let cmdId = "";
@@ -1945,7 +1966,7 @@
         await fetch_mREW(mlpIdx, 'PUT', { title: `${commandId[i]}-mlp` });
         await postNext('Smooth', mlpIdx, { smoothing: "1/48" });
         // spatially average
-        console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
+        console.infoUpdate(`Spatially averaging channel ${commandId[i]} using <${indices.length}> microphone position(s)...`);
         if (indices.length > 1) {
           await postNext('Cross corr align', indices);
         }
@@ -2871,6 +2892,25 @@
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "false" }, "Update processed");
       return startTime + sampleInterval * peakSampleNumber;
     }
+    async function storeSubwooferIR(idx, pos) {
+      // stores combined subwoofer IRs for filling in the .ady at the very end
+      const subIsAudy = await checkIfAudyMeasurement(idx);
+      if (!subIsAudy) {
+        console.error("Manual subwoofer measurements cannot be used to populate .ady.");
+        throw new Error;
+      }
+      const response = await fetchSafe('impulse-response?unit=percent&windowed=false&normalised=false&samplerate=48000', idx);
+      const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
+      const dataView = new DataView(bytes.buffer);
+      const totalSamples = bytes.length / 4;
+      const startTime = response.startTime;
+      const sampleInterval = response.sampleInterval;
+      const impulseArray = [];
+      for (let i = 0; i < totalSamples; i++) {
+        impulseArray.push(dataView.getFloat32(i * 4) / 100);
+      }
+      combinedSubIRs4AF[pos] = impulseArray;
+    }
     async function alignMultipleSubwoofers() {
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
@@ -2888,12 +2928,7 @@
       for (let i = 0; i < sortedSwList.length; i++) {
         swIndices.push(cmdIdIndices[sortedSwList[i]]);
       }
-      if (useAudyFiltering) {
-        console.warn("Time aligning subwoofer(s) and preserving 'directional bass' mode...");
-      }
-      else {
-        console.warn("Converting to 'standard bass' mode for a better sound experience...");
-      }
+      console.warn("Converting to 'standard bass' mode for a better sound experience...");
       console.info(`Alignment order based on *first* IR peak time: ${sortedSwList}`);
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
@@ -2959,6 +2994,9 @@
           volAdjust = await getSubTrim(iPosCombinedSWIdx);
         }
         await postNext('Add SPL offset', iPosCombinedSWIdx, { offset: volAdjust });
+        if (useAudyFiltering) {
+          await storeSubwooferIR(iPosCombinedSWIdx, i + 1);
+        }
       }
       console.infoUpdate(`Generated combined subwoofer response(s) for all positions.`);
       // cleanup individual sub measurements
@@ -3266,15 +3304,32 @@
             };
           }
         }
-        if (bassMode === "Directional" && !useAudyFiltering) {
-          let ii = 54;
+        if (bassMode === "Directional") {
+          let enChannelType = 54;
           for (let i = nChannels - 1; i < jsonData.detectedChannels.length; i++) {
             const swChannel = jsonData.detectedChannels[i];
-            swChannel.enChannelType = ii;
-            ii++;
+            swChannel.enChannelType = enChannelType;
+            if (useAudyFiltering) {
+              if (enChannelType === 54) {
+                // fill in .ady with combined SW impulse responses
+                const responseData = swChannel.responseData;
+                for (const arrayKey in responseData) {
+                  const pos = parseInt(arrayKey) + 1;
+                  responseData[arrayKey] = combinedSubIRs4AF[pos].map(String);
+                }
+              }
+              else {
+                // remove sw2,3,4 response data
+                const responseData = swChannel.responseData;
+                for (const arrayKey in responseData) {
+                  delete responseData[arrayKey];
+                }
+              }
+            }
             if (swChannel.customCrossover) { delete swChannel.customCrossover };
             if (swChannel.customSpeakerType) { delete swChannel.customSpeakerType };
-            if (swChannel.customTargetCurvePoints && (i != (nChannels - 1))) { delete swChannel.customTargetCurvePoints };
+            if (swChannel.customTargetCurvePoints && (enChannelType != 54)) { delete swChannel.customTargetCurvePoints };
+            enChannelType++;
           }
           jsonData.subwooferLayout = "N/A";
           sOs === 343 ? jsonData.subwooferMode = "Standard" : jsonData.subwooferMode = "N/A";
