@@ -3239,14 +3239,14 @@
           if (isSingleChannel(channel.commandId)) {
             // enChannelType should be 9
             if (channel.enChannelType != 9) {
-              console.warn(`${channel.commandId} is mono with incorrect enChannelType ${channel.enChannelType} - changed to 9.`);
+              console.warn(`${channel.commandId} is mono with incorrect enChannelType '${channel.enChannelType}' - changed to '9'`);
               channel.enChannelType = 9;
             }
           }
           else {
             // enChannelType should be 10
             if (channel.enChannelType != 10) {
-              console.warn(`${channel.commandId} is stereo/left with incorrect enChannelType ${channel.enChannelType} - changed to 10.`);
+              console.warn(`${channel.commandId} is stereo/left with incorrect enChannelType '${channel.enChannelType}' - changed to '10'`);
               channel.enChannelType = 10;
             }
           }
@@ -3257,7 +3257,7 @@
       // new MultEQ app versions can sometimes add random numbers after SWMIX; there shouldn't be any numbers after SWMIX
       detectedChannels.forEach(channel => {
         if (channel.commandId.startsWith("SWMIX") && channel.commandId.length != "SWMIX".length) {
-          console.warn(`Subwoofer with enChannelType ${channel.enChannelType} has incorrect commandId ${channel.commandId} - changed to 'SWMIX'.`);
+          console.warn(`Subwoofer with enChannelType ${channel.enChannelType} has incorrect commandId ${channel.commandId} - changed to 'SWMIX'`);
           channel.commandId = "SWMIX";
         }
       });
