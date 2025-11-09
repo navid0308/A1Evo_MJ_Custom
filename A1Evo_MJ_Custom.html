@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2877,8 +2877,22 @@
       }
       return maxDelta;
     }
-    async function getFirstIRPeak(idx, threshold=10) {
-      // finds the time in seconds of the first peak of an impulse response
+    function getStandardDeviation(array, usePopulation = false) {
+      const n = array.length;
+      // 1. Calculate the mean (average) of the array
+      const mean = array.reduce((sum, value) => sum + value, 0) / n;
+      // 2. Calculate the squared differences from the mean
+      const squaredDifferences = array.map(value => Math.pow(value - mean, 2));
+      // 3. Calculate the variance (average of squared differences)
+      // Use Bessel's correction (n-1) for sample standard deviation by default,
+      // or 'n' for population standard deviation if usePopulation is true.
+      const divisor = usePopulation ? n : (n - 1);
+      const variance = squaredDifferences.reduce((sum, value) => sum + value, 0) / divisor;
+      // 4. Calculate the standard deviation (square root of the variance)
+      return Math.sqrt(variance);
+    }
+    async function getFirstIRPeak(idx) {
+      // finds the time in seconds of the first IR peak that exceeds the standard deviation of the IR
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
       const response = await fetchSafe('impulse-response?unit=percent&windowed=true&normalised=true&samplerate=48000', idx);
       const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
@@ -2886,11 +2900,18 @@
       const totalSamples = bytes.length / 4;
       const startTime = response.startTime;
       const sampleInterval = response.sampleInterval;
+      // use to calculate standard deviation
+      const impulseArray = [];
+      for (let i = 0; i < totalSamples; i++) {
+        impulseArray.push(dataView.getFloat32(i * 4) * 100);
+      }
+      // threshold is set based on standard deviation
+      const threshold = getStandardDeviation(impulseArray, true);
       let inPeak = false;
       let maxPercent = -Infinity;
       let peakSampleNumber = 0;
-      for (let i = 0; i < totalSamples; i++) {
-        const IRValuePercent = Math.abs(Math.round(dataView.getFloat32(i * 4) * 100));
+      for (let i = 0; i < impulseArray.length; i++) {
+        const IRValuePercent = Math.abs(impulseArray[i]);
         if (!inPeak && IRValuePercent > threshold) { inPeak = true; }
         if (inPeak && maxPercent < IRValuePercent) {
           maxPercent = IRValuePercent;
