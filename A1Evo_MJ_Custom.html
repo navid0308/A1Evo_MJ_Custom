@@ -3277,7 +3277,7 @@
       // new MultEQ app versions can sometimes add random numbers after SWMIX; there shouldn't be any numbers after SWMIX
       detectedChannels.forEach(channel => {
         if (channel.commandId.startsWith("SWMIX") && channel.commandId.length != "SWMIX".length) {
-          console.warn(`Subwoofer with enChannelType ${channel.enChannelType} has incorrect commandId ${channel.commandId} - changed to 'SWMIX'`);
+          console.warn(`Subwoofer with enChannelType '${channel.enChannelType}' has incorrect commandId '${channel.commandId}' - changed to 'SWMIX'`);
           channel.commandId = "SWMIX";
         }
       });
