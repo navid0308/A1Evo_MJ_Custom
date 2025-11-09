@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -549,7 +549,6 @@
     <li class="smaller-font">Left click on the selection and drag & drop them onto REW. Wait until all measurements are imported and 'Optimize calibration' button is enabled</li>
     <li class="smaller-font">In REW left column you should be seeing your Audyssey speaker measurements with increasing index numbers sorted in alphabetical order</li>
     <li class="smaller-font">Keep REW at "SPL & Phase" tab and close all REW child windows during the optimization process for a robust experience</li>
-    <li class="smaller-font">***Press shift key + click on the 'Optimize calibration' button to bypass REW EQ filter generation and use Audyssey filtering***</li>
     <li class="smaller-font">When all is set, click the 'Optimize calibration' button below and sit back and relax. Your home cinema will be 'transformed' within minutes!</li>
   </ol>
 
@@ -1283,6 +1282,7 @@
       const reader = new FileReader();
       reader.onload = async function (e) {
         adyContents = e.target.result;
+        Object.freeze(adyContents);
         const jsonData = JSON.parse(adyContents);
         let modelName = jsonData.targetModelName;
         const model = modelName.slice(-6);
@@ -1319,6 +1319,10 @@
             noCenter = false;
           }
           if (channel.commandId && channel.commandId.startsWith("SW")) {
+            if (channel.commandId.startsWith("SWMIX") && channel.commandId != "SWMIX") {
+              // deals with a MultEQ app issue where SWMIX is assigned indices for no reason
+              channel.commandId = "SWMIX";
+            }
             swCmdIds.push(channel.commandId);
             swChannelCount++;
             subLoTrim = Math.min(subLoTrim, parseFloat(channel.trimAdjustment));
@@ -1352,8 +1356,6 @@
         subHiDelay /= sOs;
         Object.freeze(subLoDelay);
         Object.freeze(subHiDelay);
-        flDist = getFLDistance(jsonData.detectedChannels);
-        Object.freeze(flDist);
         console.info("Speaker measurements have been extracted from the uploaded calibration file.");
         let totalMeasurements = 0;
         const systemDelay = parseInt(jsonData.systemDelay);
@@ -1378,7 +1380,6 @@
           zip.file("_micCal.txt", micCal);
         }
         console.log(`Please save '${fileName.substring(0, fileName.lastIndexOf('.'))}_extractedMeasurements.zip' file when prompted.`);
-        console.info("Checking for measurements...");
         await Promise.all(filePromises.flat());
         try {
           const content = await zip.generateAsync({ type: 'blob' });
@@ -1393,6 +1394,7 @@
         } catch (error) {
           console.error('Error generating or downloading zip file:', error);
         }
+        console.info("Checking for measurements...");
         const checkMeasurementCount = async () => {
           const measurements = await fetch_mREW();
           let mCount = Object.keys(measurements).length;
@@ -1439,24 +1441,22 @@
       const totalSamples = bytes.length / 4;
       return (totalSamples === 16384);
     }
-    function getFLDistance(channels) {
-      let flIndex = 0;
-      for (let i = 0; i < channels.length; i++) {
-        if (channels[i].commandId === "FL") {
-          flIndex = i;
-          break;
+    function getFLDistFromAdy() {
+      const detectedChannels = JSON.parse(adyContents).detectedChannels;
+      for (let i = 0; i < detectedChannels.length; i++) {
+        if (detectedChannels[i].commandId === "FL" && detectedChannels[i].enChannelType === 0) {
+          let dist = parseFloat(detectedChannels[i].channelReport.distance);
+          if (isNaN(dist) || dist === 0) {
+            dist = parseFloat(detectedChannels[i].customDistance);
+            if (isNaN(dist) || dist === 0 || dist === null) {
+              console.warn(`No distance found for ${detectedChannels[i].commandId}! Defaulting to 6m.`)
+              console.warn(`To fix: Open ady in MultEQ phone app then -\nSpeaker Detection Results > Change any crossover > Save and then retry.`);
+              return 6.00;
+            }
+          }
+          return dist * sOs / 343;
         }
       }
-      let dist = parseFloat(channels[flIndex].channelReport.distance);
-      if (isNaN(dist) || dist === 0) {
-        dist = parseFloat(channels[flIndex].customDistance);
-        if (isNaN(dist) || dist === 0 || dist === null) {
-          console.warn(`No distance found for ${channels[flIndex].commandId}! Defaulting to 6m.`)
-          console.warn(`To fix: Open ady in MultEQ phone app then -\nSpeaker Detection Results > Change any crossover > Save and then retry.`);
-          dist = 6.00;
-        }
-      }
-      return dist;
     }
     function startButton_clicked() {
       document.getElementById('button2').disabled = true;
@@ -1922,6 +1922,15 @@
       for (let i = 0; i < mlpSPIndices.length; i++) {
         mSec[i + 1] -= measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds;
       }
+      // store FL distance as reference for calculating other distances
+      if (isAudy) {
+        const flIndex = getFLIndexInCmdIdList();
+        flDist = -mSec[flIndex] * sOs;
+      }
+      else {
+        flDist = getFLDistFromAdy();
+      }
+      Object.freeze(flDist);
       // normalize delays to t=0
       const loSPDelay = Math.min(...mSec.slice(1, nSpeakers + 1));
       const hiSPDelay = Math.max(...mSec.slice(1, nSpeakers + 1));
@@ -2631,7 +2640,7 @@
         invertSub[nChannels] = isInverted;
       }
     }
-    function getFLIndex() {
+    function getFLIndexInCmdIdList() {
       let flIndex = 1;
       for (let i = 1; i <= nChannels; i++) {
         if (commandId[i].startsWith("FL")) {
@@ -2647,7 +2656,7 @@
         customDistance[i] = 0;
       }
       if (noSub) { return; }
-      const flIndex = getFLIndex();
+      const flIndex = getFLIndexInCmdIdList();
       let distMinSub = Infinity;
       let distMaxSub = -Infinity;
       // check if any directional subwoofer needs negative distance
@@ -2691,7 +2700,7 @@
     }
     function finalizeDistances() {
       initializeDistances();
-      const flIndex = getFLIndex();
+      const flIndex = getFLIndexInCmdIdList();
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " distances:");
       for (let i = 1; i <= nSpeakers + nSubs; i++) {
         customDistance[i] += flDist + (mSec[flIndex] - mSec[i]) * sOs;
@@ -2928,7 +2937,7 @@
       for (let i = 0; i < sortedSwList.length; i++) {
         swIndices.push(cmdIdIndices[sortedSwList[i]]);
       }
-      console.warn("Converting to 'standard bass' mode for a better sound experience...");
+      console.warn("Converting from directional to standard bass for a better sound experience...");
       console.info(`Alignment order based on *first* IR peak time: ${sortedSwList}`);
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
@@ -3014,6 +3023,7 @@
           console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
         }
       }
+      console.warn("Directional to standard bass conversion complete.");
       // update measurement list per channel
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length;
@@ -3221,6 +3231,36 @@
       }, "Filters set");
       return await postNext('Generate predicted measurement', i);
     }
+    function sanityCheckSB(detectedChannels) {
+      // odd.wtf can assign enChannelType 9 for SBL but type 9 is mono SB; type 10 is for SBL left channel
+      detectedChannels.forEach(channel => {
+        if (channel.commandId === "SBL") {
+          if (isSingleChannel(channel.commandId)) {
+            // enChannelType should be 9
+            if (channel.enChannelType != 9) {
+              console.warn(`${channel.commandId} is mono with incorrect enChannelType '${channel.enChannelType}' - changed to '9'`);
+              channel.enChannelType = 9;
+            }
+          }
+          else {
+            // enChannelType should be 10
+            if (channel.enChannelType != 10) {
+              console.warn(`${channel.commandId} is stereo/left with incorrect enChannelType '${channel.enChannelType}' - changed to '10'`);
+              channel.enChannelType = 10;
+            }
+          }
+        }
+      });
+    }
+    function sanityCheckSWMIX(detectedChannels) {
+      // new MultEQ app versions can sometimes add random numbers after SWMIX; there shouldn't be any numbers after SWMIX
+      detectedChannels.forEach(channel => {
+        if (channel.commandId.startsWith("SWMIX") && channel.commandId.length != "SWMIX".length) {
+          console.warn(`Subwoofer with enChannelType ${channel.enChannelType} has incorrect commandId ${channel.commandId} - changed to 'SWMIX'`);
+          channel.commandId = "SWMIX";
+        }
+      });
+    }
     async function getFilterPoints(fltIdx, useAntiHF=false) {
       // preps the filter as a frequency response array from 10hz-24khz
       const fltPoints = [];
@@ -3236,11 +3276,14 @@
       return fltPoints.map(point => `{${point[0]}, ${point[1]}}`);
     }
     async function updateAdy() {
+      console.log("Preparing final .ady file...");
       for (let i = 1; i <= nSpeakers; i++) {
-        if (customCrossover[i] === "L") {continue;};
+        if (customCrossover[i] === "L") { continue; }
         if (customCrossover[i] > 90) {customCrossover[i] /= 10;} 
       }
       const jsonData = JSON.parse(adyContents);
+      sanityCheckSB(jsonData.detectedChannels);
+      sanityCheckSWMIX(jsonData.detectedChannels);
       jsonData.dynamicVolume = false;
       jsonData.lfc = false;
       jsonData.dynamicEq = (targetCurveName === "");
@@ -3335,17 +3378,19 @@
           sOs === 343 ? jsonData.subwooferMode = "Standard" : jsonData.subwooferMode = "N/A";
         }
       }
+      const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
+      const adyNameMJC = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
+                                  + (dialogueEnhancer ? "DE_" : "")
+                                  + swInvMsg + `${tcName}_`
+                                  + `MJC${getCurrentVersion()}`
+                                  + `_${getCurrentTimestamp()}.ady`);
+      console.log(`Please save the following optimized .ady file when prompted-\n\n\t'${adyNameMJC}'\n\n`);
       const ady = JSON.stringify(jsonData);
       const blob = new Blob([ady], { type: 'application/json' });
       const urlBlob = URL.createObjectURL(blob);
       var downloadLink = document.createElement("a");
       downloadLink.href = urlBlob;
-      const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      downloadLink.download = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
-                                                    + (dialogueEnhancer ? "DE_" : "")
-                                                    + swInvMsg + `${tcName}_`
-                                                    + `MJC${getCurrentVersion()}`
-                                                    + `_${getCurrentTimestamp()}.ady`);
+      downloadLink.download = adyNameMJC;
       downloadLink.style.display = "none";
       document.body.appendChild(downloadLink);
       downloadLink.click();
