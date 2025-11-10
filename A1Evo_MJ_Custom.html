@@ -578,7 +578,7 @@
       <div class="advanced-content" id="advancedContent">
       <!-- Speaker Section -->
       <div class="section">
-      <h3 style="color:#FFA500; font-size: 14px;">Speaker Filter Boost (REW filtering)</h3>
+      <h3 style="color:#FFA500; font-size: 14px;">Speaker Filter Boost (REW Filtering)</h3>
       <div class="slider-row">
         <div class="slider-half">
           <div class="slider-label">
@@ -626,7 +626,7 @@
     </div>
     <!-- Subwoofer Section -->
     <div class="section">
-      <h3 style="color:#FFA500; font-size: 14px;">Subwoofer Filter Boost (REW filtering)</h3>
+      <h3 style="color:#FFA500; font-size: 14px;">Subwoofer Filter Boost (REW Filtering)</h3>
       <div class="slider-row">
         <div class="slider-half">
           <div class="slider-label">
@@ -1484,9 +1484,6 @@
       [...clearButtons].forEach(el => {
         el.remove();
       });
-      // collapnse and lock advanced settings
-      lockEQTable();
-      lockSliders();
       // collapse EQ filters section
       const contents = document.querySelectorAll(".speaker-content");
       const toggleButton = document.getElementById("toggleAll");
@@ -1545,6 +1542,9 @@
       Object.freeze(dialogueEnhancer);
       document.getElementById('noInversion').disabled = true;
       Object.freeze(noInversion);
+      // lock advanced settings
+      lockEQTable();
+      lockSliders();
     }
     async function runOptimizer() {
       const startTime = performance.now();
