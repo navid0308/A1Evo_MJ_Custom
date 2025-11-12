@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.4</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2605,6 +2605,10 @@
       const avgSPWithHPFIdx = Object.keys(avgSPWithHPF.results)[0];
       const avgSubWithLPF = await postNext('Magn plus phase average', Array.from(subWithLPFIndices));
       const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
+      // use 0.5x and 2x of average initialXO to set evaluation range
+      const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
+      const startFreq = Math.round(avgInitialXO / 2);
+      const endFreq = Math.round(avgInitialXO * 2);
       // set low delay limit to -2x of first IR peak difference against t=0
       // set high delay limit to 0.5x of first IR peak difference against t=0
       // note: this attempts to find the most optimal alignment that's also closest to time alignment
@@ -2617,7 +2621,7 @@
       loDelayLimit = Math.max(loDelayLimit, loDelay);
       hiDelayLimit = Math.min(hiDelayLimit, hiDelay);
       const [requiredDelay, isInverted] = await align4system(avgSPWithHPFIdx, avgSubWithLPFIdx,
-                                                             undefined, undefined,
+                                                             startFreq, endFreq,
                                                              loDelayLimit, hiDelayLimit);
       // cleanup in reverse order of creation
       await postDelete(avgSubWithLPFIdx);
@@ -2718,7 +2722,7 @@
         console.warn(`You will need to switch polarity of EACH of your ${swChannelCount} subwoofers!`);
       }
     }
-    async function finalizeXO(start=20, end=250) {
+    async function finalizeXO() {
       console.log("Finalizing crossover frequencies for maximum output at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
@@ -2726,14 +2730,16 @@
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
-        // find xo that is closest match to target curve at MLP
+        // use 0.5x and 2x of initialXO as evaluation range
         const initialXO = customCrossover[i];
+        const startFreq = Math.round(initialXO / 2);
+        const endFreq = Math.round(initialXO * 2);
         let bestXO = initialXO, maxSum = -Infinity;
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           let checkXO = freqIndex[j];
           // don't look at XO below speaker initialXO, above 2x initialXO or outside sub bandwidth
-          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(2 * initialXO, maxXO)) { continue; }
+          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 2, maxXO)) { continue; }
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           let mlpSPWithHPFIdx;
@@ -2755,7 +2761,7 @@
           const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
           const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
           const checkXOResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', mlpXOResultIdx);
-          const checkXOArray = response2array(checkXOResponse, start, end);
+          const checkXOArray = response2array(checkXOResponse, startFreq, endFreq);
           // pick XO with highest output
           const tempSum = checkXOArray.reduce((acc, val) => acc + val, 0);
           if (tempSum > maxSum) {
@@ -2970,6 +2976,9 @@
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
+        // use aggregate -3dB points as evaluation range
+        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
+        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx)));
         // set low delay limit to -2x of first IR peak difference against reference subwoofer
         // set high delay limit to 0.5x of first IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
@@ -2980,11 +2989,10 @@
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
         hiDelayLimit = Math.min(hiDelayLimit, hiDelay); // sanity check
-        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
-        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx)));
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
         const [requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
-                                                                      startFreq, endFreq, loDelayLimit, hiDelayLimit);
+                                                                      startFreq, endFreq,
+                                                                      loDelayLimit, hiDelayLimit);
         currSubIdx = sumIndex;
         mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
         invertSub[nSpeakers + thisSubNumber] = isInverted;
@@ -3134,7 +3142,7 @@
         }
       }
     }
-    async function align4system(ind1, ind2, start=20, end=250, loDelay, hiDelay) {
+    async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "Var" });
@@ -3184,6 +3192,11 @@
       await postSafe("http://localhost:4735/alignment-tool/mode", "Impulse", "Mode set");
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
+      // make sure level differences do not affect alignment
+      const gainA = await getSPLOffsetFromTarget(ind1, 30, 80);
+      const gainB = await getSPLOffsetFromTarget(ind2, 30, 80);
+      await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
+      await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
       for (let i = loDelay; i <= hiDelay; i += 0.075) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
@@ -3210,6 +3223,10 @@
         }
       }
       console.infoUpdate(`Optimal delay: ${requiredDelay.toFixed(2)}ms, Inverted: ${isInverted}`);
+      // restore original gain so aligned sum is correct
+      await postSafe("http://localhost:4735/alignment-tool/gain-a", 0, "Value set");
+      await postSafe("http://localhost:4735/alignment-tool/gain-b", 0, "Value set");
+      // apply optimal delay and polarity
       await postSafe("http://localhost:4735/alignment-tool/delay-b", requiredDelay, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/invert-b", isInverted, "Value set");
       const alignedSum = await postAlign('Aligned sum');
