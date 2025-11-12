@@ -2721,7 +2721,6 @@
     async function finalizeXO(start=20, end=250) {
       console.log("Finalizing crossover frequencies for maximum output at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
-      const targetArray = response2array(targetResponse, start, end);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
       for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
