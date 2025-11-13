@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.5</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.6</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2929,6 +2929,16 @@
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "false" }, "Update processed");
       return startTime + sampleInterval * peakSampleNumber;
     }
+    async function getMaxIRWindow(idxs) {
+      // iterates through idxs and returns maximum IR window
+      let leftWindow = -Infinity, rightWindow = -Infinity;
+      for (let i = 0; i < idxs.length; i++) {
+        const IRWindow = await fetchSafe('ir-windows', idxs[i]);
+        leftWindow = Math.max(leftWindow, parseFloat(IRWindow.leftWindowWidthms));
+        rightWindow = Math.max(rightWindow, parseFloat(IRWindow.rightWindowWidthms));
+      }
+      return [leftWindow, rightWindow];
+    }
     async function storeSubwooferIR(idx, pos) {
       // stores combined subwoofer IRs for filling in the .ady at the very end
       const subIsAudy = await checkIfAudyMeasurement(idx);
@@ -3027,6 +3037,9 @@
         const iPosSWIdxs = swIndices.map(row => row[i]);
         const iPosCombinedSW = await postNext('Vector sum', iPosSWIdxs);
         const iPosCombinedSWIdx = Object.keys(iPosCombinedSW.results)[0];
+        const [iPosCombinedSWLeftWindow, iPosCombinedSWRightWindow] = await getMaxIRWindow(iPosSWIdxs); // apply maximum aggregate IR window
+        await postSafe(`${baseUrl}/${iPosCombinedSWIdx}/ir-windows`, { leftWindowWidthms: iPosCombinedSWLeftWindow,
+                                                                      rightWindowWidthms: iPosCombinedSWRightWindow }, "Update processed");
         await fetch_mREW(iPosCombinedSWIdx, 'PUT', { title: `SW1${i}` });
         if (i === 0) {
           // offset multi-sub gain using MLP measurement
