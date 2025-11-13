@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.4</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.4.5</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2966,19 +2966,19 @@
         swIndices.push(cmdIdIndices[sortedSwList[i]]);
       }
       console.warn("Converting from directional to standard bass for a better sound experience...");
-      console.info(`Alignment order based on *first* IR peak time: ${sortedSwList}`);
+      console.info(`Alignment order based on proximity: ${sortedSwList}`);
       let currSubIdx = swIndices[0][0];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
-      let startFreq = Math.round(await getAbsLow3dBPoint(currSubIdx));
-      let endFreq = Math.round(await getAbsHigh3dBPoint(currSubIdx));
+      let startFreq = Math.round(await getAbsLow3dBPoint(currSubIdx, true, 20, 120));
+      let endFreq = Math.round(await getAbsHigh3dBPoint(currSubIdx, true, 20, 120));
       const refSubIRPeak = await getFirstIRPeak(currSubIdx);
       for (let i = 1; i < swIndices.length; i++) {
         const thisSubIdx = swIndices[i][0];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-        // use aggregate -3dB points as evaluation range
-        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
-        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx)));
+        // use aggregate -3dB points as evaluation range, but limit to 20-120hz to emphasize core LFE region
+        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx, true, 20, 120)));
+        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx, true, 20, 120)));
         // set low delay limit to -2x of first IR peak difference against reference subwoofer
         // set high delay limit to 0.5x of first IR peak difference against reference subwoofer
         // note: this attempts to find the most optimal alignment that's also closest to time alignment
@@ -2989,7 +2989,7 @@
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
         hiDelayLimit = Math.min(hiDelayLimit, hiDelay); // sanity check
-        console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz (aggregate -3dB points)...`);
+        console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz...`);
         const [requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
                                                                       startFreq, endFreq,
                                                                       loDelayLimit, hiDelayLimit);
@@ -3154,7 +3154,7 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.075) {
+      for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
@@ -3198,7 +3198,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.075) {
+      for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
