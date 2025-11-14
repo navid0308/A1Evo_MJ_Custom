@@ -2714,6 +2714,7 @@
       console.log("Finalizing crossover frequencies for maximum output at MLP...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
+      // use 0.5x and 2x of min/max XO to set evaluation range
       const startFreq = Math.round(minXO / 2);
       const endFreq = Math.round(maxXO * 2);
       for (let i = 1; i <= nSpeakers; i++) {
