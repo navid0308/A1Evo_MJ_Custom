@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1959,7 +1959,7 @@
       const SWIndices = cmdIdIndices[commandId[nChannels]];
       if (SWIndices.length > 1) {
         const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
-        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s): ±${(SWMaxDelta / 2).toFixed(2)}dB`);
+        console.log(`${commandId[nChannels]} <30hz-80hz> variation between <${SWIndices.length}> microphone position(s): ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
     }
     async function spatialAverage() {
@@ -2055,7 +2055,8 @@
       }, "Update processed");
     }
     async function getALOffset(idx, isSub) {
-      const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      // 1/3 smoothing best matches how auto-level makes adjustments
+      const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F3&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
       const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
       return offset;
@@ -2419,26 +2420,22 @@
       if (channelCmdId.includes("R") && commandId.includes(channelCmdId.replace("R", "L"))) { return false; } // where L/R is in the middle
       return true;
     }
-    function findPrevXO(freq) {
-      for (let i = freqIndex.length - 1; i >= 0; i--) {
-        if (freqIndex[i] <= freq) {
-          return freqIndex[i];
+    function findNearestXO(freq) {
+      let xo = Infinity;
+      let minDelta = Infinity;
+      for (let i=0; i < freqIndex.length; i++) {
+        const delta = Math.abs(freqIndex[i] - freq);
+        if (delta < minDelta) {
+          minDelta = delta;
+          xo = freqIndex[i];
         }
       }
-      return freqIndex.at(0);
-    }
-    function findNextXO(freq) {
-      for (let i = 0; i < freqIndex.length; i++) {
-        if (freq <= freqIndex[i]) {
-          return freqIndex[i];
-        }
-      }
-      return freqIndex.at(-1);
+      return xo;
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds low -3dB point from mean SPL
       const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
@@ -2453,7 +2450,7 @@
     async function getAbsHigh3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -3dB point from mean SPL
       const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
@@ -2466,7 +2463,7 @@
     async function getAbsHigh6dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -6dB point from mean SPL
       const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
@@ -2478,7 +2475,7 @@
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
       const arrLength = Math.min(rpArray.length, tcArray.length);
@@ -2515,7 +2512,7 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getAbsLow3dBPoint(idx, false, 20);
-        let initialXO = findNextXO(rolloff);
+        let initialXO = findNearestXO(rolloff);
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           initialXO = "L";
@@ -2544,10 +2541,10 @@
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      minXO = findNextXO(2 * subLowFreq);
+      minXO = findNearestXO(2 * subLowFreq);
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
       const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      maxXO = findPrevXO(subHighFreq);
+      maxXO = findNearestXO(subHighFreq);
       if (minXO >= maxXO) {
         minXO = maxXO;
         console.warn(`Subwoofer has very little bandwidth and can only support ${minXO}hz crossover!`);
@@ -2749,7 +2746,7 @@
           const mlpSWWithLPFIdx = Object.keys(mlpSWWithLPF.results)[0];
           const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
           const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
-          const checkXOResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', mlpXOResultIdx);
+          const checkXOResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', mlpXOResultIdx);
           const checkXOArray = response2array(checkXOResponse, startFreq, endFreq);
           // pick XO with highest output
           const tempSum = checkXOArray.reduce((acc, val) => acc + val, 0);
@@ -3101,14 +3098,14 @@
       }
       return responseArray;
     }
-    async function getSPL(idx, start, end, smoothing="1%2F6") {
+    async function getSPL(idx, start, end, smoothing="Var") {
       // calculates average SPL between start and end frequencies
       const freqResponse = await fetchSafe(`frequency-response?smoothing=${smoothing}&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       return freqSPL;
     }
-    async function getSPLOffsetFromTarget(idx, start, end, smoothing="1%2F6"){
+    async function getSPLOffsetFromTarget(idx, start, end, smoothing="Var"){
       // calculates SPL offset against target curve @75dB
       const idxSPL = await getSPL(idx, start, end, smoothing);
       const targetArray = response2array(targetResponse, start, end);
@@ -3117,14 +3114,14 @@
       return offset; // raw dB offset
     }
     async function getSpeakerTrim(idx) {
-      // 1/1 smoothing best matches what SPL meter would read
-      const speakerSPLOffset = await getSPLOffsetFromTarget(idx, 500, 2000, "1%2F1");
+      // 1/3 smoothing best matches what SPL meter would read
+      const speakerSPLOffset = await getSPLOffsetFromTarget(idx, 500, 2000, "1%2F3");
       const speakerTrim = Math.round(speakerSPLOffset * 2) / 2; // round to nearest 0.5;
       return speakerTrim;
     }
     async function getSubTrim(idx) {
-      // 1/1 smoothing best matches what SPL meter would read
-      const subSPLOffset = await getSPLOffsetFromTarget(idx, 30, 80, "1%2F1");
+      // 1/3 smoothing best matches what SPL meter would read
+      const subSPLOffset = await getSPLOffsetFromTarget(idx, 30, 80, "1%2F3");
       const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
       return subTrim;
     }
@@ -3159,13 +3156,13 @@
       for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
           if (tempMagSum < tempMagSumInv) {
@@ -3203,13 +3200,13 @@
       for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
           if (tempMagSum < tempMagSumInv) {
