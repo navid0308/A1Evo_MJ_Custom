@@ -1959,7 +1959,7 @@
       const SWIndices = cmdIdIndices[commandId[nChannels]];
       if (SWIndices.length > 1) {
         const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
-        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s): ±${(SWMaxDelta / 2).toFixed(2)}dB`);
+        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
     }
     async function spatialAverage() {
@@ -2420,16 +2420,18 @@
       return true;
     }
     function findPrevXO(freq) {
+      freq = Math.round(freq / 10) * 10; // round to nearest 10th
       for (let i = freqIndex.length - 1; i >= 0; i--) {
-        if (freqIndex[i] <= freq) {
+        if (freqIndex[i] < freq) {
           return freqIndex[i];
         }
       }
       return freqIndex.at(0);
     }
     function findNextXO(freq) {
+      freq = Math.round(freq / 10) * 10; // round to nearest 10th
       for (let i = 0; i < freqIndex.length; i++) {
-        if (freq <= freqIndex[i]) {
+        if (freq < freqIndex[i]) {
           return freqIndex[i];
         }
       }
@@ -2574,7 +2576,7 @@
       }
     }
     async function optimizeSubDelay() {
-      console.log("Optimizing subwoofer delay for ALL speakers at MLP..."); 
+      console.log("Optimizing subwoofer delay for ALL speakers..."); 
       const spWithHPFIndices = [];
       const subWithLPFIndices = [];
       // generate speakers with corresponding HPF
@@ -2711,7 +2713,7 @@
       }
     }
     async function finalizeXO() {
-      console.log("Finalizing crossover frequencies for maximum output at MLP...");
+      console.log("Finalizing crossover frequencies...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
       // use 0.5x and 2x of min/max XO to set evaluation range
@@ -3156,7 +3158,7 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.03) {
+      for (let i = loDelay; i <= hiDelay; i += 0.075) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
@@ -3200,7 +3202,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.03) {
+      for (let i = loDelay; i <= hiDelay; i += 0.075) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
