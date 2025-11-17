@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1959,7 +1959,7 @@
       const SWIndices = cmdIdIndices[commandId[nChannels]];
       if (SWIndices.length > 1) {
         const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
-        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
+        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s) over 30hz-80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
     }
     async function spatialAverage() {
@@ -2055,7 +2055,7 @@
       }, "Update processed");
     }
     async function getALOffset(idx, isSub) {
-      const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const fltArray = isSub ? await response2array(fltResponse, 30, 80) : await response2array(fltResponse, 500, 2000);
       const offset = fltArray.reduce((acc, val) => acc + val, 0) / fltArray.length;
       return offset;
@@ -2874,18 +2874,10 @@
       }
       return maxDelta;
     }
-    function getStandardDeviation(array, usePopulation = false) {
-      const n = array.length;
-      // 1. Calculate the mean (average) of the array
-      const mean = array.reduce((sum, value) => sum + value, 0) / n;
-      // 2. Calculate the squared differences from the mean
+    function getStdDev(array, usePopulation = false) {
+      const mean = array.reduce((sum, value) => sum + value, 0) / array.length;
       const squaredDifferences = array.map(value => Math.pow(value - mean, 2));
-      // 3. Calculate the variance (average of squared differences)
-      // Use Bessel's correction (n-1) for sample standard deviation by default,
-      // or 'n' for population standard deviation if usePopulation is true.
-      const divisor = usePopulation ? n : (n - 1);
-      const variance = squaredDifferences.reduce((sum, value) => sum + value, 0) / divisor;
-      // 4. Calculate the standard deviation (square root of the variance)
+      const variance = squaredDifferences.reduce((sum, value) => sum + value, 0) / array.length;
       return Math.sqrt(variance);
     }
     async function getFirstIRPeak(idx) {
@@ -2903,7 +2895,7 @@
         impulseArray.push(dataView.getFloat32(i * 4) * 100);
       }
       // threshold is set based on standard deviation
-      const threshold = getStandardDeviation(impulseArray, true);
+      const threshold = getStdDev(impulseArray);
       let inPeak = false;
       let maxPercent = -Infinity;
       let peakSampleNumber = 0;
@@ -2989,7 +2981,7 @@
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
         hiDelayLimit = Math.min(hiDelayLimit, hiDelay); // sanity check
-        console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz - ${endFreq}hz...`);
+        console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz-${endFreq}hz...`);
         const [requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
                                                                       startFreq, endFreq,
                                                                       loDelayLimit, hiDelayLimit);
@@ -3118,14 +3110,14 @@
       return offset; // raw dB offset
     }
     async function getSpeakerTrim(idx) {
-      // 1/1 smoothing best matches what SPL meter would read
-      const speakerSPLOffset = await getSPLOffsetFromTarget(idx, 500, 2000, "1%2F1");
+      // 1/6 smoothed average SPL across 500hz-2khz
+      const speakerSPLOffset = await getSPLOffsetFromTarget(idx, 500, 2000);
       const speakerTrim = Math.round(speakerSPLOffset * 2) / 2; // round to nearest 0.5;
       return speakerTrim;
     }
     async function getSubTrim(idx) {
-      // 1/1 smoothing best matches what SPL meter would read
-      const subSPLOffset = await getSPLOffsetFromTarget(idx, 30, 80, "1%2F1");
+      // 1/6 smoothed average SPL across 30hz-80hz
+      const subSPLOffset = await getSPLOffsetFromTarget(idx, 30, 80);
       const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
       return subTrim;
     }
