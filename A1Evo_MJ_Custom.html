@@ -2602,7 +2602,6 @@
       // set low delay limit to -2x of first IR peak difference against t=0
       // set high delay limit to 0.5x of first IR peak difference against t=0
       // note: this attempts to find the most optimal alignment that's also closest to time alignment
-      const measurements = await fetch_mREW();
       const avgSubWithLPFIRPeak = await getFirstIRPeak(avgSubWithLPFIdx); // first IR peak
       const IRPeakDelta = -1000 * avgSubWithLPFIRPeak; // speakers are at t=0 by now
       let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
