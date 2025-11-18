@@ -2608,6 +2608,7 @@
       // cleanup in reverse order of creation
       await postDelete(subwooferWithLPFIdx);
       await postDelete(avgSpeakerWithHPFIdx);
+      await postDelete(avgSpeakerIdx);
       // apply optimal delay
       const subMoves = requiredDelay / 1000;
       if (isInverted) {
