@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -3139,6 +3139,25 @@
         }
       }
     }
+    async function getCrossPoint(idx1, idx2, start, end) {
+      // finds the frequency at which idx1 and idx2 gets closest in SPL within start hz - end hz
+      const response1 = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx1);
+      const response2 = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx2);
+      const rp1Array = response2array(response1, start, end);
+      const rp2Array = response2array(response2, start, end);
+      const arrLength = Math.min(rp1Array.length, rp2Array.length);
+      const octave = Math.pow(2, 1 / 96);
+      let checkFreq = start, crossFreq = start, minDelta = Infinity;
+      for (let i = 0; i < arrLength; i++) {
+        const delta = Math.abs(rp1Array[i] - rp2Array[i]);
+        if (delta < minDelta) {
+          minDelta = delta;
+          crossFreq = checkFreq;
+        }
+        checkFreq *= octave;
+      }
+      return crossFreq;
+    }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
@@ -3151,9 +3170,9 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       // make sure level differences do not affect alignment; no need to revert since these temp measurements will only be deleted
-      const avgInitialXO = Math.round(customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers);
-      const gainA = await getSPLOffsetFromTarget(ind1, avgInitialXO, end); // average speaker
-      const gainB = await getSPLOffsetFromTarget(ind2, start, avgInitialXO); // average subwoofer
+      const crossFreq = Math.round(await getCrossPoint(ind1, ind2, start, end));
+      const gainA = 75.0 - await getSPL(ind1, crossFreq, end); // average speaker
+      const gainB = 75.0 - await getSPL(ind2, start, crossFreq); // average subwoofer
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
