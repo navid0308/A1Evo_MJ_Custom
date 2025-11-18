@@ -2343,7 +2343,8 @@
         const customFilterIdx = Object.keys(customFilter.results)[0];
         // add in all user customizations on top of the blank filter & calculate any AL offset
         await addUserCustomizations(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
-        const ALOffset = await getALOffset(customFilterIdx, isSub);
+        const TCOffset = await getALOffset(targetCurveIdx, isSub); // used to auto-level target curve so app doesn't
+        const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
         // get rid of phase data since it needs to be applied to target curve which is magnitude only
         await postSafe(`${baseUrl}/${customFilterIdx}/command`, { command: "Response magnitude copy" }, "Completed");
         await postDelete(customFilterIdx); // custom filter idx is now magnitude only
@@ -2351,7 +2352,7 @@
         // note: this will be the "filter" in audyssey filtering mode
         await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
         await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
-        await postNext('Add SPL offset', customFilterIdx, { offset: -ALOffset });
+        await postNext('Add SPL offset', customFilterIdx, { offset: -(TCOffset + ALOffset) });
         await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
         cmdIdFilterIndices[commandId[i]] = customFilterIdx - 1; // baseline target curve will be deleted and everything will shift by -1
         const trimOffset = Math.round(ALOffset * 2) / 2;
