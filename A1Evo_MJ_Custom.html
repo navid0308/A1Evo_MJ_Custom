@@ -2577,48 +2577,37 @@
     }
     async function optimizeSubDelay() {
       console.log("Optimizing subwoofer delay for ALL speakers..."); 
-      const spWithHPFIndices = [];
-      const subWithLPFIndices = [];
-      // generate speakers with corresponding HPF
-      console.info("Generating speaker and subwoofer responses with HPF/LPF...");
+      const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
-        const spWithHPF = await genSpeaker(cmdIdMLPIndices[commandId[i]], customCrossover[i]);
-        const spWithHPFIdx = Object.keys(spWithHPF.results)[0];
-        spWithHPFIndices.push(spWithHPFIdx);
+        mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
-      // generate subwoofer with corresponding LPF
-      for (let i = 1; i <= nSpeakers; i++) {
-        const subWithHPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], customCrossover[i]);
-        const subWithHPFIdx = Object.keys(subWithHPF.results)[0];
-        subWithLPFIndices.push(subWithHPFIdx);
-      }
-      console.infoUpdate("Generated speaker and subwoofer responses with HPF/LPF.");
-      // average the speaker and subwoofer responses
-      const avgSPWithHPF = await postNext('Magn plus phase average', Array.from(spWithHPFIndices));
-      const avgSPWithHPFIdx = Object.keys(avgSPWithHPF.results)[0];
-      const avgSubWithLPF = await postNext('Magn plus phase average', Array.from(subWithLPFIndices));
-      const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
+      const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
+      const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
+      const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
+      const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
+      const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
+      const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], avgInitialXO);
+      const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
       // use 0.5x and 2x of min/max XO to set evaluation range
       const startFreq = Math.round(minXO / 2);
       const endFreq = Math.round(maxXO * 2);
       // set low delay limit to -2x of first IR peak difference against t=0
       // set high delay limit to 0.5x of first IR peak difference against t=0
       // note: this attempts to find the most optimal alignment that's also closest to time alignment
-      const avgSubWithLPFIRPeak = await getFirstIRPeak(avgSubWithLPFIdx); // first IR peak
+      const avgSubWithLPFIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
       const IRPeakDelta = -1000 * avgSubWithLPFIRPeak; // speakers are at t=0 by now
       let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       loDelayLimit = Math.max(loDelayLimit, loDelay);
       hiDelayLimit = Math.min(hiDelayLimit, hiDelay);
-      const [requiredDelay, isInverted] = await align4system(avgSPWithHPFIdx, avgSubWithLPFIdx,
+      const [requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx,
                                                              startFreq, endFreq,
-                                                             loDelayLimit, hiDelayLimit);
+                                                             loDelayLimit, hiDelayLimit,
+                                                             avgInitialXO);
       // cleanup in reverse order of creation
-      await postDelete(avgSubWithLPFIdx);
-      await postDelete(avgSPWithHPFIdx);
-      for (let i = subWithLPFIndices.length - 1; i >= 0; i--) { await postDelete(subWithLPFIndices[i]); }
-      for (let i = spWithHPFIndices.length - 1; i >= 0; i--) { await postDelete(spWithHPFIndices[i]); }
+      await postDelete(subwooferWithLPFIdx);
+      await postDelete(avgSpeakerWithHPFIdx);
       // apply optimal delay
       const subMoves = requiredDelay / 1000;
       if (isInverted) {
@@ -3139,26 +3128,7 @@
         }
       }
     }
-    async function getCrossPoint(idx1, idx2, start, end) {
-      // finds the frequency at which idx1 and idx2 gets closest in SPL within start hz - end hz
-      const response1 = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx1);
-      const response2 = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx2);
-      const rp1Array = response2array(response1, start, end);
-      const rp2Array = response2array(response2, start, end);
-      const arrLength = Math.min(rp1Array.length, rp2Array.length);
-      const octave = Math.pow(2, 1 / 96);
-      let checkFreq = start, crossFreq = start, minDelta = Infinity;
-      for (let i = 0; i < arrLength; i++) {
-        const delta = Math.abs(rp1Array[i] - rp2Array[i]);
-        if (delta < minDelta) {
-          minDelta = delta;
-          crossFreq = checkFreq;
-        }
-        checkFreq *= octave;
-      }
-      return crossFreq;
-    }
-    async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
+    async function align4system(ind1, ind2, start, end, loDelay, hiDelay, xo) {
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
@@ -3170,9 +3140,8 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       // make sure level differences do not affect alignment; no need to revert since these temp measurements will only be deleted
-      const crossFreq = Math.round(await getCrossPoint(ind1, ind2, start, end));
-      const gainA = 75.0 - await getSPL(ind1, crossFreq, end); // average speaker
-      const gainB = 75.0 - await getSPL(ind2, start, crossFreq); // average subwoofer
+      const gainA = 75.0 - await getSPL(ind1, Math.round(xo), end); // average speaker
+      const gainB = 75.0 - await getSPL(ind2, start, Math.round(xo)); // average subwoofer
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
