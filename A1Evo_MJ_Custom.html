@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2577,48 +2577,37 @@
     }
     async function optimizeSubDelay() {
       console.log("Optimizing subwoofer delay for ALL speakers..."); 
-      const spWithHPFIndices = [];
-      const subWithLPFIndices = [];
-      // generate speakers with corresponding HPF
-      console.info("Generating speaker and subwoofer responses with HPF/LPF...");
+      const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
-        const spWithHPF = await genSpeaker(cmdIdMLPIndices[commandId[i]], customCrossover[i]);
-        const spWithHPFIdx = Object.keys(spWithHPF.results)[0];
-        spWithHPFIndices.push(spWithHPFIdx);
+        mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
-      // generate subwoofer with corresponding LPF
-      for (let i = 1; i <= nSpeakers; i++) {
-        const subWithHPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], customCrossover[i]);
-        const subWithHPFIdx = Object.keys(subWithHPF.results)[0];
-        subWithLPFIndices.push(subWithHPFIdx);
-      }
-      console.infoUpdate("Generated speaker and subwoofer responses with HPF/LPF.");
-      // average the speaker and subwoofer responses
-      const avgSPWithHPF = await postNext('Magn plus phase average', Array.from(spWithHPFIndices));
-      const avgSPWithHPFIdx = Object.keys(avgSPWithHPF.results)[0];
-      const avgSubWithLPF = await postNext('Magn plus phase average', Array.from(subWithLPFIndices));
-      const avgSubWithLPFIdx = Object.keys(avgSubWithLPF.results)[0];
+      const avgInitialXO = customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers;
+      const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
+      const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
+      const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, avgInitialXO);
+      const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
+      const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], avgInitialXO);
+      const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
       // use 0.5x and 2x of min/max XO to set evaluation range
       const startFreq = Math.round(minXO / 2);
       const endFreq = Math.round(maxXO * 2);
       // set low delay limit to -2x of first IR peak difference against t=0
       // set high delay limit to 0.5x of first IR peak difference against t=0
       // note: this attempts to find the most optimal alignment that's also closest to time alignment
-      const avgSubWithLPFIRPeak = await getFirstIRPeak(avgSubWithLPFIdx); // first IR peak
+      const avgSubWithLPFIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
       const IRPeakDelta = -1000 * avgSubWithLPFIRPeak; // speakers are at t=0 by now
       let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       loDelayLimit = Math.max(loDelayLimit, loDelay);
       hiDelayLimit = Math.min(hiDelayLimit, hiDelay);
-      const [requiredDelay, isInverted] = await align4system(avgSPWithHPFIdx, avgSubWithLPFIdx,
+      const [requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx,
                                                              startFreq, endFreq,
-                                                             loDelayLimit, hiDelayLimit);
+                                                             loDelayLimit, hiDelayLimit,
+                                                             avgInitialXO);
       // cleanup in reverse order of creation
-      await postDelete(avgSubWithLPFIdx);
-      await postDelete(avgSPWithHPFIdx);
-      for (let i = subWithLPFIndices.length - 1; i >= 0; i--) { await postDelete(subWithLPFIndices[i]); }
-      for (let i = spWithHPFIndices.length - 1; i >= 0; i--) { await postDelete(spWithHPFIndices[i]); }
+      await postDelete(subwooferWithLPFIdx);
+      await postDelete(avgSpeakerWithHPFIdx);
       // apply optimal delay
       const subMoves = requiredDelay / 1000;
       if (isInverted) {
@@ -3139,7 +3128,7 @@
         }
       }
     }
-    async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
+    async function align4system(ind1, ind2, start, end, loDelay, hiDelay, xo) {
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
@@ -3151,9 +3140,8 @@
       await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
       await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       // make sure level differences do not affect alignment; no need to revert since these temp measurements will only be deleted
-      const avgInitialXO = Math.round(customCrossover.reduce((acc, val) => acc + val, 0) / nSpeakers);
-      const gainA = await getSPLOffsetFromTarget(ind1, avgInitialXO, end); // average speaker
-      const gainB = await getSPLOffsetFromTarget(ind2, start, avgInitialXO); // average subwoofer
+      const gainA = 75.0 - await getSPL(ind1, Math.round(xo), end); // average speaker
+      const gainB = 75.0 - await getSPL(ind2, start, Math.round(xo)); // average subwoofer
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
