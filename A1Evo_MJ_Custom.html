@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.4</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2050,8 +2050,6 @@
         bassManagementCutoffHz: (isSub && end === 320) ? 20000 : end,
         bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
       }, "Update processed");
-      // return the tc level offset
-      return tcLevelOffset;
     }
     async function updateEQFilterSettings(start, end, indMaxBoost, ovMaxBoost, LSMin, LSMax, HSMin, HSMax) {
       await postSafe(`http://localhost:4735/eq/match-target-settings`, {
@@ -2196,23 +2194,25 @@
         throw error;
       }
     }
-    async function addDEFilter(baseEQFilterIdx) {
-      // assumes baseEQFilterIdx is the last measurement in REW
+    async function addDEFilter(baseFilterIdx) {
+      // assumes baseFilterIdx is the last measurement in REW
       // adds DE filter directly to the base filter so EQ slots of "-mlp" & "-avg" are left alone
       try {
-        await addPEQFilter(baseEQFilterIdx, "PK", 1500, 3, 0.5);
+        await addPEQFilter(baseFilterIdx, "PK", 1500, 3, 0.5);
       }
       catch (error) {
         console.error("Failed to add dialogue enhancer filter - no more EQ slots left in REW!");
         throw new Error;
       }
-      await postNext('Generate predicted measurement', baseEQFilterIdx); // at baseEQFilterIdx + 1
-      await postDelete(baseEQFilterIdx); // DE added to origial filter at baseEQFilterIdx
+      await postNext('Generate predicted measurement', baseFilterIdx);
+      await postDelete(baseFilterIdx); // DE + baseFilter is the last measurement
     }
-    async function addUserCustomizations(idx, cmdId, baseEQFilterIdx) {
+    async function addUserCustomizations(idx, cmdId) {
       // this function adds in any user customizations such as DE, PEQ etc.
-      // *baseEQFilterIdx needs to be last measurement in REW before running this*
-      if (cmdId === "C" && dialogueEnhancer) { await addDEFilter(baseEQFilterIdx); }
+      await clearFilters(idx); // should be mlp measurement and already blank
+      const baseFilter = await postNext('Generate filters measurement', idx);
+      const baseFilterIdx = Object.keys(baseFilter.results)[0];
+      if (cmdId === "C" && dialogueEnhancer) { await addDEFilter(baseFilterIdx); }
       // add in PEQs from the table(s)
       const prefix = cmdId.toLowerCase();
       const isSub = cmdId.startsWith("SW");
@@ -2253,9 +2253,10 @@
       // combine custom filters with autoEQ filters
       const customFilter = await postNext("Generate filters measurement", idx);
       const customFilterIdx = Object.keys(customFilter.results)[0];
-      const combinedFilter = await postNext("Arithmetic", [baseEQFilterIdx, customFilterIdx], {function: "A * B"});
+      await postNext("Arithmetic", [baseFilterIdx, customFilterIdx], {function: "A * B"});
       await postDelete(customFilterIdx);
-      await postDelete(baseEQFilterIdx);
+      await postDelete(baseFilterIdx);
+      return baseFilterIdx; // combined filter consisting of all customizations
     }
     async function generateREWFilters() {
       console.log(`Generating min. phase EQ filters...`);
@@ -2265,7 +2266,7 @@
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
         // line up response to target aggressively and set target type
-        const tcLevelOffset = await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
         // plug in boost parameters
         if (isSub) {
           await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
@@ -2289,28 +2290,31 @@
         }
         // cleanup EQ params
         await postSafe(`${baseUrl}/${avgIdx}/target-settings`, { shape: "None" }, "Update processed");
-        // generate filters & auto level it
+        // generate auto-EQ filters
         const filter = await postNext('Generate filters measurement', avgIdx);
         const filterIdx = Object.keys(filter.results)[0];
-        await clearFilters(mlpIdx); // use mlp as a placeholder for custom filters
-        await addUserCustomizations(mlpIdx, commandId[i], filterIdx); // add any user desired customizations
-        cmdIdFilterIndices[commandId[i]] = filterIdx;
+        // add any user desired customizations & prepare AL compensation trim offset
+        const customFilterIdx = await addUserCustomizations(mlpIdx, commandId[i]);
+        const customFilterTrimOffset = Math.round(await getALOffset(customFilterIdx, isSub) / 2) * 2;
+        await postNext('Arithmetic', [filterIdx, customFilterIdx], {function: "A * B"}); // combined filter
+        await postDelete(customFilterIdx);
+        await postDelete(filterIdx); // combined filters now at filterIdx
         await fetch_mREW(filterIdx, 'PUT', { title: `${commandId[i]}-filters` });
+        // auto level the final filter
         const ALOffset = await getALOffset(filterIdx, isSub);
         await postNext('Add SPL offset', filterIdx, { offset: -ALOffset });
-        // generate predicted equalized response using the auto leveled filter
+        // generate predicted equalized responses using the auto leveled filter
         // note: using AL-ed filter helps sanity check that AL comp works as expected on predicted results
         const mlpEqResponse = await postNext('Arithmetic', [mlpIdx, filterIdx], {function: "A * B"});
         const mlpEqResponseIdx = Object.keys(mlpEqResponse.results)[0];
-        cmdIdMLPIndicesEQ[commandId[i]] = mlpEqResponseIdx;
         await fetch_mREW(mlpEqResponseIdx, 'PUT', { title: `${commandId[i]}-mlp-equalized` });
         const eqResponse = await postNext('Arithmetic', [avgIdx, filterIdx], {function: "A * B"});
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
-        cmdIdAVGIndicesEQ[commandId[i]] = eqResponseIdx;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
-        // compensate equalized response & trims for auto level as well as tc level offset
+        // compensate equalized response & trims for auto level
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const trimOffset = Math.round((tcLevelOffset + ALOffset) * 2) / 2; //round to nearest 0.5
+        const trimOffset = customFilterTrimOffset +
+                          (isSub ? await getSubTrim(mlpEqResponseIdx) : await getSpeakerTrim(mlpEqResponseIdx));
         if (trimOffset != 0) {
           await postNext('Add SPL offset', mlpIdx, { offset: trimOffset }); // offset "-mlp"
           await postNext('Add SPL offset', avgIdx, { offset: trimOffset }); // offset "-avg"
@@ -2328,6 +2332,10 @@
           logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
         console.infoUpdate(logUpdate);
+        // store for later
+        cmdIdFilterIndices[commandId[i]] = filterIdx;
+        cmdIdMLPIndicesEQ[commandId[i]] = mlpEqResponseIdx;
+        cmdIdAVGIndicesEQ[commandId[i]] = eqResponseIdx;
       }
     }
     async function generateTargetCurves() {
@@ -2341,14 +2349,8 @@
         console.info(`${commandId[i].padStart(3, ".")} - generating target curve...`);
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
-        const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // start from clean slate
-        await clearFilters(mlpIdx);
-        await clearFilters(avgIdx);
-        const customFilter = await postNext('Generate filters measurement', avgIdx);
-        const customFilterIdx = Object.keys(customFilter.results)[0];
-        // add in all user customizations on top of the blank filter & calculate any AL offset
-        await addUserCustomizations(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
+        // add in all user customizations & calculate any AL offset
+        const customFilterIdx = await addUserCustomizations(mlpIdx, commandId[i]); // add any user desired customizations
         const TCOffset = await getALOffset(targetCurveIdx, isSub); // used to auto-level target curve so app doesn't
         const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
         // get rid of phase data since it needs to be applied to target curve which is magnitude only
