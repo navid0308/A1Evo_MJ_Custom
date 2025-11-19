@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.4</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2025,16 +2025,23 @@
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function updateEQTargetSettings(idx, start, end, isSub) {
-      let tcLevelOffset = 0;
+      // aggressively line up response to target curve based on weakest region of the response
+      const offsets = [0]; // ensure target level doesn't go higher than 75dB
       if (isSub) {
-        // limit to 20-120hz if bandwidth exceeds it so core LFE region is prioritized
-        tcLevelOffset = await getSPLOffsetFromTarget(idx, Math.max(start, 20), Math.min(end, 120));
+        offsets.push(await getSPLOffsetFromTarget(idx,                 30,                80));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 20), Math.min(end, 120)));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 20),          end      ));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,      Math.min(end, 120)));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,               end      ));
       }
       else {
-        // get SBIR region as close to target as possible
-        tcLevelOffset = await getSPLOffsetFromTarget(idx, Math.max(start, 200), Math.min(end, 2000));
+        offsets.push(await getSPLOffsetFromTarget(idx,                 500,                2000));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 200), Math.min(end, 2000)));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 200),          end       ));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,       Math.min(end, 2000)));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,                end       ));
       }
-      tcLevelOffset = Math.max(tcLevelOffset, 0); // don't raise target level above 75dB, it messes with leveling
+      const tcLevelOffset = Math.max(...offsets);
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
