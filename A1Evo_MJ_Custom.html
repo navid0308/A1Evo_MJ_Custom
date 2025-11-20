@@ -2428,23 +2428,17 @@
       if (channelCmdId.includes("R") && commandId.includes(channelCmdId.replace("R", "L"))) { return false; } // where L/R is in the middle
       return true;
     }
-    function findPrevXO(freq) {
-      freq = Math.round(freq / 10) * 10; // round to nearest 10th
-      for (let i = freqIndex.length - 1; i >= 0; i--) {
-        if (freqIndex[i] < freq) {
-          return freqIndex[i];
+    function findNearestXO(freq) {
+      let xo = Infinity;
+      let minDelta = Infinity;
+      for (let i=0; i < freqIndex.length; i++) {
+        const delta = Math.abs(freqIndex[i] - freq);
+        if (delta < minDelta) {
+          minDelta = delta;
+          xo = freqIndex[i];
         }
       }
-      return freqIndex.at(0);
-    }
-    function findNextXO(freq) {
-      freq = Math.round(freq / 10) * 10; // round to nearest 10th
-      for (let i = 0; i < freqIndex.length; i++) {
-        if (freq < freqIndex[i]) {
-          return freqIndex[i];
-        }
-      }
-      return freqIndex.at(-1);
+      return xo;
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds low -3dB point from mean SPL
@@ -2526,7 +2520,7 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getAbsLow3dBPoint(idx, false, 20);
-        let initialXO = findNextXO(rolloff);
+        let initialXO = findNearestXO(rolloff + 15); // look for initial XO that's ~15hz above roll-off
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           initialXO = "L";
@@ -2555,10 +2549,10 @@
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      minXO = findNextXO(2 * subLowFreq);
+      minXO = findNearestXO(2 * subLowFreq); // give subwoofer an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
       const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      maxXO = findPrevXO(subHighFreq);
+      maxXO = findNearestXO(subHighFreq); // set max XO closest to subwoofer HF roll-off
       if (minXO >= maxXO) {
         minXO = maxXO;
         console.warn(`Subwoofer has very little bandwidth and can only support ${minXO}hz crossover!`);
@@ -2754,7 +2748,7 @@
           // pick XO with highest output
           const checkXOAvgSPL = await getSPL(mlpXOResultIdx, startFreq, endFreq);
           if (maxSPL < checkXOAvgSPL) {
-            maxSPL = checkXOAvgSPL + 0.1; // only move XO up if improvement is > 0.1dB
+            maxSPL = checkXOAvgSPL + 0.1; // only move XO up if improvement is more than 0.1dB
             bestXO = checkXO;
           }
           // delete in reverse order of creation
