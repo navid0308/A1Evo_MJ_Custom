@@ -2752,10 +2752,9 @@
           const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
           const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
           // pick XO with highest output
-          let checkXOAvgSPL = await getSPL(mlpXOResultIdx, startFreq, endFreq);
-          checkXOAvgSPL = Math.round(checkXOAvgSPL * 10) / 10; // round to nearest 0.1dB
+          const checkXOAvgSPL = await getSPL(mlpXOResultIdx, startFreq, endFreq);
           if (maxSPL < checkXOAvgSPL) {
-            maxSPL = checkXOAvgSPL;
+            maxSPL = checkXOAvgSPL + 0.1; // only move XO up if improvement is > 0.1dB
             bestXO = checkXO;
           }
           // delete in reverse order of creation
