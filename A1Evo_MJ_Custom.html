@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.5.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2025,16 +2025,23 @@
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function updateEQTargetSettings(idx, start, end, isSub) {
-      let tcLevelOffset = 0;
+      // aggressively line up response to target curve based on weakest region of the response
+      const offsets = [0]; // ensure target level doesn't go higher than 75dB
       if (isSub) {
-        // limit to 20-120hz if bandwidth exceeds it so core LFE region is prioritized
-        tcLevelOffset = await getSPLOffsetFromTarget(idx, Math.max(start, 20), Math.min(end, 120));
+        offsets.push(await getSPLOffsetFromTarget(idx,                 30,                80));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 20), Math.min(end, 120)));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 20),          end      ));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,      Math.min(end, 120)));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,               end      ));
       }
       else {
-        // get SBIR region as close to target as possible
-        tcLevelOffset = await getSPLOffsetFromTarget(idx, Math.max(start, 200), Math.min(end, 2000));
+        offsets.push(await getSPLOffsetFromTarget(idx,                 500,                2000));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 200), Math.min(end, 2000)));
+        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 200),          end       ));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,       Math.min(end, 2000)));
+        offsets.push(await getSPLOffsetFromTarget(idx,          start,                end       ));
       }
-      tcLevelOffset = Math.max(tcLevelOffset, 0); // don't raise target level above 75dB, it messes with leveling
+      const tcLevelOffset = Math.max(...offsets);
       await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
       await postSafe(`${baseUrl}/${idx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
@@ -2043,8 +2050,6 @@
         bassManagementCutoffHz: (isSub && end === 320) ? 20000 : end,
         bassManagementSlopedBPerOctave: 48 // steep slope to EQ without effect and keep REW happy
       }, "Update processed");
-      // return the tc level offset
-      return tcLevelOffset;
     }
     async function updateEQFilterSettings(start, end, indMaxBoost, ovMaxBoost, LSMin, LSMax, HSMin, HSMax) {
       await postSafe(`http://localhost:4735/eq/match-target-settings`, {
@@ -2189,23 +2194,25 @@
         throw error;
       }
     }
-    async function addDEFilter(baseEQFilterIdx) {
-      // assumes baseEQFilterIdx is the last measurement in REW
+    async function addDEFilter(baseFilterIdx) {
+      // assumes baseFilterIdx is the last measurement in REW
       // adds DE filter directly to the base filter so EQ slots of "-mlp" & "-avg" are left alone
       try {
-        await addPEQFilter(baseEQFilterIdx, "PK", 1500, 3, 0.5);
+        await addPEQFilter(baseFilterIdx, "PK", 1500, 3, 0.5);
       }
       catch (error) {
         console.error("Failed to add dialogue enhancer filter - no more EQ slots left in REW!");
         throw new Error;
       }
-      await postNext('Generate predicted measurement', baseEQFilterIdx); // at baseEQFilterIdx + 1
-      await postDelete(baseEQFilterIdx); // DE added to origial filter at baseEQFilterIdx
+      await postNext('Generate predicted measurement', baseFilterIdx);
+      await postDelete(baseFilterIdx); // DE + baseFilter is the last measurement
     }
-    async function addUserCustomizations(idx, cmdId, baseEQFilterIdx) {
+    async function addUserCustomizations(idx, cmdId) {
       // this function adds in any user customizations such as DE, PEQ etc.
-      // *baseEQFilterIdx needs to be last measurement in REW before running this*
-      if (cmdId === "C" && dialogueEnhancer) { await addDEFilter(baseEQFilterIdx); }
+      await clearFilters(idx); // should be mlp measurement and already blank
+      const baseFilter = await postNext('Generate filters measurement', idx);
+      const baseFilterIdx = Object.keys(baseFilter.results)[0];
+      if (cmdId === "C" && dialogueEnhancer) { await addDEFilter(baseFilterIdx); }
       // add in PEQs from the table(s)
       const prefix = cmdId.toLowerCase();
       const isSub = cmdId.startsWith("SW");
@@ -2246,9 +2253,10 @@
       // combine custom filters with autoEQ filters
       const customFilter = await postNext("Generate filters measurement", idx);
       const customFilterIdx = Object.keys(customFilter.results)[0];
-      const combinedFilter = await postNext("Arithmetic", [baseEQFilterIdx, customFilterIdx], {function: "A * B"});
+      await postNext("Arithmetic", [baseFilterIdx, customFilterIdx], {function: "A * B"});
       await postDelete(customFilterIdx);
-      await postDelete(baseEQFilterIdx);
+      await postDelete(baseFilterIdx);
+      return baseFilterIdx; // combined filter consisting of all customizations
     }
     async function generateREWFilters() {
       console.log(`Generating min. phase EQ filters...`);
@@ -2258,7 +2266,7 @@
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
         // line up response to target aggressively and set target type
-        const tcLevelOffset = await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
         // plug in boost parameters
         if (isSub) {
           await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
@@ -2282,28 +2290,31 @@
         }
         // cleanup EQ params
         await postSafe(`${baseUrl}/${avgIdx}/target-settings`, { shape: "None" }, "Update processed");
-        // generate filters & auto level it
+        // generate auto-EQ filters
         const filter = await postNext('Generate filters measurement', avgIdx);
         const filterIdx = Object.keys(filter.results)[0];
-        await clearFilters(mlpIdx); // use mlp as a placeholder for custom filters
-        await addUserCustomizations(mlpIdx, commandId[i], filterIdx); // add any user desired customizations
-        cmdIdFilterIndices[commandId[i]] = filterIdx;
+        // add any user desired customizations & prepare AL compensation trim offset for custom filters
+        const customFilterIdx = await addUserCustomizations(mlpIdx, commandId[i]);
+        const customFilterTrimOffset = Math.round(await getALOffset(customFilterIdx, isSub) / 2) * 2;
+        await postNext('Arithmetic', [filterIdx, customFilterIdx], {function: "A * B"}); // combined filter
+        await postDelete(customFilterIdx);
+        await postDelete(filterIdx); // combined filters now at filterIdx
         await fetch_mREW(filterIdx, 'PUT', { title: `${commandId[i]}-filters` });
+        // auto level the final filter
         const ALOffset = await getALOffset(filterIdx, isSub);
         await postNext('Add SPL offset', filterIdx, { offset: -ALOffset });
-        // generate predicted equalized response using the auto leveled filter
+        // generate predicted equalized responses using the auto leveled filter
         // note: using AL-ed filter helps sanity check that AL comp works as expected on predicted results
         const mlpEqResponse = await postNext('Arithmetic', [mlpIdx, filterIdx], {function: "A * B"});
         const mlpEqResponseIdx = Object.keys(mlpEqResponse.results)[0];
-        cmdIdMLPIndicesEQ[commandId[i]] = mlpEqResponseIdx;
         await fetch_mREW(mlpEqResponseIdx, 'PUT', { title: `${commandId[i]}-mlp-equalized` });
         const eqResponse = await postNext('Arithmetic', [avgIdx, filterIdx], {function: "A * B"});
         const eqResponseIdx = Object.keys(eqResponse.results)[0];
-        cmdIdAVGIndicesEQ[commandId[i]] = eqResponseIdx;
         await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
-        // compensate equalized response & trims for auto level as well as tc level offset
+        // compensate equalized response & trims for auto level
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const trimOffset = Math.round((tcLevelOffset + ALOffset) * 2) / 2; //round to nearest 0.5
+        const trimOffset = customFilterTrimOffset + // compensate for any AL shift from custom filters
+                          (isSub ? await getSubTrim(mlpEqResponseIdx) : await getSpeakerTrim(mlpEqResponseIdx));
         if (trimOffset != 0) {
           await postNext('Add SPL offset', mlpIdx, { offset: trimOffset }); // offset "-mlp"
           await postNext('Add SPL offset', avgIdx, { offset: trimOffset }); // offset "-avg"
@@ -2321,6 +2332,10 @@
           logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
         console.infoUpdate(logUpdate);
+        // store for later
+        cmdIdFilterIndices[commandId[i]] = filterIdx;
+        cmdIdMLPIndicesEQ[commandId[i]] = mlpEqResponseIdx;
+        cmdIdAVGIndicesEQ[commandId[i]] = eqResponseIdx;
       }
     }
     async function generateTargetCurves() {
@@ -2334,14 +2349,8 @@
         console.info(`${commandId[i].padStart(3, ".")} - generating target curve...`);
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
-        const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // start from clean slate
-        await clearFilters(mlpIdx);
-        await clearFilters(avgIdx);
-        const customFilter = await postNext('Generate filters measurement', avgIdx);
-        const customFilterIdx = Object.keys(customFilter.results)[0];
-        // add in all user customizations on top of the blank filter & calculate any AL offset
-        await addUserCustomizations(mlpIdx, commandId[i], customFilterIdx); // add any user desired customizations
+        // add in all user customizations & calculate any AL offset
+        const customFilterIdx = await addUserCustomizations(mlpIdx, commandId[i]); // add any user desired customizations
         const TCOffset = await getALOffset(targetCurveIdx, isSub); // used to auto-level target curve so app doesn't
         const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
         // get rid of phase data since it needs to be applied to target curve which is magnitude only
@@ -2419,23 +2428,17 @@
       if (channelCmdId.includes("R") && commandId.includes(channelCmdId.replace("R", "L"))) { return false; } // where L/R is in the middle
       return true;
     }
-    function findPrevXO(freq) {
-      freq = Math.round(freq / 10) * 10; // round to nearest 10th
-      for (let i = freqIndex.length - 1; i >= 0; i--) {
-        if (freqIndex[i] < freq) {
-          return freqIndex[i];
+    function findNearestXO(freq) {
+      let xo = Infinity;
+      let minDelta = Infinity;
+      for (let i=0; i < freqIndex.length; i++) {
+        const delta = Math.abs(freqIndex[i] - freq);
+        if (delta < minDelta) {
+          minDelta = delta;
+          xo = freqIndex[i];
         }
       }
-      return freqIndex.at(0);
-    }
-    function findNextXO(freq) {
-      freq = Math.round(freq / 10) * 10; // round to nearest 10th
-      for (let i = 0; i < freqIndex.length; i++) {
-        if (freq < freqIndex[i]) {
-          return freqIndex[i];
-        }
-      }
-      return freqIndex.at(-1);
+      return xo;
     }
     async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
       // finds low -3dB point from mean SPL
@@ -2517,7 +2520,7 @@
           idx = Object.keys(pairAvg.results)[0];
         }
         const rolloff = await getAbsLow3dBPoint(idx, false, 20);
-        let initialXO = findNextXO(rolloff);
+        let initialXO = findNearestXO(rolloff + 15); // look for initial XO that's ~15hz above roll-off
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           initialXO = "L";
@@ -2546,10 +2549,10 @@
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      minXO = findNextXO(2 * subLowFreq);
+      minXO = findNearestXO(2 * subLowFreq); // give subwoofer an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
       const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      maxXO = findPrevXO(subHighFreq);
+      maxXO = findNearestXO(subHighFreq); // set max XO closest to subwoofer HF roll-off
       if (minXO >= maxXO) {
         minXO = maxXO;
         console.warn(`Subwoofer has very little bandwidth and can only support ${minXO}hz crossover!`);
@@ -2594,8 +2597,8 @@
       // set low delay limit to -2x of first IR peak difference against t=0
       // set high delay limit to 0.5x of first IR peak difference against t=0
       // note: this attempts to find the most optimal alignment that's also closest to time alignment
-      const avgSubWithLPFIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
-      const IRPeakDelta = -1000 * avgSubWithLPFIRPeak; // speakers are at t=0 by now
+      const subWithLPFIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
+      const IRPeakDelta = -1000 * subWithLPFIRPeak; // speakers are at t=0 by now
       let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
@@ -2716,10 +2719,10 @@
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         // use 0.5x and 2x of initialXO as evaluation range
         const initialXO = customCrossover[i];
-        let bestXO = initialXO, maxSum = -Infinity;
+        let bestXO = initialXO, maxSPL = -Infinity;
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
-          let checkXO = freqIndex[j];
+          const checkXO = freqIndex[j];
           // don't look at XO below speaker initialXO, above 2x initialXO or outside sub bandwidth
           if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 2, maxXO)) { continue; }
           // final XO determination logic
@@ -2742,12 +2745,10 @@
           const mlpSWWithLPFIdx = Object.keys(mlpSWWithLPF.results)[0];
           const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
           const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
-          const checkXOResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', mlpXOResultIdx);
-          const checkXOArray = response2array(checkXOResponse, startFreq, endFreq);
           // pick XO with highest output
-          const tempSum = checkXOArray.reduce((acc, val) => acc + val, 0);
-          if (tempSum > maxSum) {
-            maxSum = tempSum;
+          const checkXOAvgSPL = await getSPL(mlpXOResultIdx, startFreq, endFreq);
+          if (maxSPL < checkXOAvgSPL) {
+            maxSPL = checkXOAvgSPL + 0.1; // only move XO up if improvement is more than 0.1dB
             bestXO = checkXO;
           }
           // delete in reverse order of creation
@@ -3088,7 +3089,7 @@
     }
     async function getSPL(idx, start, end) {
       // calculates average SPL between start and end frequencies
-      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const freqArray = response2array(freqResponse, start, end);
       const freqSPL = freqArray.reduce((acc, val) => acc + val, 0) / freqArray.length;
       return freqSPL; // average dB SPL
