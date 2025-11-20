@@ -2293,7 +2293,7 @@
         // generate auto-EQ filters
         const filter = await postNext('Generate filters measurement', avgIdx);
         const filterIdx = Object.keys(filter.results)[0];
-        // add any user desired customizations & prepare AL compensation trim offset
+        // add any user desired customizations & prepare AL compensation trim offset for custom filters
         const customFilterIdx = await addUserCustomizations(mlpIdx, commandId[i]);
         const customFilterTrimOffset = Math.round(await getALOffset(customFilterIdx, isSub) / 2) * 2;
         await postNext('Arithmetic', [filterIdx, customFilterIdx], {function: "A * B"}); // combined filter
@@ -2313,7 +2313,7 @@
         await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
         // compensate equalized response & trims for auto level
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const trimOffset = customFilterTrimOffset +
+        const trimOffset = customFilterTrimOffset + // compensate for any AL shift from custom filters
                           (isSub ? await getSubTrim(mlpEqResponseIdx) : await getSpeakerTrim(mlpEqResponseIdx));
         if (trimOffset != 0) {
           await postNext('Add SPL offset', mlpIdx, { offset: trimOffset }); // offset "-mlp"
@@ -2603,8 +2603,8 @@
       // set low delay limit to -2x of first IR peak difference against t=0
       // set high delay limit to 0.5x of first IR peak difference against t=0
       // note: this attempts to find the most optimal alignment that's also closest to time alignment
-      const avgSubWithLPFIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
-      const IRPeakDelta = -1000 * avgSubWithLPFIRPeak; // speakers are at t=0 by now
+      const subWithLPFIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
+      const IRPeakDelta = -1000 * subWithLPFIRPeak; // speakers are at t=0 by now
       let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
