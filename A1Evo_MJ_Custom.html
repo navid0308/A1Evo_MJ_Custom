@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1962,6 +1962,18 @@
         console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s) over 30hz-80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
     }
+    async function alignVol2MLP(indices) {
+      // level matches non-MLP positions to MLP
+      // assumes first measurement in 'indices' is MLP
+      const measurements = await fetch_mREW();
+      const isSub = measurements[indices[0]].title.startsWith("SW");
+      const mlpTrim = isSub ? await getSubTrim(indices[0]) : await getSpeakerTrim(indices[0]);
+      for (let i = 1; i < indices.length; i++) {
+        const idxTrim = isSub ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
+        const volAdjust = parseFloat(idxTrim - mlpTrim);
+        await postNext('Add SPL offset', indices[i], { offset: volAdjust });
+      }
+    }
     async function spatialAverage() {
       console.info("Starting spatial averaging...");
       const measurements = await fetch_mREW();
@@ -1974,6 +1986,8 @@
         commandId[i].startsWith("SW") ? await genSub(indices[0]) : await genSpeaker(indices[0]);
         await fetch_mREW(mlpIdx, 'PUT', { title: `${commandId[i]}-mlp` });
         await postNext('Smooth', mlpIdx, { smoothing: "1/48" });
+        // level match all positions to MLP
+        await alignVol2MLP(indices);
         // spatially average
         console.infoUpdate(`Spatially averaging channel ${commandId[i]} using <${indices.length}> microphone position(s)...`);
         if (indices.length > 1) {
@@ -1988,9 +2002,6 @@
         }
         await fetch_mREW(avgIdx, 'PUT', { title: `${commandId[i]}-avg` });
         await postNext('Smooth', avgIdx, { smoothing: "1/48" });
-        // align "-avg" measurement to target curve
-        const volAdjust = commandId[i].startsWith("SW") ? await getSubTrim(avgIdx) : await getSpeakerTrim(avgIdx);
-        await postNext('Add SPL offset', avgIdx, { offset: volAdjust });
         mlpIdx += 2;
         avgIdx += 2;
       }
