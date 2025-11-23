@@ -2728,7 +2728,6 @@
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
-        // use 0.5x and 2x of initialXO as evaluation range
         const initialXO = customCrossover[i];
         let bestXO = initialXO, maxSPL = -Infinity;
         console.info("Starting...");
