@@ -3114,13 +3114,13 @@
       return offset; // raw dB offset
     }
     async function getSpeakerTrim(idx) {
-      // 1/6 smoothed average SPL across 500hz-2khz
+      // calculates trim where average SPL across 500hz-2khz matches target
       const speakerSPLOffset = await getSPLOffsetFromTarget(idx, 500, 2000);
       const speakerTrim = Math.round(speakerSPLOffset * 2) / 2; // round to nearest 0.5;
       return speakerTrim;
     }
     async function getSubTrim(idx) {
-      // 1/6 smoothed average SPL across 30hz-80hz
+      // calculates trim where average SPL across 30hz-80hz matches target
       const subSPLOffset = await getSPLOffsetFromTarget(idx, 30, 80);
       const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
       return subTrim;
