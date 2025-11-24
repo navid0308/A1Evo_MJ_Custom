@@ -70,6 +70,9 @@ PureEQ v2.5.0 changelog -
 * Adjust alignment tool gains when aligning multiple subwoofers so level differences do not affect delay evaluation
 * Tighten up SW integration & XO determination evaluation ranges
 
+### Update 11/10/2025 PureEQ v2.4.3 changelog -
+* Minor update - Fine tune target level determination for REW filtering mode.
+
 ### Update 11/9/2025 PureEQ v2.4.2 changelog -
 Trying out a change I have been thinking about for a while. The first IR peak function looks for the first +/-10% change to determine signal start time; however, in a lot of cases there can be pre-ringing that exceeds it and cause the function to settle on the wrong thing.
 So, the changelog for PureEQ v2.4.2 is as follows-
@@ -87,6 +90,19 @@ Lmk if you get any weird subwoofer distances with this change. Enjoy!
 * Distances will be determined based on IR data instead of expecting MultEQ app to initialize variables under "channelReport" which could be hit or miss
 * Absolute distances will also be scaled based on speed of sound of AVR
 * New "TCx" target curve - I've been using this with my B&Ws for a while now and really like how it sounds
+
+### Update 11/5/2025 PureEQ v2.4.0 changelog -
+* Directional bass will now be converted to standard bass in Audyssey filtering mode
+* Virtual subwoofer IR for each position will be injected into the ady for Audyssey to EQ
+* Compatibility with the lexicographical sorting with REW beta 104
+* Audyssey filtering mode is now a selectable option instead of shift + click
+* Measurements will now be extracted with the correct IR delays
+* The systemDelay parameter in the ady is now used to calculate the timing reference/offset of the Audyssey measurements
+
+Thanks to all who tested, enjoy! :)
+
+### Update 10/28/2025 PureEQ v.2.3.1 changelog -
+* Fine tune delay ranges
 
 ### Update 10/27/2025 PureEQ v.2.3.0 changelog -
 * Use first IR peak for subwoofers to determine proximity and establish delay range
@@ -142,6 +158,17 @@ The additional changes to SW integration made it more of a 0.1 bump instead of a
 * Only .json files will be allowed when importing EQ filters
 * MJC version number will now be appended to the generated ady and the log file
 
+### Update 10/12/2025 PureEQ v2.0.0 Changelog -
+* Full UI support for configuring boost parameters
+* Sliders only apply to REW filtering
+* Full UI support for configuring custom filters per speaker
+* This is applied on top of the room correction
+* It works in both REW and Audyssey filtering mode
+* Upto 20 filters per channel - only 3 are visible initially but additional slots will unlock as they fill up
+* Import/Export function to easily save filters for future use
+* If filters contain channels not in the ady, they will be ignored during import
+* Users will be able to export the filters both before and after optimization
+
 ### Update 10/6/2025 PureEQ v1.5.4 changelog-
 * Look for "Customization start" in the script to find the areas for user modifications
 * Examples are provided in those customization sections
@@ -160,6 +187,22 @@ The additional changes to SW integration made it more of a 0.1 bump instead of a
 * Dynamic bass fill swapped out for subwoofer target level adjustment prior to EQ, similar to how SBIR compensation works.
 * Improvements to subwoofer abs -3dB point calculation accuracy.
 * Code cleanup.
+
+### Update 9/27/2025 PureEQ v1.5.1 changelog -
+* Expand proximity based delay range calculation to allow for positive delay
+
+### Update 9/27/2025 PureEQ v1.5.0 changelog -
+* (Optional) Audyssey filtering mode - Custom will only optimize levels, crossovers and distances but will leave the EQ portion to Audyssey.
+* Target curve is injected into ady and the default audyssey HF rolloff is removed.
+* Multi-subwoofer alignment and integration to speakers will be done similar to how custom has always done it, except with one change -
+* Officially supported directional bass adys will be preserved as directional.
+* Great way to A/B audyssey filters vs REW filters, all else being kept as equal as possible.
+* Press and hold shift key when clicking "Optimize Calibration" to enable this mode.
+* Usage of proximity based delay range when aligning multiple subwoofers to prioritize time alignment.
+* Support for standard bass adys from newer AVRs that support directional natively.
+* Code cleanup.
+
+Happy weekending all! :)
 
 ### Update 9/23/2025 PureEQ v1.4.1 changelog -
 * Added support for max 18m relative distance on AVRs that support it.
@@ -267,4 +310,5 @@ New version uploaded today. Changelog-
 * Improve speaker roll-off detection accuracy based on target curve
 * No target curve mode: Custom will now use a downward slope matching general downward trend of most speakers (instead of flat) when a TC isn't provided and enable DEQ
 * Bug fixes and code cleanup
+
 
