@@ -14,8 +14,43 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ### Update 11/21/2025 PureEQ v2.6.1 changelog -
 As everyone's seen, a lot of the recent updates have been about revisiting old approaches that didn't work as well in the past due to how custom did certain things. One such thing I have been testing today and I was blown away by the improvements - level matching non MLP positions to MLP prior to averaging. The idea was to remove SPL differences between positions, so the response trend is better isolated for EQ. After the recent fixes to auto-leveling compensation, the real benefit of this approach is really shining through. I feel like the imaging just snapped into place in a way I didn't think was possible...
 * Align non-MLP positions to MLP before spatially averaging (only affects REW filtering)
-This also allows wider mic spacing measurements to have that same "close to the music" feel as tightly grouped measurements
+* This also allows wider mic spacing measurements to have that same "close to the music" feel as tightly grouped measurements
+
 Curious if others also notice a similar difference. This isn't a beta since the improvements were very obvious to me, so use the link in the first post to grab the latest script. Enjoy!
+
+### Update 11/20/2025 PureEQ v2.6.0 changelog -
+Alrighty, time to make it official :)
+* Use the aggressive target leveling approach from 2.4.x, however -
+* Psy smoothing is used to determine SPL, so it strikes a balance between the heavier cuts in 2.4.x and the lighter EQ approach of 2.5.x
+* Rework the logic for auto-leveling compensation so post-EQ levels match in SPL to target much more accurately
+* Improvements to XO determination and evaluation
+* Initial XO is set based on nearest XO to roll-off + 15hz
+* When evaluating final XO, a higher XO must provide more than 0.1dB extra output to be considered
+* Updated TCx curve
+
+Thanks to all who tested, happy listening!
+
+### Update 11/18/2025 PureEQ v2.5.3 changelog -
+* Improve average speaker/subwoofer level matching
+* SW integration should now be almost completely target curve agnostic
+* Revert back to an older logic where average initial XO was used to apply a singular LPF/HPF to the average speaker/subwoofer combo
+* Seems to be a bit more robust than applying LPF/HPF to all channels first before averaging
+* Simpler and quicker
+
+### Update 11/18/2025 PureEQ v2.5.2 changelog -
+* Use alignment tool's gain A/B to level match average speaker/subwoofer so SW integration is as target curve agnostic as possible
+* Target level will be capped at 75dB
+* In some cases, if a response has its bass rise starting very early, using 200-2khz could set target level above 75dB and the midrange level would be too low and no longer be level matched with other speakers
+* For speakers that suffer from SBIR more in that region, custom will still correctly set their target level lower than 75dB to match the lower midrange to target without using boost headroom
+* Streamline some of the logic
+
+### Update 11/17/2025 PureEQ v2.5.1 changelog -
+This is a bit of an experiment. While playing with different smoothing for determining trims, I decided to try 1/6th and really liked the results. I also generally like 1/6th because it's one step more granular than human hearing, which makes it ideal for critical listening adjustments.
+
+PureEQ v2.5.1 changelog-
+* Switch to using 1/6 smoothing for determining trims
+
+You can expect a slightly louder sound, better overall balance, and a bit fuller bass resulting from marginally higher SW trims.
 
 ### Update 11/14/2025 PureEQ v2.5.0 changelog -
 Since most of the changes are going back to older tested logic that worked well, I'm happy with the shorter testing duration to make sure nothing's broken with the beta.
@@ -43,6 +78,7 @@ So, the changelog for PureEQ v2.4.2 is as follows-
 * For cleaner impulse responses, it should continue to work as it did before
 * Edit: Reduced high shelf default values to +/-3dB
 * Edit2: Minor UI bug fix where REW filtering sliders were still active after optimization start
+
 Lmk if you get any weird subwoofer distances with this change. Enjoy!
 
 ### Update 11/8/2025 PureEQ v2.4.1 changelog-
@@ -169,6 +205,7 @@ The additional changes to SW integration made it more of a 0.1 bump instead of a
 * Custom has volume aligned other positions to MLP before averaging for the longest time, but this is an incorrect approach
 * The level differences between positions play an important role with correctly representing tonal balance when spatial averaging
 * You can thank ChatGPT and Gemini for helping me figure this out!
+
 This update should improve leveling consistency as well as imaging balance. Happy listening!
 
 ### Update 9/3/2025 PureEQ v1.1.2 changelog-
@@ -230,3 +267,4 @@ New version uploaded today. Changelog-
 * Improve speaker roll-off detection accuracy based on target curve
 * No target curve mode: Custom will now use a downward slope matching general downward trend of most speakers (instead of flat) when a TC isn't provided and enable DEQ
 * Bug fixes and code cleanup
+
