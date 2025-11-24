@@ -317,5 +317,8 @@ New version uploaded today. Changelog-
 * No target curve mode: Custom will now use a downward slope matching general downward trend of most speakers (instead of flat) when a TC isn't provided and enable DEQ
 * Bug fixes and code cleanup
 
-
-
+### Update 6/26/2025 changelog -
+Thanks to all who tested! New version released this morning with the following changes-
+* Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
+* Improved movie mode target curve tracking in the high frequencies
+* Improved general averaging, leveling and EQ performance
