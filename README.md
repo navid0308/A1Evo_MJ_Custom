@@ -8,23 +8,25 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update 11/23/2025
-PureEQ v2.6.2 changelog -
+### Update 11/23/2025 PureEQ v2.6.2 changelog -
 * Use midpoint of usable XO range for aligning SW to system
 
-Update 11/13/2025
-Changelog PureEQ v2.4.5 -
+### Update 11/21/2025 PureEQ v2.6.1 changelog -
+As everyone's seen, a lot of the recent updates have been about revisiting old approaches that didn't work as well in the past due to how custom did certain things. One such thing I have been testing today and I was blown away by the improvements - level matching non MLP positions to MLP prior to averaging. The idea was to remove SPL differences between positions, so the response trend is better isolated for EQ. After the recent fixes to auto-leveling compensation, the real benefit of this approach is really shining through. I feel like the imaging just snapped into place in a way I didn't think was possible...
+* Align non-MLP positions to MLP before spatially averaging (only affects REW filtering)
+This also allows wider mic spacing measurements to have that same "close to the music" feel as tightly grouped measurements
+Curious if others also notice a similar difference. This isn't a beta since the improvements were very obvious to me, so use the link in the first post to grab the latest script. Enjoy!
+
+### Update 11/13/2025 PureEQ v2.4.5 changelog -
 * Custom uses the aggregate -3dB points to establish evaluation range when aligning multiple subwoofers. This can work negatively if there is infrasonic noise or if the subwoofer plays a lot higher in the frequency range. With this update, custom will limit the evaluation range to 20-120hz when aligning multiple subwoofers if the aggregate -3dB points exceed it.
 * This prioritizes alignment in the core LFE frequency range.
 * Make delay search step a little smaller so it evaluates more granular delays.
 
-
-Update 11/12/2025
-PureEQ v2.4.4 changelog -
+### Update 11/12/2025 PureEQ v2.4.4 changelog -
 * Adjust alignment tool gains when aligning multiple subwoofers so level differences do not affect delay evaluation
 * Tighten up SW integration & XO determination evaluation ranges
 
-Update 11/9/2025
+### Update 11/9/2025 PureEQ v2.4.2 changelog -
 Trying out a change I have been thinking about for a while. The first IR peak function looks for the first +/-10% change to determine signal start time; however, in a lot of cases there can be pre-ringing that exceeds it and cause the function to settle on the wrong thing.
 So, the changelog for PureEQ v2.4.2 is as follows-
 * Use standard deviation of the impulse response as the threshold for determining first peak
@@ -34,24 +36,22 @@ So, the changelog for PureEQ v2.4.2 is as follows-
 * Edit2: Minor UI bug fix where REW filtering sliders were still active after optimization start
 Lmk if you get any weird subwoofer distances with this change. Enjoy!
 
-Update 11/8/2025
-PureEQ v2.4.1 changelog-
+### Update 11/8/2025 PureEQ v2.4.1 changelog-
 * SBL will get the correct enChannelType assigned based on if it's mono or stereo
 * SWMIX commandIds will be fixed if they contain erroneous indexes
 * Distances will be determined based on IR data instead of expecting MultEQ app to initialize variables under "channelReport" which could be hit or miss
 * Absolute distances will also be scaled based on speed of sound of AVR
 * New "TCx" target curve - I've been using this with my B&Ws for a while now and really like how it sounds
 
-Update 10/27/2025
-PureEQ v.2.3.0 changelog -
+### Update 10/27/2025 PureEQ v.2.3.0 changelog -
 * Use first IR peak for subwoofers to determine proximity and establish delay range
 * This prioritizes LFE time alignment when finding optimal delays
 * Code cleanup
 
-Update 10/25/2025
-* PureEQ v2.2.2 changelog - fix an intermittent issue where using dialogue enhancer could cause the script to crash.
+### Update 10/25/2025 PureEQ v2.2.2 changelog -
+* Fix an intermittent issue where using dialogue enhancer could cause the script to crash.
 
-Update 10/24/2025
+### Update 10/24/2025 PureEQ v2.2.1 changelog -
 You can thank @JasonCzerak for this update
 Found and fixed an issue thanks to his directional ady from his brand spanking new x4800h!
 * PureEQ v2.2.1 changelog - switch to rms+p from va for creating the "average" speaker/subwoofer for SW integration. In some cases VA just took away so much SPL that there wasn't enough of a response left for optimizing delay and resulted in bad integration.
@@ -251,3 +251,4 @@ New version uploaded today. Changelog-
 * Improve speaker roll-off detection accuracy based on target curve
 * No target curve mode: Custom will now use a downward slope matching general downward trend of most speakers (instead of flat) when a TC isn't provided and enable DEQ
 * Bug fixes and code cleanup
+
