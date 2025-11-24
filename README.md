@@ -46,15 +46,12 @@ Thanks to all who tested, happy listening!
 
 ### Update 11/17/2025 PureEQ v2.5.1 changelog -
 This is a bit of an experiment. While playing with different smoothing for determining trims, I decided to try 1/6th and really liked the results. I also generally like 1/6th because it's one step more granular than human hearing, which makes it ideal for critical listening adjustments.
-
-PureEQ v2.5.1 changelog-
 * Switch to using 1/6 smoothing for determining trims
 
 You can expect a slightly louder sound, better overall balance, and a bit fuller bass resulting from marginally higher SW trims.
 
 ### Update 11/14/2025 PureEQ v2.5.0 changelog -
 Since most of the changes are going back to older tested logic that worked well, I'm happy with the shorter testing duration to make sure nothing's broken with the beta.
-PureEQ v2.5.0 changelog -
 * Revert target leveling logic to an older approach.
 * For speakers set target level similar to REW, using 200-2khz region, to get the SBIR region as close to target as possible without boost.
 * For subwoofers set target level similar to REW, using bandwidth (but limit to 20-120hz), to get the dips closer to target without using boost.
@@ -115,7 +112,8 @@ Thanks to all who tested, enjoy! :)
 ### Update 10/24/2025 PureEQ v2.2.1 changelog -
 You can thank @JasonCzerak for this update
 Found and fixed an issue thanks to his directional ady from his brand spanking new x4800h!
-* PureEQ v2.2.1 changelog - switch to rms+p from va for creating the "average" speaker/subwoofer for SW integration. In some cases VA just took away so much SPL that there wasn't enough of a response left for optimizing delay and resulted in bad integration.
+* Switch to rms+p from va for creating the "average" speaker/subwoofer for SW integration.
+* In some cases VA just took away so much SPL that there wasn't enough of a response left for optimizing delay and resulted in bad integration.
 
 ### Update 10/24/2025 PureEQ v2.2.0 changelog -
 The additional changes to SW integration made it more of a 0.1 bump instead of a 0.0.1 bump. So here is the latest main release!
@@ -137,6 +135,9 @@ The additional changes to SW integration made it more of a 0.1 bump instead of a
 * Speaker target level is set taking into account SBIR instead of full bandwidth.
 * Initial XO and usable XO determination update - slight change in logic to find the next/prev available XO instead of the nearest. This ensures that initial XO and usable XO range do not fall outside speaker/subwoofer bandwidths.
 
+### Update 10/19/2025 PureEQ v2.1.1 changelog -
+* Minor adjustments to REW EQ params.
+
 ### Update 10/17/2025 PureEQ v2.1.0 changelog-
 * Brute force evaluate delays instead of frequencies to find optimal alignment
 * Fine tune low/high frequency roll-off determination logic
@@ -153,12 +154,12 @@ The additional changes to SW integration made it more of a 0.1 bump instead of a
 * Improvements to EQ accuracy
 * Shift raw responses to reflect effects of AL comp
 
-### Update 10/13/2025 PureEQ v2.0.1 Changelog -
+### Update 10/13/2025 PureEQ v2.0.1 changelog -
 * Ability to export logs once optimization is completed
 * Only .json files will be allowed when importing EQ filters
 * MJC version number will now be appended to the generated ady and the log file
 
-### Update 10/12/2025 PureEQ v2.0.0 Changelog -
+### Update 10/12/2025 PureEQ v2.0.0 changelog -
 * Full UI support for configuring boost parameters
 * Sliders only apply to REW filtering
 * Full UI support for configuring custom filters per speaker
@@ -219,7 +220,7 @@ Happy weekending all! :)
 * Log the aggregate -3dB points used when optimizing multiple subwoofers
 * Fine tune smoothing for different portions of the optimization
 
-### Update 9/18/2025 PureEQ v1.3.0 Changelog -
+### Update 9/18/2025 PureEQ v1.3.0 changelog -
 * Switch to using MLP measurements exclusively for time alignment
 * Switch to using MLP measurements exclusively for multi-sub optimization
 * Combined sub response for each position is generated and then used for a more accurate spatial average
@@ -230,13 +231,13 @@ Happy weekending all! :)
 * Improved LF/HF roll-off detection
 * Bug fixes with IR normalization
 
-### Update 9/13/2025 PureEQ v1.2.2 Changelog-
+### Update 9/13/2025 PureEQ v1.2.2 changelog-
 * (partial) Android volume bug fix - this is only applicable for cirrus logic models and when using the android app to take measurements
 * It is a partial fix because it does not fix the issue of subwoofer trims always bottoming out at -12; you will need the version linked in the first post to properly fix that
 * Support for target curves with special characters in their name
 * Update to audy2umik
 
-### Update 9/8/2025 PureEQ v1.2.1 Changelog -
+### Update 9/8/2025 PureEQ v1.2.1 changelog -
 * Use 1/1 for leveling - this better represents real world perceived loudness using a SPL meter
 * Use Var for aligning TC to response - does a better job of balancing out the level of the SBIR affected region
 * Cleanup code that handles perfect speaker response assignment for cirrus logic models
@@ -269,6 +270,12 @@ Thanks to all who tested out dev. So far it seems to be a net positive and I am 
 * Allow more granular leveling, especially in the bass region - this improves subwoofer target tracking for difficult responses.
 * Reorganized a lot of sanity checks and initial boot up logic for better measurement checking & error handling.
 
+### Update 8/21/2025 PureEQ v1.0.1 changelog -
+* Figured out why DE would get greyed out - if it was clicked before an ady was uploaded, it would just disable itself. This behavior is now fixed.
+* The option will only get greyed out now if an ady without a center is uploaded.
+* Cfinal measurement will now have "DE" in the name if dialogue enhancer is used.
+* Versioning added to top right of script instead of in the logs.
+
 ### Update 8/20/2025 PureEQ v1 changelog -
 PureEQ has now been merged to the main branch. Here's the changelog for PureEQ v1:
 * Midrange focused leveling to improve imaging
@@ -280,7 +287,6 @@ PureEQ has now been merged to the main branch. Here's the changelog for PureEQ v
 
 ### Update 8/3/2025 changelog-
 Prior update started using -3dB points to better control correction range. This allowed the usage of using LPF/HPF to increase boost for subwoofers without producing any artifacts.
-Changelog:
 * Use -3dB points to establish LPF/HPF for EQ.
 * Increase boost headroom for subwoofers to 6db individual and 3db overall in movie mode.
 * Previously it was 3db individual, 1db overall. Boost limits for speakers are unchanged.
@@ -310,5 +316,6 @@ New version uploaded today. Changelog-
 * Improve speaker roll-off detection accuracy based on target curve
 * No target curve mode: Custom will now use a downward slope matching general downward trend of most speakers (instead of flat) when a TC isn't provided and enable DEQ
 * Bug fixes and code cleanup
+
 
 
