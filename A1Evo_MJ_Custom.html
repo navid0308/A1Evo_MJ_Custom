@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -709,7 +709,6 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-
     const modelsSoS300 = ["-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "C-A110", "X3700H", "X4700H",
       "X6500H", "X6700H", "X8500H", "R-A110", "-S730H", "-S740H", "-S750H", "-S760H", "-S930H", "-S940H", "-S950H", "-S960H", "X1400H",
       "X1500H", "X1600H", "X1700H", "X2400H", "X2500H", "X2600H", "X2700H", "X3400H", "X3500H", "X3600H", "X3700H", "X4300H", "X4400H",
@@ -739,6 +738,7 @@
     let speakerIndividualMaxBoost, speakerOverallMaxBoost, speakerHighShelfMin, speakerHighShelfMax;
     let subwooferIndividualMaxBoost, subwooferOverallMaxBoost, subwooferLowShelfMin, subwooferLowShelfMax;
     // TODO: store the user inputs in variables instead of querying it from the document
+    const globalSpeakerPrefix = "ALL_SPEAKERS", globalSpeakerFilters = 15;
     const filterTypes = [
       "None", "PK", "LS", "HS" /*, "All pass", "Modal",
       "LP", "HP", "LP1", "HP1", "LP Q", "HP Q",
@@ -800,6 +800,16 @@
       });
     }
     function lockEQTable() {
+      const globalP = globalSpeakerPrefix.toLowerCase();
+      for (let i = 1; i <= globalSpeakerFilters; i++) {
+        const typeEl = document.getElementById(`${globalP}Type${i}`);
+        const freqEl = document.getElementById(`${globalP}Freq${i}`);
+        const gainEl = document.getElementById(`${globalP}Gain${i}`);
+        const qEl    = document.getElementById(`${globalP}Q${i}`);
+        [typeEl, freqEl, gainEl, qEl].forEach(el => {
+          el.disabled = true;
+        });
+      }
       const filtersPerSpeaker = 20;
       const ignoreList = ["sw2", "sw3", "sw4"];
       commandId.slice(1).forEach(prefix => {
@@ -818,9 +828,25 @@
     }
     // export filters
     function exportFilters() {
-      const filtersPerSpeaker = 20;
+      const globalP = globalSpeakerPrefix.toLowerCase();
       const exportData = {};
+      exportData[globalP] = [];
+      for (let i = 1; i <= globalSpeakerFilters; i++) {
+        const typeEl = document.getElementById(`${globalP}Type${i}`);
+        const freqEl = document.getElementById(`${globalP}Freq${i}`);
+        const gainEl = document.getElementById(`${globalP}Gain${i}`);
+        const qEl    = document.getElementById(`${globalP}Q${i}`);
+        if (typeEl) {
+          exportData[globalP].push({
+            type: typeEl.value || "None",
+            freq: freqEl?.value || "",
+            gain: gainEl?.value || "",
+            q:    qEl?.value || ""
+          });
+        }
+      }
       const ignoreList = ["sw2", "sw3", "sw4"];
+      const filtersPerSpeaker = 20;
       commandId.slice(1).forEach(prefix => {
         const p = prefix.toLowerCase();
         if (ignoreList.includes(p)) { return; }
@@ -1022,7 +1048,7 @@
         const gainEl = document.getElementById(`${prefix.toLowerCase()}Gain${i}`);
         const qEl    = document.getElementById(`${prefix.toLowerCase()}Q${i}`);
 
-        if (!typeEl) continue;
+        if (!typeEl) continue; // global ends at 15
 
         if (i === 1) {
           typeEl.value = "None";
@@ -1051,6 +1077,7 @@
     }
 
     function clearAllFilters() {
+      clearSpeakerFilters(globalSpeakerPrefix);
       commandId.slice(1).forEach(prefix => {
         clearSpeakerFilters(prefix);
       });
@@ -1258,6 +1285,7 @@
         SW1:  "Subwoofer", // no need for SW2,3,4 since it's applied globally to all subwoofers
         SWMIX: "Subwoofer"
       };
+      createSpeakerTable(globalSpeakerPrefix, "All Speakers (Except SW)", globalSpeakerFilters);
       let subAdded = false;
       commandId.slice(1).forEach(spk => {
         if (spk.startsWith("SW")) {
@@ -2218,15 +2246,51 @@
       await postNext('Generate predicted measurement', baseFilterIdx);
       await postDelete(baseFilterIdx); // DE + baseFilter is the last measurement
     }
+    async function addGlobalSpeakerFilters(baseFilterIdx) {
+      const globalP = globalSpeakerPrefix.toLowerCase();
+      for (let i = 1; i <= globalSpeakerFilters; i++) {
+        const typeEl = document.getElementById(`${globalP}Type${i}`);
+        const freqEl = document.getElementById(`${globalP}Freq${i}`);
+        const gainEl = document.getElementById(`${globalP}Gain${i}`);
+        const qEl    = document.getElementById(`${globalP}Q${i}`);
+
+        if (!typeEl || !freqEl) break;
+
+        const type = typeEl.value;
+        if (type === "None") continue;
+
+        const freq = parseFloat(freqEl.value) || 0;
+        const gain = gainEl && gainEl.value !== "" ? parseFloat(gainEl.value) : null;
+        const q    = qEl && qEl.value !== "" ? parseFloat(qEl.value) : null;
+
+        if (["HS", "HS 6dB", "HS 12dB"].includes(type)) {
+          await addHSFilter(baseFilterIdx, type, freq, gain);
+        }
+        else if (["LS", "LS 6dB", "LS 12dB"].includes(type)) {
+          await addLSFilter(baseFilterIdx, type, freq, gain);
+        }
+        else if (["PK", "LS Q", "HS Q"].includes(type)) {
+          await addPEQFilter(baseFilterIdx, type, freq, gain, q);
+        }
+        else if (["LP", "HP", "LP1", "HP1", "Notch"].includes(type)) {
+          await addNoGainNoQFilter(baseFilterIdx, type, freq);
+        }
+        else if (["LP Q", "HP Q", "Notch Q", "All pass"].includes(type)) {
+          await addQFilter(baseFilterIdx, type, freq, q);
+        }
+      }
+      await postNext('Generate predicted measurement', baseFilterIdx);
+      await postDelete(baseFilterIdx); // Global filters + baseFilter is the last measurement
+    }
     async function addUserCustomizations(idx, cmdId) {
       // this function adds in any user customizations such as DE, PEQ etc.
       await clearFilters(idx); // should be mlp measurement and already blank
       const baseFilter = await postNext('Generate filters measurement', idx);
       const baseFilterIdx = Object.keys(baseFilter.results)[0];
       if (cmdId === "C" && dialogueEnhancer) { await addDEFilter(baseFilterIdx); }
+      if (!cmdId.startsWith("SW")) { await addGlobalSpeakerFilters(baseFilterIdx); }
       // add in PEQs from the table(s)
       const prefix = cmdId.toLowerCase();
-      const isSub = cmdId.startsWith("SW");
       for (let i = 1; i <= 20; i++) {
         const typeEl = document.getElementById(`${prefix}Type${i}`);
         const freqEl = document.getElementById(`${prefix}Freq${i}`);
@@ -2256,9 +2320,6 @@
         }
         else if (["LP Q", "HP Q", "Notch Q", "All pass"].includes(type)) {
           await addQFilter(idx, type, freq, q);
-        }
-        else {
-          console.warn(`${isSub ? "Subwoofer" : "Speaker"} filter type "${type}" at row ${i} not handled explicitly.`);
         }
       }
       // combine custom filters with autoEQ filters

@@ -8,6 +8,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 11/25/2025 PureEQ v2.6.3 changelog -
+A lot of times folks use the same PEQ filters for all speakers, like adding in a high shelf. This update should make the process much easier.
+* Add an "All Speakers" EQ table to apply upto 15 PEQ filters globally to all speakers except subwoofers
+* Update all internal functions, including import/export, to work with the "All Speakers" table
+
 ### Update 11/23/2025 PureEQ v2.6.2 changelog -
 * Use midpoint of usable XO range for aligning SW to system
 
