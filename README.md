@@ -8,6 +8,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 11/27/2025 PureEQ v2.6.4 changelog -
+REW alignment tool's delay range needs to span negative to positive. But since custom doesn't explicitly use the "Align IR" or "Align Phase" functions, proximity based delay ranges can be tightened up around the first peak, allowing both to be either negative, positive or any combination as needed.
+* Tighten up proximity based delay ranges - this will further emphasize time alignment when optimizing subwoofer delays
+* Enforce a minimum of +/-3ms delay range span if first IR peak time difference is very small
+
 ### Update 11/25/2025 PureEQ v2.6.3 changelog -
 A lot of times folks use the same PEQ filters for all speakers, like adding in a high shelf. This update should make the process much easier.
 * Add an "All Speakers" EQ table to apply upto 15 PEQ filters globally to all speakers except subwoofers

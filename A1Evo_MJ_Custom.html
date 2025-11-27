@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.4</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -730,7 +730,7 @@
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
-    const mSec = [], invertSub = [], commandId = [];
+    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpanMS = 3.0;
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
@@ -2651,7 +2651,7 @@
       }
     }
     async function optimizeSubDelay() {
-      console.log("Optimizing subwoofer delay for ALL speakers..."); 
+      console.log("Optimizing subwoofer delay for ALL speakers...");
       const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
         mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
@@ -2663,19 +2663,21 @@
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
       const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], alignXO);
       const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
-      // use 0.5x and 2x of min/max XO to set evaluation range
+      // use min <-> max XO plus an octave on either side to set evaluation range
       const startFreq = Math.round(minXO / 2);
       const endFreq = Math.round(maxXO * 2);
-      // set low delay limit to -2x of first IR peak difference against t=0
-      // set high delay limit to 0.5x of first IR peak difference against t=0
-      // note: this attempts to find the most optimal alignment that's also closest to time alignment
+      // set delay limits based on first IR peak delta to prioritize time alignment
       const subWithLPFIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
       const IRPeakDelta = -1000 * subWithLPFIRPeak; // speakers are at t=0 by now
-      let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
-      let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+      let loDelayLimit = IRPeakDelta <= 0 ? IRPeakDelta * 2 : IRPeakDelta / 2;
+      let hiDelayLimit = IRPeakDelta >= 0 ? IRPeakDelta * 2 : IRPeakDelta / 2;
+      // enforce a minimum of 3ms span on either side for cases where delta is very small
+      loDelayLimit = Math.min(loDelayLimit, IRPeakDelta - minDelayRangeSpanMS);
+      hiDelayLimit = Math.max(hiDelayLimit, IRPeakDelta + minDelayRangeSpanMS);
+      // sanity check that delay range is within HW limits
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
-      loDelayLimit = Math.max(loDelayLimit, loDelay);
-      hiDelayLimit = Math.min(hiDelayLimit, hiDelay);
+      loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
+      hiDelayLimit = Math.min(Math.max(hiDelayLimit, loDelay), hiDelay);
       const [requiredDelay, isInverted] = await align4system(avgSpeakerWithHPFIdx, subwooferWithLPFIdx,
                                                              startFreq, endFreq,
                                                              loDelayLimit, hiDelayLimit,
@@ -2782,7 +2784,7 @@
       console.log("Finalizing crossover frequencies...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
-      // use 0.5x and 2x of min/max XO to set evaluation range
+      // use min <-> max XO plus an octave on either side to set evaluation range
       const startFreq = Math.round(minXO / 2);
       const endFreq = Math.round(maxXO * 2);
       for (let i = 1; i <= nSpeakers; i++) {
@@ -3035,16 +3037,18 @@
         // use aggregate -3dB points as evaluation range, but limit to 20-120hz to emphasize core LFE region
         startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx, true, 20, 120)));
         endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx, true, 20, 120)));
-        // set low delay limit to -2x of first IR peak difference against reference subwoofer
-        // set high delay limit to 0.5x of first IR peak difference against reference subwoofer
-        // note: this attempts to find the most optimal alignment that's also closest to time alignment
+        // set delay limits based on first IR peak delta to prioritize time alignment
         const thisSubIRPeak = await getFirstIRPeak(thisSubIdx);
         const IRPeakDelta = 1000 * (refSubIRPeak - thisSubIRPeak);
-        let loDelayLimit = IRPeakDelta <= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
-        let hiDelayLimit = IRPeakDelta >= 0 ? 2 * IRPeakDelta : -0.5 * IRPeakDelta;
+        let loDelayLimit = IRPeakDelta <= 0 ? IRPeakDelta * 2 : IRPeakDelta / 2;
+        let hiDelayLimit = IRPeakDelta >= 0 ? IRPeakDelta * 2 : IRPeakDelta / 2;
+        // enforce a minimum of 3ms span on either side for cases where delta is very small
+        loDelayLimit = Math.min(loDelayLimit, IRPeakDelta - minDelayRangeSpanMS);
+        hiDelayLimit = Math.max(hiDelayLimit, IRPeakDelta + minDelayRangeSpanMS);
+        // sanity check that delay range is within HW limits
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
-        loDelayLimit = Math.max(loDelayLimit, loDelay); // sanity check
-        hiDelayLimit = Math.min(hiDelayLimit, hiDelay); // sanity check
+        loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
+        hiDelayLimit = Math.min(Math.max(hiDelayLimit, loDelay), hiDelay);
         console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz-${endFreq}hz...`);
         const [requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
                                                                       startFreq, endFreq,
@@ -3209,9 +3213,6 @@
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
-      await postSafe("http://localhost:4735/alignment-tool/mode", "Impulse", "Mode set");
-      await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
-      await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       // make sure level differences do not affect alignment; no need to revert since these temp measurements will only be deleted
       const gainA = 75.0 - await getSPL(ind1, Math.round(xo), end); // average speaker
       const gainB = 75.0 - await getSPL(ind2, start, Math.round(xo)); // average subwoofer
@@ -3253,9 +3254,6 @@
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postAlign('Reset all');
-      await postSafe("http://localhost:4735/alignment-tool/mode", "Impulse", "Mode set");
-      await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", loDelay, "Maximum negative delay set to");
-      await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", hiDelay, "Maximum positive delay set to");
       // make sure level differences do not affect alignment
       const gainA = await getSPLOffsetFromTarget(ind1, 30, 80);
       const gainB = await getSPLOffsetFromTarget(ind2, 30, 80);
