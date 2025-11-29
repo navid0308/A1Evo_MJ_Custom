@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.4</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.5</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -3007,31 +3007,31 @@
       combinedSubIRs4AF[pos] = impulseArray;
     }
     async function alignMultipleSubwoofers() {
+      console.warn("Converting from directional to standard bass for a better sound experience...");
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds & first IR peak times
+      // isolate SW commandIds, mlp indices with 250hz LPF & first IR peak times
       const swCmdIdsWithIRPeak = {};
-      for (let i = 1; i < commandId.length; i++) {
-        if (commandId[i].startsWith("SW")) {
-          const mlpIdx = cmdIdIndices[commandId[i]][0];
-          swCmdIdsWithIRPeak[commandId[i]] = await getFirstIRPeak(mlpIdx);
-        }
+      const swCmdIdsWithLPFIndices = {};
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+        const mlpIdx = cmdIdIndices[commandId[i]][0];
+        const mlpWithLPF = await genSub(mlpIdx, 250); // benefits cases where SW goes very high in frequency
+        const mlpWithLPFIdx = Object.keys(mlpWithLPF.results)[0];
+        await fetch_mREW(mlpWithLPFIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
+        swCmdIdsWithIRPeak[commandId[i]] = await getFirstIRPeak(mlpWithLPFIdx);
+        swCmdIdsWithLPFIndices[commandId[i]] = mlpWithLPFIdx;
       }
+      measurements = await fetch_mREW(); // update with the newly LPF-ed measurements
       // sort subs using first IR peak time
-      const sortedSwList = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
-      const swIndices = [];
-      for (let i = 0; i < sortedSwList.length; i++) {
-        swIndices.push(cmdIdIndices[sortedSwList[i]]);
-      }
-      console.warn("Converting from directional to standard bass for a better sound experience...");
-      console.info(`Alignment order based on proximity: ${sortedSwList}`);
-      let currSubIdx = swIndices[0][0];
+      const sortedSwCmdIds = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
+      console.info(`Alignment order based on proximity: ${sortedSwCmdIds}`);
+      let currSubIdx = swCmdIdsWithLPFIndices[sortedSwCmdIds[0]];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       let startFreq = Math.round(await getAbsLow3dBPoint(currSubIdx, true, 20, 120));
       let endFreq = Math.round(await getAbsHigh3dBPoint(currSubIdx, true, 20, 120));
       const refSubIRPeak = await getFirstIRPeak(currSubIdx);
-      for (let i = 1; i < swIndices.length; i++) {
-        const thisSubIdx = swIndices[i][0];
+      for (let i = 1; i < sortedSwCmdIds.length; i++) {
+        const thisSubIdx = swCmdIdsWithLPFIndices[sortedSwCmdIds[i]];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
         // use aggregate -3dB points as evaluation range, but limit to 20-120hz to emphasize core LFE region
@@ -3054,38 +3054,44 @@
                                                                       startFreq, endFreq,
                                                                       loDelayLimit, hiDelayLimit);
         currSubIdx = sumIndex;
+        cmdIds += ` & ${thisSubCmdId}`;
         mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
         invertSub[nSpeakers + thisSubNumber] = isInverted;
-        cmdIds += ` & ${thisSubCmdId}`;
-        for (let j = 0; j < swIndices[i].length; j++) {
-          await postNext('Offset t=0', swIndices[i][j], {offset: -mSec[nSpeakers + thisSubNumber], unit: "seconds"});
-          if (isInverted) {
-            await postSafe(`${baseUrl}/${swIndices[i][j]}/command`,{command: "Invert"}, "Invert completed");
-          }
-        }
       }
-      // cleanup all potential alignments
-      for (let i = currSubIdx; i > mCount; i--) {
+      // cleanup LPF mlp measurements and all potential alignments
+      for (let i = currSubIdx; i > mCount; i--) { // make sure mCount isn't updated between start of function and here
         await postDelete(i);
       }
       // normalize median subwoofer delay to t=0
       const loSWDelay = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
       const hiSWDelay = Math.max(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
       const medianSWDelay = (loSWDelay + hiSWDelay) / 2;
-      for (let i = 0; i < swIndices.length; i++) {
-        for (let j = 0; j < swIndices[i].length; j++) {
-          await postNext('Offset t=0', swIndices[i][j], {offset: medianSWDelay, unit: "seconds"});
-        }
-        // note: even though subs aren't aligned in order, it's a don't care here since same IR shift applies to all
-        mSec[nSpeakers + i + 1] -= medianSWDelay;
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+        mSec[i] -= medianSWDelay;
       }
       // combine subs at the individual position level
       console.info("Generating combined subwoofer response(s)...");
+      // gather all the individual subwoofer responses
+      const swIndices = [];
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+        swIndices.push(cmdIdIndices[commandId[i]]);
+      }
+      // apply optimal delay/polarity to all subwoofers across all positions
+      for (let i = 0; i < swIndices.length; i++) {
+        const swDelayMs = mSec[nSpeakers + i + 1];
+        const swInverted = invertSub[nSpeakers + i + 1];
+        for (let j = 0; j < swIndices[i].length; j++) {
+          await postNext('Offset t=0', swIndices[i][j], {offset: -swDelayMs, unit: "seconds"});
+          if (swInverted) {
+            await postSafe(`${baseUrl}/${swIndices[i][j]}/command`,{command: "Invert"}, "Invert completed");
+          }
+        }
+      }
       let volAdjust = 0;
-      for (let i = 0; i < swIndices[0].length; i++) {
+      for (let i = 0; i < swIndices[0].length; i++) { // iterate over positions
         console.infoUpdate(`Generating combined subwoofer response for position #${i + 1}`);
         const iPosSWIdxs = swIndices.map(row => row[i]);
-        const iPosCombinedSW = await postNext('Vector sum', iPosSWIdxs);
+        const iPosCombinedSW = await postNext('Vector sum', iPosSWIdxs); // combine subwoofers
         const iPosCombinedSWIdx = Object.keys(iPosCombinedSW.results)[0];
         const [iPosCombinedSWLeftWindow, iPosCombinedSWRightWindow] = await getMaxIRWindow(iPosSWIdxs); // apply maximum aggregate IR window
         await postSafe(`${baseUrl}/${iPosCombinedSWIdx}/ir-windows`, { leftWindowWidthms: iPosCombinedSWLeftWindow,
@@ -3101,13 +3107,6 @@
         }
       }
       console.infoUpdate(`Generated combined subwoofer response(s) for all positions.`);
-      // cleanup individual sub measurements
-      console.info("Cleaning up individual subwoofer response(s)...");
-      const individualSWIndices = swIndices.flat().sort(function(a, b) { return a - b; });
-      for (let i = individualSWIndices.length - 1; i >= 0; i--) {
-        await postDelete(individualSWIndices[i]);
-      }
-      console.infoUpdate("Cleaned up individual subwoofer response(s).");
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
       if (sOs === 300 && volAdjust != 0) {
         console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
@@ -3116,7 +3115,13 @@
           console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
         }
       }
-      console.warn("Directional to standard bass conversion complete.");
+      // cleanup individual sub measurements
+      console.info("Cleaning up individual subwoofer response(s)...");
+      const individualSWIndices = swIndices.flat().sort(function(a, b) { return a - b; });
+      for (let i = individualSWIndices.length - 1; i >= 0; i--) {
+        await postDelete(individualSWIndices[i]);
+      }
+      console.infoUpdate("Cleaned up individual subwoofer response(s).");
       // update measurement list per channel
       measurements = await fetch_mREW();
       mCount = Object.keys(measurements).length;
@@ -3139,6 +3144,7 @@
         }
         cmdIdIndices[cmdId].push(i);
       }
+      console.warn("Directional to standard bass conversion complete.");
     }
     function response2array(response, start, end, phase=false) {
       let startFreq = response.startFreq;

@@ -8,6 +8,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 11/28/2025 PureEQ v2.6.5 changelog -
+This update is geared towards multiple subwoofer .adys, especially those where the subwoofers extend out very far into the highs. It tends to mess with the impulse response and hide the effects of group delay.
+* Apply a 250hz LPF when aligning multiple subwoofers so higher end of the response does not affect delay range calculation
+* Cleanup the logic a little bit
+
 ### Update 11/27/2025 PureEQ v2.6.4 changelog -
 REW alignment tool's delay range needs to span negative to positive. But since custom doesn't explicitly use the "Align IR" or "Align Phase" functions, proximity based delay ranges can be tightened up around the first peak, allowing both to be either negative, positive or any combination as needed.
 * Tighten up proximity based delay ranges - this will further emphasize time alignment when optimizing subwoofer delays
