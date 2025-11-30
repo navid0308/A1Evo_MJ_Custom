@@ -8,6 +8,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 11/30/2025 PureEQ v2.6.6 changelog -
+Minor update to skew the preference towards lower crossovers and reduce chance of localization.
+* Min XO is set based on half an octave above subwoofer's low frequency extension instead of a full octave
+* Final XO is determined within initial XO and half an octave above initial XO instead of a full octave
+
 ### Update 11/28/2025 PureEQ v2.6.5 changelog -
 This update is geared towards multiple subwoofer .adys, especially those where the subwoofers extend out very far into the highs. It tends to mess with the impulse response and hide the effects of group delay.
 * Apply a 250hz LPF when aligning multiple subwoofers so higher end of the response does not affect delay range calculation
@@ -337,3 +342,4 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
