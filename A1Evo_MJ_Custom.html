@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.6</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.7</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2656,7 +2656,7 @@
       for (let i = 1; i <= nSpeakers; i++) {
         mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
-      const alignXO = (minXO + maxXO) / 2; // high enough to reduce effects of GD and help with midbass
+      const alignXO = Math.sqrt(minXO * maxXO); // geometric mean of usable XO range
       const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, alignXO);
@@ -3213,6 +3213,7 @@
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay, xo) {
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
+      console.info(`Alignment frequency (mean usable XO): ${xo.toFixed(2)}hz`);
       let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });

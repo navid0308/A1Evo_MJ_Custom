@@ -8,6 +8,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 12/1/2025 PureEQ v2.6.7 changelog -
+This is technically a bug fix - frequency range is logarithmic, so the typical "median" is not actually the midpoint of the min/max XO. It needs to be the geometric mean of min/max XO to be the correct "midpoint" of the usable XO range.
+* Use geometric mean of the usable XO range for aligning SW to system
+* Log alignment frequency for better transparency
+
 ### Update 11/30/2025 PureEQ v2.6.6 changelog -
 Minor update to skew the preference towards lower crossovers and reduce chance of localization.
 * Min XO is set based on half an octave above subwoofer's low frequency extension instead of a full octave
