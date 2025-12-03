@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.6.7</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.7.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -730,7 +730,7 @@
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
-    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpanMS = 3.0;
+    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 6;
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
@@ -2621,7 +2621,7 @@
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      minXO = findNearestXO(1.5 * subLowFreq); // give subwoofer half an octave to ramp up
+      minXO = findNearestXO(2 * subLowFreq); // give subwoofer an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
       const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
       maxXO = findNearestXO(subHighFreq); // set max XO closest to subwoofer HF roll-off
@@ -2667,13 +2667,10 @@
       const startFreq = Math.round(minXO / 2);
       const endFreq = Math.round(maxXO * 2);
       // set delay limits based on first IR peak delta to prioritize time alignment
-      const subWithLPFIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
-      const IRPeakDelta = -1000 * subWithLPFIRPeak; // speakers are at t=0 by now
-      let loDelayLimit = IRPeakDelta <= 0 ? IRPeakDelta * 2 : IRPeakDelta / 2;
-      let hiDelayLimit = IRPeakDelta >= 0 ? IRPeakDelta * 2 : IRPeakDelta / 2;
-      // enforce a minimum of 3ms span on either side for cases where delta is very small
-      loDelayLimit = Math.min(loDelayLimit, IRPeakDelta - minDelayRangeSpanMS);
-      hiDelayLimit = Math.max(hiDelayLimit, IRPeakDelta + minDelayRangeSpanMS);
+      const subwooferIRPeak = await getFirstIRPeak(subwooferWithLPFIdx); // first IR peak
+      const IRPeakDelta = -1000 * subwooferIRPeak; // speakers are at t=0 by now
+      let loDelayLimit = IRPeakDelta - minDelayRangeSpan;
+      let hiDelayLimit = IRPeakDelta + minDelayRangeSpan;
       // sanity check that delay range is within HW limits
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
@@ -2796,8 +2793,8 @@
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           const checkXO = freqIndex[j];
-          // don't look at XO below speaker initialXO, above 1.5x initialXO or outside sub bandwidth
-          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 1.5, maxXO)) { continue; }
+          // don't look at XO below speaker initialXO, above 2x initialXO or outside sub bandwidth
+          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 2, maxXO)) { continue; }
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           let mlpSPWithHPFIdx;
@@ -2961,7 +2958,7 @@
         impulseArray.push(dataView.getFloat32(i * 4) * 100);
       }
       // threshold is set based on standard deviation
-      const threshold = getStdDev(impulseArray);
+      const threshold = getStdDev(impulseArray.map(Math.abs)); // use abs to better handle noise
       let inPeak = false;
       let maxPercent = -Infinity;
       let peakSampleNumber = 0;
@@ -3040,11 +3037,8 @@
         // set delay limits based on first IR peak delta to prioritize time alignment
         const thisSubIRPeak = await getFirstIRPeak(thisSubIdx);
         const IRPeakDelta = 1000 * (refSubIRPeak - thisSubIRPeak);
-        let loDelayLimit = IRPeakDelta <= 0 ? IRPeakDelta * 2 : IRPeakDelta / 2;
-        let hiDelayLimit = IRPeakDelta >= 0 ? IRPeakDelta * 2 : IRPeakDelta / 2;
-        // enforce a minimum of 3ms span on either side for cases where delta is very small
-        loDelayLimit = Math.min(loDelayLimit, IRPeakDelta - minDelayRangeSpanMS);
-        hiDelayLimit = Math.max(hiDelayLimit, IRPeakDelta + minDelayRangeSpanMS);
+        let loDelayLimit = IRPeakDelta - minDelayRangeSpan;
+        let hiDelayLimit = IRPeakDelta + minDelayRangeSpan;
         // sanity check that delay range is within HW limits
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
@@ -3231,13 +3225,13 @@
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
-        let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
+        let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0) / getStdDev(tempSumArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
           const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
-          const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
+          const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0) / getStdDev(tempSumArrayInv);
           if (tempMagSum < tempMagSumInv) {
             tempMagSum = tempMagSumInv;
             tempSumInverted = true;
