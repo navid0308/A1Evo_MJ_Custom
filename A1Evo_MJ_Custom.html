@@ -2663,11 +2663,15 @@
       for (let i = 1; i <= nSpeakers; i++) {
         mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
-      const alignXO = getGeomMean(customCrossover.slice(1)); // average initial XO
+      const meanUsableXO = getGeomMean([minXO, maxXO]); // midpoint of usable XO range
+      const avgInitialXO = getGeomMean(customCrossover.slice(1)); // average initial XO
+      const alignXO = Math.max(meanUsableXO, avgInitialXO); // higher frequencies are less affected by group delay
+      // prepare "average" speaker
       const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
       const avgSpeakerWithHPF = await genSpeaker(avgSpeakerIdx, alignXO);
       const avgSpeakerWithHPFIdx = Object.keys(avgSpeakerWithHPF.results)[0];
+      // prepare subwoofer
       const subwooferWithLPF = await genSub(cmdIdMLPIndices[commandId[nChannels]], alignXO);
       const subwooferWithLPFIdx = Object.keys(subwooferWithLPF.results)[0];
       // set delay limits based on first IR peak delta to prioritize time alignment
@@ -3210,7 +3214,7 @@
     }
     async function align4system(ind1, ind2, loDelay, hiDelay, alignXO) {
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
-      console.info(`Alignment frequency (average initial XO): ${alignXO.toFixed(2)}hz`);
+      console.info(`Alignment frequency: ${alignXO.toFixed(2)}hz`);
       // use an octave on either side of the alignment XO as evaluation range
       const start = Math.round(alignXO / 2);
       const end = Math.round(alignXO * 2);
@@ -3232,13 +3236,13 @@
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F1&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
-        let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0) / getStdDev(tempSumArray); // prioritize linearity
+        let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
           const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F1&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
-          const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0) / getStdDev(tempSumArrayInv); // prioritize linearity
+          const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
           if (tempMagSum < tempMagSumInv) {
             tempMagSum = tempMagSumInv;
             tempSumInverted = true;
@@ -3272,13 +3276,13 @@
       for (let i = loDelay; i <= hiDelay; i += 0.075) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F1&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         let tempMagSum = tempSumArray.reduce((acc, val) => acc + val, 0);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F6&ppo=96');
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F1&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
           if (tempMagSum < tempMagSumInv) {
