@@ -2621,7 +2621,7 @@
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      minXO = findNearestXO(2 * subLowFreq); // give subwoofer an octave to ramp up
+      minXO = findNearestXO(1.5 * subLowFreq); // give subwoofer half an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
       const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
       maxXO = findNearestXO(subHighFreq); // set max XO closest to subwoofer HF roll-off
@@ -2784,9 +2784,9 @@
       console.log("Finalizing crossover frequencies...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
-      // use min <-> max XO plus an octave on either side to set evaluation range
-      const startFreq = Math.round(minXO / 2);
-      const endFreq = Math.round(maxXO * 2);
+      // use min <-> max XO plus half an octave on either side to set evaluation range
+      const startFreq = Math.round(minXO / 1.5);
+      const endFreq = Math.round(maxXO * 1.5);
       for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
@@ -2796,8 +2796,8 @@
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           const checkXO = freqIndex[j];
-          // don't look at XO below speaker initialXO, above 2x initialXO or outside sub bandwidth
-          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 2, maxXO)) { continue; }
+          // don't look at XO below speaker initialXO, above 1.5x initialXO or outside sub bandwidth
+          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 1.5, maxXO)) { continue; }
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           let mlpSPWithHPFIdx;
