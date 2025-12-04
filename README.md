@@ -8,6 +8,17 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update xx/xx/xxxx PureEQ v2.7.0 changelog -
+This update pretty much revamps how custom handles subwoofer alignments. :)
+* Slopeless SW integration with speakers - this aligns SW to the system across the entire SW bandwidth
+* Simplify delay range determination to +/-6ms of first peak with extra headroom for SW integration to system
+* Use 1/1 smoothing for evaluating alignments to focus on the 'bigger picture'
+* Tighten up the evaluation range when determining final crossovers
+* Revert back to aligning directional subwoofers across their aggregate bandwidths
+* Improve first IR peak detection algorithm accuracy
+* Bug fix: spatial average IR window being too small and truncating the response
+* Bug fix: "Remove time delay" being accidentally active in alignment tool
+
 ### Update 12/1/2025 PureEQ v2.6.7 changelog -
 This is technically a bug fix - frequency range is logarithmic, so the typical "median" is not actually the midpoint of the min/max XO. It needs to be the geometric mean of min/max XO to be the correct "midpoint" of the usable XO range.
 * Use geometric mean of the usable XO range for aligning SW to system
