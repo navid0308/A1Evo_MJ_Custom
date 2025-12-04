@@ -8,7 +8,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update xx/xx/xxxx PureEQ v2.7.0 changelog -
+### Update 12/4/2025 PureEQ v2.7.0 changelog -
 This update pretty much revamps how custom handles subwoofer alignments. :)
 * Slopeless SW integration with speakers - this aligns SW to the system across the entire SW bandwidth
 * Simplify delay range determination to +/-6ms of first peak with extra headroom for SW integration to system
