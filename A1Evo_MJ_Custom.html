@@ -1975,7 +1975,7 @@
     }
     async function initializeSubwoofers() {
       if (bassMode === "Directional") {
-        await alignMultipleSubwoofers();
+        await directional2standard();
       }
       else {
         // normalize standard bass subwoofer median IR to t=0
@@ -3004,7 +3004,7 @@
       }
       combinedSubIRs4AF[pos] = impulseArray;
     }
-    async function alignMultipleSubwoofers() {
+    async function directional2standard() {
       console.warn("Converting from directional to standard bass for a better sound experience...");
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
