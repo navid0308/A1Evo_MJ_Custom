@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.7.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.7.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2283,7 +2283,7 @@
       await postNext('Generate predicted measurement', baseFilterIdx);
       await postDelete(baseFilterIdx); // Global filters + baseFilter is the last measurement
     }
-    async function addUserCustomizations(idx, cmdId) {
+    async function getUserCustomizations(idx, cmdId) {
       // this function adds in any user customizations such as DE, PEQ etc.
       await clearFilters(idx); // should be mlp measurement and already blank
       const baseFilter = await postNext('Generate filters measurement', idx);
@@ -2331,8 +2331,23 @@
       await postDelete(baseFilterIdx);
       return baseFilterIdx; // combined filter consisting of all customizations
     }
+    async function getUHFFilter(idxWithEQ, targetCurveIdx) {
+      // returns magnitude only filter for knocking down any ultra high frequency peaks
+      const tempEQSpeaker = await postNext('Generate predicted measurement', idxWithEQ);
+      const tempEQSpeakerIdx = Object.keys(tempEQSpeaker.results)[0];
+      const volAdjust = 75.0 - await fetchSafe("target-level", idxWithEQ);
+      await postNext('Add SPL offset', tempEQSpeakerIdx, { offset: volAdjust });
+      await postNext('Arithmetic', [targetCurveIdx, tempEQSpeakerIdx],
+                      { function: "|A| / |B|", // magnitude only fine for UHF
+                        maxGain: 0, lowerLimit: 10000, upperLimit: 24000});
+      await postDelete(tempEQSpeakerIdx); // UHF filter now at tempEQSpeakerIdx
+      return tempEQSpeakerIdx;
+    }
     async function generateREWFilters() {
       console.log(`Generating min. phase EQ filters...`);
+      const targetCurve = await postNext('Generate target measurement', 1); // used for fixing UHF peaks
+      const targetCurveIdx = Object.keys(targetCurve.results)[0];
+      await postNext('Smooth', targetCurveIdx, { smoothing: "Var" });
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
@@ -2366,8 +2381,15 @@
         // generate auto-EQ filters
         const filter = await postNext('Generate filters measurement', avgIdx);
         const filterIdx = Object.keys(filter.results)[0];
+        if (!isSub) {
+          // fix any ultra high frequency peaks that remain after using high shelf; avgIdx has auto-EQ filters
+          const speakerUHFFilterIdx = await getUHFFilter(avgIdx, targetCurveIdx);
+          await postNext('Arithmetic', [filterIdx, speakerUHFFilterIdx], {function: "A * B"}); // combined filter
+          await postDelete(speakerUHFFilterIdx);
+          await postDelete(filterIdx); // auto-EQ + UHF filters now at filterIdx
+        }
         // add any user desired customizations & prepare AL compensation trim offset for custom filters
-        const customFilterIdx = await addUserCustomizations(mlpIdx, commandId[i]);
+        const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]);
         const customFilterTrimOffset = Math.round(await getALOffset(customFilterIdx, isSub) / 2) * 2;
         await postNext('Arithmetic', [filterIdx, customFilterIdx], {function: "A * B"}); // combined filter
         await postDelete(customFilterIdx);
@@ -2405,11 +2427,12 @@
           logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
         console.infoUpdate(logUpdate);
-        // store for later
-        cmdIdFilterIndices[commandId[i]] = filterIdx;
-        cmdIdMLPIndicesEQ[commandId[i]] = mlpEqResponseIdx;
-        cmdIdAVGIndicesEQ[commandId[i]] = eqResponseIdx;
+        // store for later; subtract 1 because target curve will be removed
+        cmdIdFilterIndices[commandId[i]] = filterIdx - 1;
+        cmdIdMLPIndicesEQ[commandId[i]] = mlpEqResponseIdx - 1;
+        cmdIdAVGIndicesEQ[commandId[i]] = eqResponseIdx - 1;
       }
+      await postDelete(targetCurveIdx);
     }
     async function generateTargetCurves() {
       console.log("Generating target curves for each channel...");
@@ -2423,7 +2446,7 @@
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         // add in all user customizations & calculate any AL offset
-        const customFilterIdx = await addUserCustomizations(mlpIdx, commandId[i]); // add any user desired customizations
+        const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]); // add any user desired customizations
         const TCOffset = await getALOffset(targetCurveIdx, isSub); // used to auto-level target curve so app doesn't
         const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
         // get rid of phase data since it needs to be applied to target curve which is magnitude only
