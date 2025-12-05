@@ -1650,7 +1650,7 @@
       for (let i = 1; i < mCount; i++) {
         const name = measurements[i].title;
         if (name.startsWith("SW")) {
-          await genSub(i); // response copy; applying _micCcal produces 2x IR samples and affects AF in directional on cirrus logic
+          await genSub(i); // response copy; applying _micCal produces 2x IR samples and affects AF in directional on cirrus logic
         }
         else {
           console.infoUpdate(`Applying Audyssey microphone calibration file to ${name}...`);
