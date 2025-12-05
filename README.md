@@ -11,6 +11,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ### Update 12/5/2025 PureEQ v2.7.1 changelog -
 Due to the way high shelf works in REW, custom has to use the lowest point after 10khz as the end frequency; otherwise, REW may avoid applying a high shelf if it sees a HF peak past 10khz. The downside was always that any UHF peaks would remain. Well, no more of those after this update!
 * Add in logic to knock down any remaining ultra high frequency peaks after using high shelf for speakers
+
 Note: This update ONLY affects REW filtering.
 
 ### Update 12/4/2025 PureEQ v2.7.0 changelog -
@@ -363,4 +364,5 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
