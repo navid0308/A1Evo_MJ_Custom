@@ -8,6 +8,12 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v2.7.2 changelog -
+This update improves the multiple subwoofer alignment performance and stability.
+* Use bandpassed individual subwoofer response for directional to standard conversion instead of the aggregate -3dB points
+* Use entire bandpassed region for evaluating alignment
+* Increase minimum delay span to +/-10ms with higher delay headroom for SW integration
+
 ### Update 12/5/2025 PureEQ v2.7.1 changelog -
 Due to the way high shelf works in REW, custom has to use the lowest point after 10khz as the end frequency; otherwise, REW may avoid applying a high shelf if it sees a HF peak past 10khz. The downside was always that any UHF peaks would remain. Well, no more of those after this update!
 * Add in logic to knock down any remaining ultra high frequency peaks after using high shelf for speakers
