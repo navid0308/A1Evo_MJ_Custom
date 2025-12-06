@@ -2683,12 +2683,11 @@
       // prepare "average" speaker
       const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
-      // prepare subwoofer; note: invert subwoofer to facilitate slopeless integration
+      // prepare subwoofer
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       await genSub(cmdIdMLPIndices[commandId[nChannels]]); // make a copy
       const subwooferIdx = mCount + 1;
-      await postSafe(`${baseUrl}/${subwooferIdx}/command`,{command: "Invert"}, "Invert completed");
       // use an octave on either side of the alignment XO as evaluation range
       const startFreq = Math.round(minXO / 1.5);
       const endFreq = Math.round(maxXO * 1.5);
@@ -3225,8 +3224,9 @@
       }
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
+      // slopeless integration means finding the delay that causes max cancellation
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
-      let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
+      let isInverted = false, requiredDelay = NaN, minSum = Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postAlign('Reset all');
@@ -3252,14 +3252,14 @@
           const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F1&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
-          if (tempMagSum < tempMagSumInv) {
+          if (tempMagSum > tempMagSumInv) {
             tempMagSum = tempMagSumInv;
             tempSumInverted = true;
           }
           await postSafe("http://localhost:4735/alignment-tool/invert-b", false, "Value set");
         }
-        if (maxSum < tempMagSum) {
-          maxSum = tempMagSum;
+        if (minSum > tempMagSum) {
+          minSum = tempMagSum;
           requiredDelay = i;
           isInverted = tempSumInverted;
         }
