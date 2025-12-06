@@ -8,7 +8,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.7.2 changelog -
+### Update 12/6/2025 PureEQ v2.7.2 changelog -
 This update improves the multiple subwoofer alignment performance and stability.
 * Use bandpassed individual subwoofer response for directional to standard conversion instead of the aggregate -3dB points
 * Use entire bandpassed region for evaluating alignment
@@ -372,3 +372,4 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
