@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.7.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.7.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -730,7 +730,7 @@
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
-    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 6;
+    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 10;
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
@@ -2683,12 +2683,11 @@
       // prepare "average" speaker
       const avgSpeaker = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
       const avgSpeakerIdx = Object.keys(avgSpeaker.results)[0]
-      // prepare subwoofer; note: invert subwoofer to facilitate slopeless integration
+      // prepare subwoofer
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       await genSub(cmdIdMLPIndices[commandId[nChannels]]); // make a copy
       const subwooferIdx = mCount + 1;
-      await postSafe(`${baseUrl}/${subwooferIdx}/command`,{command: "Invert"}, "Invert completed");
       // use an octave on either side of the alignment XO as evaluation range
       const startFreq = Math.round(minXO / 1.5);
       const endFreq = Math.round(maxXO * 1.5);
@@ -3027,20 +3026,20 @@
       }
       combinedSubIRs4AF[pos] = impulseArray;
     }
-    async function directional2standard() {
+    async function directional2standard(start=10, end=320) {
       console.warn("Converting from directional to standard bass for a better sound experience...");
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds, mlp indices with 250hz LPF & first IR peak times
+      // isolate SW commandIds, bandpassed response & first IR peak times
       const swCmdIdsWithIRPeak = {};
       const swCmdIdsWithLPFIndices = {};
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         const mlpIdx = cmdIdIndices[commandId[i]][0];
-        const mlpWithLPF = await genSub(mlpIdx, 250); // benefits cases where SW goes very high in frequency
-        const mlpWithLPFIdx = Object.keys(mlpWithLPF.results)[0];
-        await fetch_mREW(mlpWithLPFIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
-        swCmdIdsWithIRPeak[commandId[i]] = await getFirstIRPeak(mlpWithLPFIdx);
-        swCmdIdsWithLPFIndices[commandId[i]] = mlpWithLPFIdx;
+        const mlpWithBPF = await genBandpassedResponse(mlpIdx, start, end); // cleanup LF noise and irrelevant HF
+        const mlpWithBPFIdx = Object.keys(mlpWithBPF.results)[0];
+        await fetch_mREW(mlpWithBPFIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
+        swCmdIdsWithIRPeak[commandId[i]] = await getFirstIRPeak(mlpWithBPFIdx);
+        swCmdIdsWithLPFIndices[commandId[i]] = mlpWithBPFIdx;
       }
       measurements = await fetch_mREW(); // update with the newly LPF-ed measurements
       // sort subs using first IR peak time
@@ -3048,16 +3047,11 @@
       console.info(`Alignment order based on proximity: ${sortedSwCmdIds}`);
       let currSubIdx = swCmdIdsWithLPFIndices[sortedSwCmdIds[0]];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
-      let startFreq = Math.round(await getAbsLow3dBPoint(currSubIdx));
-      let endFreq = Math.round(await getAbsHigh3dBPoint(currSubIdx));
       const refSubIRPeak = await getFirstIRPeak(currSubIdx);
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
         const thisSubIdx = swCmdIdsWithLPFIndices[sortedSwCmdIds[i]];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
-        // use aggregate -3dB points as evaluation range
-        startFreq = Math.min(startFreq, Math.round(await getAbsLow3dBPoint(thisSubIdx)));
-        endFreq = Math.max(endFreq, Math.round(await getAbsHigh3dBPoint(thisSubIdx)));
         // set delay limits based on first IR peak delta to prioritize time alignment
         const thisSubIRPeak = await getFirstIRPeak(thisSubIdx);
         const IRPeakDelta = 1000 * (refSubIRPeak - thisSubIRPeak);
@@ -3067,9 +3061,9 @@
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
         hiDelayLimit = Math.min(Math.max(hiDelayLimit, loDelay), hiDelay);
-        console.log(`Aligning ${thisSubCmdId} to ${cmdIds} over ${startFreq}hz-${endFreq}hz...`);
+        console.log(`Aligning ${thisSubCmdId} to ${cmdIds}...`);
         const [requiredDelay, isInverted, sumIndex] = await alignMsub(currSubIdx, thisSubIdx,
-                                                                      startFreq, endFreq,
+                                                                      start, end,
                                                                       loDelayLimit, hiDelayLimit);
         currSubIdx = sumIndex;
         cmdIds += ` & ${thisSubCmdId}`;
@@ -3230,8 +3224,9 @@
       }
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
+      // slopeless integration means finding the delay that causes max cancellation
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
-      let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
+      let isInverted = false, requiredDelay = NaN, minSum = Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postAlign('Reset all');
@@ -3257,14 +3252,14 @@
           const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F1&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = tempSumArrayInv.reduce((acc, val) => acc + val, 0);
-          if (tempMagSum < tempMagSumInv) {
+          if (tempMagSum > tempMagSumInv) {
             tempMagSum = tempMagSumInv;
             tempSumInverted = true;
           }
           await postSafe("http://localhost:4735/alignment-tool/invert-b", false, "Value set");
         }
-        if (maxSum < tempMagSum) {
-          maxSum = tempMagSum;
+        if (minSum > tempMagSum) {
+          minSum = tempMagSum;
           requiredDelay = i;
           isInverted = tempSumInverted;
         }
@@ -3355,6 +3350,29 @@
           "frequency": freq,
           "shape": "BU",
           "slopedBPerOctave": 12
+        }]
+      }, "Filters set");
+      return await postNext('Generate predicted measurement', i);
+    }
+    async function genBandpassedResponse(i, lowFreq, highFreq) {
+      await postSafe(`${baseUrl}/${i}/filters`, {
+        filters: [{
+          "index": 21,
+          "type": "High pass",
+          "enabled": true,
+          "isAuto": false,
+          "frequency": lowFreq,
+          "shape": "BU",
+          "slopedBPerOctave": 12
+        },
+        {
+          "index": 22,
+          "type": "Low pass",
+          "enabled": true,
+          "isAuto": false,
+          "frequency": highFreq,
+          "shape": "L-R",
+          "slopedBPerOctave": 24
         }]
       }, "Filters set");
       return await postNext('Generate predicted measurement', i);
