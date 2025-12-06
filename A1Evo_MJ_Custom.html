@@ -3358,20 +3358,21 @@
       await postSafe(`${baseUrl}/${i}/filters`, {
         filters: [{
           "index": 21,
-          "type": "Low pass",
-          "enabled": true,
-          "isAuto": false,
-          "frequency": lowFreq,
-          "shape": "L-R",
-          "slopedBPerOctave": 24
-        },
-        { "index": 22,
           "type": "High pass",
           "enabled": true,
           "isAuto": false,
-          "frequency": highFreq,
+          "frequency": lowFreq,
           "shape": "BU",
           "slopedBPerOctave": 12
+        },
+        {
+          "index": 22,
+          "type": "Low pass",
+          "enabled": true,
+          "isAuto": false,
+          "frequency": highFreq,
+          "shape": "L-R",
+          "slopedBPerOctave": 24
         }]
       }, "Filters set");
       return await postNext('Generate predicted measurement', i);
