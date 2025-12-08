@@ -14,7 +14,7 @@ This update improves the multiple subwoofer alignment performance and stability.
 * Use entire bandpassed region for evaluating alignment
 * Increase minimum delay span to +/-10ms with higher delay headroom for SW integration
 * Bug fix: revert to using max cancellation SW integration approach instead of max sum with inverted SW
-* Update TCx to go from +5 to -5
+* Update TCx
 
 ### Update 12/5/2025 PureEQ v2.7.1 changelog -
 Due to the way high shelf works in REW, custom has to use the lowest point after 10khz as the end frequency; otherwise, REW may avoid applying a high shelf if it sees a HF peak past 10khz. The downside was always that any UHF peaks would remain. Well, no more of those after this update!
@@ -372,4 +372,5 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
