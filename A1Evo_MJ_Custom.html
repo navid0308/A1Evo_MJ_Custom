@@ -2551,19 +2551,6 @@
       }
       return Math.min(rolloff, end);
     }
-    async function getAbsHigh3dBPoint(idx, isSub=true, start=10, end=320) {
-      // finds high -3dB point from mean SPL
-      const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
-      const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
-      const rpArray = response2array(response, start, end);
-      const octave = Math.pow(2, 1/96);
-      let rolloff = end;
-      for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - idxSPL) >= -3) { break; }
-        rolloff /= octave;
-      }
-      return Math.max(rolloff, start);
-    }
     async function getAbsHigh6dBPoint(idx, isSub=true, start=10, end=320) {
       // finds high -6dB point from mean SPL
       const idxSPL = isSub ? await getSPL(idx, 30, 80) : await getSPL(idx, 500, 2000);
@@ -3041,7 +3028,7 @@
         swCmdIdsWithIRPeak[commandId[i]] = await getFirstIRPeak(mlpWithBPFIdx);
         swCmdIdsWithLPFIndices[commandId[i]] = mlpWithBPFIdx;
       }
-      measurements = await fetch_mREW(); // update with the newly LPF-ed measurements
+      measurements = await fetch_mREW(); // update with the newly bandpassed measurements
       // sort subs using first IR peak time
       const sortedSwCmdIds = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
       console.info(`Alignment order based on proximity: ${sortedSwCmdIds}`);
