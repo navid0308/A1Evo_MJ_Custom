@@ -13,6 +13,7 @@ This update primarily affects REW filtering.
 * Use SBIR region of MLP response with FDW windowing for determining speaker EQ target level
 * Revisit dynamic bass fill for settting subwoofer EQ target level
 * Bug fix: in some cases the ultra high frequency filter could produce artifacts
+* Add in more infrasonic points in the SW data that's pushed into the .ady
 
 ### Update 12/6/2025 PureEQ v2.7.2 changelog -
 This update improves the multiple subwoofer alignment performance and stability.
