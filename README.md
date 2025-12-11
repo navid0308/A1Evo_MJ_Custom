@@ -8,7 +8,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.7.3 changelog -
+### Update 12/11/2025 PureEQ v2.7.3 changelog -
 This update primarily affects REW filtering.
 * Use SBIR region of MLP response with FDW windowing for determining speaker EQ target level
 * Revisit dynamic bass fill for settting subwoofer EQ target level

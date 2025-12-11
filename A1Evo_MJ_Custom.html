@@ -2064,6 +2064,7 @@
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function getDynamicBassFillOfSub(idx, start, end) {
+      // returns bass fill based on average "dip" relative to target curve
       const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const subArray = response2array(subFreqResponse, start, end);
       const targetArray = response2array(targetResponse, start, end);
