@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.7.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.7.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2063,26 +2063,34 @@
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
-    async function updateEQTargetSettings(idx, start, end, isSub) {
-      // aggressively line up response to target curve based on weakest region of the response
-      const offsets = [0]; // ensure target level doesn't go higher than 75dB
+    async function getDynamicBassFillOfSub(idx, start, end) {
+      const subFreqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const subArray = response2array(subFreqResponse, start, end);
+      const targetArray = response2array(targetResponse, start, end);
+      const arrayLength = Math.min(subArray.length, targetArray.length);
+      let totalDips = 0;
+      for (let i = 0; i < arrayLength; i++) {
+        totalDips += Math.min(subArray[i] - targetArray[i], 0);
+      }
+      const dynamicBassFill = -1 * (totalDips / arrayLength); // use average "dip" as DBF
+      console.warn(`SW dynamic bass fill (dip compensation): ${dynamicBassFill.toFixed(2)}dB`);
+      return dynamicBassFill;
+    }
+    async function updateEQTargetSettings(mlpIdx, avgIdx, start, end, isSub) {
+      // aggressively line up response to target curve using max FDW of MLP response
+      let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
+      await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "35" }, "Update processed");
       if (isSub) {
-        offsets.push(await getSPLOffsetFromTarget(idx,                 30,                80));
-        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 20), Math.min(end, 120)));
-        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 20),          end      ));
-        offsets.push(await getSPLOffsetFromTarget(idx,          start,      Math.min(end, 120)));
-        offsets.push(await getSPLOffsetFromTarget(idx,          start,               end      ));
+        const subDynamicBassFill = await getDynamicBassFillOfSub(mlpIdx, Math.max(start, 20), Math.min(end, 120));
+        tcLevelOffset = Math.max(tcLevelOffset, subDynamicBassFill); // dip compensation
       }
       else {
-        offsets.push(await getSPLOffsetFromTarget(idx,                 500,                2000));
-        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 200), Math.min(end, 2000)));
-        offsets.push(await getSPLOffsetFromTarget(idx, Math.max(start, 200),          end       ));
-        offsets.push(await getSPLOffsetFromTarget(idx,          start,       Math.min(end, 2000)));
-        offsets.push(await getSPLOffsetFromTarget(idx,          start,                end       ));
+        const speakerSPLOffsetFDW = await getSPLOffsetFromTarget(mlpIdx, Math.max(start, 200), Math.min(end, 2000));
+        tcLevelOffset = Math.max(tcLevelOffset, speakerSPLOffsetFDW); // reverb compensation
       }
-      const tcLevelOffset = Math.max(...offsets);
-      await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
-      await postSafe(`${baseUrl}/${idx}/target-settings`, {
+      await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "false" }, "Update processed");
+      await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
+      await postSafe(`${baseUrl}/${avgIdx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
         lowFreqCutoffHz: (isSub && start === 10) ? 0 : start,
         lowFreqSlopedBPerOctave: 48, // steep slope to EQ without effect and keep REW happy
@@ -2353,7 +2361,7 @@
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
         // line up response to target aggressively and set target type
-        await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        await updateEQTargetSettings(mlpIdx, avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
         // plug in boost parameters
         if (isSub) {
           await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
