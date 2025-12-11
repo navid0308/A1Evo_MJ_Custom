@@ -3412,17 +3412,18 @@
         }
       });
     }
-    async function getFilterPoints(fltIdx, useAntiHF=false) {
-      // preps the filter as a frequency response array from 10hz-22khz
+    async function getFilterPoints(fltIdx, isSub=false) {
+      // preps the filter as a frequency response array
       // note: anti-HF roll-off is 10hz-24khz @ 96ppo; do not change ranges or ppo!
       const fltPoints = [];
+      const startFreq = isSub ? 5 : 10; // allow lower frequency points for subwoofers
+      const endFreq = isSub ? 500 : 22000; // UHF filter reduces responses to just below 24khz
       const octave = Math.pow(2, 1 / 96);
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', fltIdx);
-      // UHF filter reduces response to just below 24khz, so limit filters to 22khz
-      const fltArray = response2array(fltResponse, 10, 22000);
-      let freq = 10;
+      const fltArray = response2array(fltResponse, startFreq, endFreq);
+      let freq = startFreq;
       for (let k = 0; k < fltArray.length; k++) {
-        const splValue = fltArray[k] + (useAntiHF ? antiHFRolloff[k] : 0);
+        const splValue = fltArray[k] + (isSub ? 0 : antiHFRolloff[k]);
         fltPoints.push([freq, splValue]);
         freq *= octave;
       }
@@ -3468,7 +3469,7 @@
       // inject filters/TC into ady
       for (let i = 1; i <= nSpeakers; i++) {
         const fltIdx = cmdIdFilterIndices[commandId[i]];
-        const customTargetCurvePoints = await getFilterPoints(fltIdx, true);
+        const customTargetCurvePoints = await getFilterPoints(fltIdx);
         const thisChannel = jsonData.detectedChannels.find(channel => channel.commandId === commandId[i]);
         thisChannel.customTargetCurvePoints = customTargetCurvePoints;
         thisChannel.midrangeCompensation = false;
@@ -3481,7 +3482,7 @@
       }
       if (!noSub) {
         const fltIdxSub = cmdIdFilterIndices[commandId[nChannels]];
-        const customTargetCurvePointsSub = await getFilterPoints(fltIdxSub);
+        const customTargetCurvePointsSub = await getFilterPoints(fltIdxSub, true);
         const subChannel = jsonData.detectedChannels[nChannels - 1];
         subChannel.customTargetCurvePoints = customTargetCurvePointsSub;
         let k = 0;
