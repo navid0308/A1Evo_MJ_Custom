@@ -8,6 +8,10 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 12/21/2025 PureEQ v2.7.4 changelog -
+This update applies to both Audyssey and REW filtering.
+* Switch back to using 1/1 smoothing for SPL determination - this smoothing has the highest agreement with Audyssey's auto-leveling and also what the SPL meter would register using pink noise
+
 ### Update 12/11/2025 PureEQ v2.7.3 changelog -
 This update primarily affects REW filtering.
 * Use SBIR region of MLP response with FDW windowing for determining speaker EQ target level
