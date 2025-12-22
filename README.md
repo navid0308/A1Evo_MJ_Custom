@@ -8,6 +8,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 12/22/2025 PureEQ v2.7.5 changelog -
+This update is applicable to both Audyssey and REW filtering. I liked how everything sounded with Psy smoothing for the various SPL calculations, but auto-leveling seems to have the highest correlation with 1/1 smoothing. So, I ended up using both where they excel.
+* Revert back to Psy smoothing for all SPL related calculations except auto-leveling
+* Use 1/1 smoothing ONLY for auto-level offset calculations - this seems to be the closest approximation to what auto-leveling does
+
 ### Update 12/21/2025 PureEQ v2.7.4 changelog -
 This update applies to both Audyssey and REW filtering.
 * Switch back to using 1/1 smoothing for SPL determination - this smoothing has the highest agreement with Audyssey's auto-leveling and also what the SPL meter would register using pink noise
