@@ -2109,6 +2109,7 @@
       }, "Update processed");
     }
     async function getALOffset(idx, isSub) {
+      // note: 1/1 best matches auto-leveling, do not change unless new data suggests otherwise
       const offset = isSub ? await getSPL(idx, 30, 80, "1%2F1") : await getSPL(idx, 500, 2000, "1%2F1");
       return offset;
     }
