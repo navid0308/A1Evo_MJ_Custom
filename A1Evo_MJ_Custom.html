@@ -3231,6 +3231,7 @@
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       // slopeless integration means finding the delay that causes max cancellation
+      // note: using 1/1 smoothing for evaluating adds priority for wider cancellations (which is good)
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
@@ -3274,6 +3275,7 @@
       return [requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
+      // note: using 1/1 smoothing for evaluating adds priority for wider summations (which is good)
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, maxSum = -Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
