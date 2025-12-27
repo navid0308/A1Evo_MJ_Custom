@@ -8,6 +8,14 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v2.8.0 changelog -
+Always fun to learn new things - turns out you cannot simply average dB values like regular numbers! It has to be converted to linear power, averaged and then converted back to decibels. So, this update will have fundamental changes to SPL determination/handling and will be applicable for everyone.
+* Use the correct mathmatical formula for averaging dB values to determine SPL accurately
+* Adjust smoothing across various places to optimize different workflows, including auto-leveling
+* Crossover determination is now based on reduction of the average "dip" in the evaluation range
+* Rename and reorganize a bunch of functions for easier understanding
+* Reduce minimum delay range span to better focus on time alignment
+
 ### Update 12/22/2025 PureEQ v2.7.5 changelog -
 This update is applicable to both Audyssey and REW filtering. I liked how everything sounded with Psy smoothing for the various SPL calculations, but auto-leveling seems to have the highest correlation with 1/1 smoothing. So, I ended up using both where they excel.
 * Revert back to Psy smoothing for all SPL related calculations except auto-leveling
