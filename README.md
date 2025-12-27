@@ -15,6 +15,7 @@ Always fun to learn new things - turns out you cannot simply average dB values l
 * Crossover determination is now based on reduction of the average "dip" in the evaluation range
 * Rename and reorganize a bunch of functions for easier understanding
 * Reduce minimum delay range span to better focus on time alignment
+* Improve subwoofer leveling for bandwidth-limited subwoofers
 
 ### Update 12/22/2025 PureEQ v2.7.5 changelog -
 This update is applicable to both Audyssey and REW filtering. I liked how everything sounded with Psy smoothing for the various SPL calculations, but auto-leveling seems to have the highest correlation with 1/1 smoothing. So, I ended up using both where they excel.
