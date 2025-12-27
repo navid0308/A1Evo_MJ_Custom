@@ -3023,26 +3023,26 @@
       console.warn("Converting from directional to standard bass for a better sound experience...");
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds, bandpassed response & first IR peak times
+      // isolate SW commandIds, bandpassed responses & first IR peak times
       const swCmdIdsWithIRPeak = {};
-      const swCmdIdsWithLPFIndices = {};
+      const swCmdIdsWithBPFIndices = {};
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         const mlpIdx = cmdIdIndices[commandId[i]][0];
         const mlpWithBPF = await genBandpassedResponse(mlpIdx, start, end); // cleanup LF noise and irrelevant HF
         const mlpWithBPFIdx = Object.keys(mlpWithBPF.results)[0];
         await fetch_mREW(mlpWithBPFIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
         swCmdIdsWithIRPeak[commandId[i]] = await getFirstIRPeak(mlpWithBPFIdx);
-        swCmdIdsWithLPFIndices[commandId[i]] = mlpWithBPFIdx;
+        swCmdIdsWithBPFIndices[commandId[i]] = mlpWithBPFIdx;
       }
       measurements = await fetch_mREW(); // update with the newly bandpassed measurements
       // sort subs using first IR peak time
       const sortedSwCmdIds = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
       console.info(`Alignment order based on proximity: ${sortedSwCmdIds}`);
-      let currSubIdx = swCmdIdsWithLPFIndices[sortedSwCmdIds[0]];
+      let currSubIdx = swCmdIdsWithBPFIndices[sortedSwCmdIds[0]];
       let cmdIds = measurements[currSubIdx].title.slice(0, -1);
       const refSubIRPeak = await getFirstIRPeak(currSubIdx);
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
-        const thisSubIdx = swCmdIdsWithLPFIndices[sortedSwCmdIds[i]];
+        const thisSubIdx = swCmdIdsWithBPFIndices[sortedSwCmdIds[i]];
         const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
         // set delay limits based on first IR peak delta to prioritize time alignment
