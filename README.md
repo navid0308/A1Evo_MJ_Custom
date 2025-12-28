@@ -8,7 +8,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.8.0 changelog -
+### Update 12/27/2025 PureEQ v2.8.0 changelog -
 Always fun to learn new things - turns out you cannot simply average dB values like regular numbers! It has to be converted to linear power, averaged and then converted back to decibels. So, this update will have fundamental changes to SPL determination/handling and will be applicable for everyone.
 * Use the correct mathmatical formula for averaging dB values to determine SPL accurately
 * Adjust smoothing across various places to optimize different workflows, including auto-leveling
