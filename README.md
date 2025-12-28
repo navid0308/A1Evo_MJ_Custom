@@ -10,7 +10,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ## Changelogs
 ### Update 12/27/2025 PureEQ v2.8.0 changelog -
 Always fun to learn new things - turns out you cannot simply average dB values like regular numbers! It has to be converted to linear power, averaged and then converted back to decibels. So, this update will have fundamental changes to SPL determination/handling and will be applicable for everyone.
-* Use the correct mathmatical formula for averaging dB values to determine SPL accurately
+* Use the correct mathematical formula for averaging dB values to determine SPL accurately
 * Adjust smoothing across various places to optimize different workflows, including auto-leveling
 * Crossover determination is now based on reduction of the average "dip" in the evaluation range
 * Rename and reorganize a bunch of functions for easier understanding
@@ -398,5 +398,6 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
