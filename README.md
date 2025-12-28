@@ -14,6 +14,7 @@ Always fun to learn new things - turns out you cannot simply average dB values l
 * Adjust smoothing across various places to optimize different workflows, including auto-leveling
 * Crossover determination is now based on reduction of the average "dip" in the evaluation range
 * Rename and reorganize a bunch of functions for easier understanding
+* Switch logic to invert & optimize for maximum cancellation when aligning multiple subwoofers
 * Reduce minimum delay range span to better focus on time alignment
 * Improve subwoofer leveling for bandwidth-limited subwoofers
 

@@ -3246,6 +3246,7 @@
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       // slopeless integration means finding the delay that causes maximum cancellation
+      // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
@@ -3293,7 +3294,7 @@
     }
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
       // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
-      // note: using Psy smoothing + linear power conversion ensures widest possible cancellation
+      // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
       await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
@@ -3339,7 +3340,7 @@
       // restore original gain so aligned sum is correct
       await postSafe("http://localhost:4735/alignment-tool/gain-a", 0, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", 0, "Value set");
-      // apply optimal delay and polarity
+      // apply optimal delay/polarity and generate aligned sum
       await postSafe("http://localhost:4735/alignment-tool/delay-b", requiredDelay, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/invert-b", isInverted, "Value set");
       const alignedSum = await postAlign('Aligned sum');
