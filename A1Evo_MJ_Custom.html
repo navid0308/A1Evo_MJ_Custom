@@ -525,7 +525,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -3023,31 +3023,37 @@
       console.warn("Converting from directional to standard bass for a better sound experience...");
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds, bandpassed responses & first IR peak times
-      const swCmdIdsWithIRPeak = {};
-      const swCmdIdsWithBPFIndices = {};
+      // isolate SW commandIds, excess phase responses & first IR peak times based on bandpassed responses
+      const swCmdIdsWithFirstIRPeak = {};
+      const swCmdIdsWithEPResponseIndices = {};
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         const mlpIdx = cmdIdIndices[commandId[i]][0];
+        // generate excess phase response and use it for alignment
+        const mlpEPResponse = await genExcessPhaseResponse(mlpIdx);
+        const mlpEPResponseIdx = Object.keys(mlpEPResponse.results)[0];
+        swCmdIdsWithEPResponseIndices[commandId[i]] = mlpEPResponseIdx;
+        await fetch_mREW(mlpEPResponseIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
+        // use bandpassed measurement to determine first peak for establishing proximity based delay range
         const mlpWithBPF = await genBandpassedResponse(mlpIdx, start, end); // cleanup LF noise and irrelevant HF
         const mlpWithBPFIdx = Object.keys(mlpWithBPF.results)[0];
-        await fetch_mREW(mlpWithBPFIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
-        swCmdIdsWithIRPeak[commandId[i]] = await getFirstIRPeak(mlpWithBPFIdx);
-        swCmdIdsWithBPFIndices[commandId[i]] = mlpWithBPFIdx;
+        swCmdIdsWithFirstIRPeak[commandId[i]] = await getFirstIRPeak(mlpWithBPFIdx);
+        await postDelete(mlpWithBPFIdx);
       }
-      measurements = await fetch_mREW(); // update with the newly bandpassed measurements
-      // sort subs using first IR peak time
-      const sortedSwCmdIds = Object.entries(swCmdIdsWithIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
+      measurements = await fetch_mREW(); // update with the new measurements
+      // sort subwoofers using first IR peak times
+      const sortedSwCmdIds = Object.entries(swCmdIdsWithFirstIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
       console.info(`Alignment order based on proximity: ${sortedSwCmdIds}`);
-      let currSubIdx = swCmdIdsWithBPFIndices[sortedSwCmdIds[0]];
-      let cmdIds = measurements[currSubIdx].title.slice(0, -1);
-      const refSubIRPeak = await getFirstIRPeak(currSubIdx);
+      // index 0 is closest subwoofer and it is treated as the reference
+      let cmdIds = sortedSwCmdIds[0]; // holds the aggregate commandIds as subwoofers are combined
+      let currSubIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[0]]; // holds aggregate EP response
+      const refSubFirstIRPeak = swCmdIdsWithFirstIRPeak[sortedSwCmdIds[0]]; // closest subwoofer
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
-        const thisSubIdx = swCmdIdsWithBPFIndices[sortedSwCmdIds[i]];
-        const thisSubCmdId = measurements[thisSubIdx].title.slice(0, -1);
-        const thisSubNumber = parseInt(thisSubCmdId.slice(-1));
+        const thisSubCmdId = sortedSwCmdIds[i];
+        const thisSubNumber = parseInt(thisSubCmdId.slice(-1)); // used for delay limit calculations
+        const thisSubIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[i]];
+        const thisSubFirstIRPeak = swCmdIdsWithFirstIRPeak[sortedSwCmdIds[i]];
         // set delay limits based on first IR peak delta to prioritize time alignment
-        const thisSubIRPeak = await getFirstIRPeak(thisSubIdx);
-        const IRPeakDelta = 1000 * (refSubIRPeak - thisSubIRPeak);
+        const IRPeakDelta = 1000 * (refSubFirstIRPeak - thisSubFirstIRPeak);
         let loDelayLimit = IRPeakDelta - minDelayRangeSpan;
         let hiDelayLimit = IRPeakDelta + minDelayRangeSpan;
         // sanity check that delay range is within HW limits
@@ -3295,6 +3301,7 @@
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
       // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
       // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
+      // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
       await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
@@ -3305,8 +3312,8 @@
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set"); // prevents messing with delays
       // make sure level differences do not affect alignment
-      const gainA = await getExactTrim(ind1, 30, 80);
-      const gainB = await getExactTrim(ind2, 30, 80);
+      const gainA = -1 * await getAvgSPL(ind1, 30, 80);
+      const gainB = -1 * await getAvgSPL(ind2, 30, 80);
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
@@ -3406,6 +3413,15 @@
         }]
       }, "Filters set");
       return await postNext('Generate predicted measurement', i);
+    }
+    async function genExcessPhaseResponse(idx) {
+      return await postNext('Excess phase version', idx, {
+        "include cal": false,
+        "append lf tail": false,
+        "append hf tail": false,
+        "frequency warping": false,
+        "replicate data": false
+      });
     }
     function sanityCheckSB(detectedChannels) {
       // odd.wtf can assign enChannelType 9 for SBL but type 9 is mono SB; type 10 is for SBL left channel
