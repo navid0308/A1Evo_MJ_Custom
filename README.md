@@ -8,7 +8,8 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.8.1 changelog -
+### Update 12/29/2025 PureEQ v2.8.1 changelog -
+This change affects anyone using a directional .ady from the MultEQ app or odd.wtf
 * Use excess phase responses to align multiple subwoofers - this seems to do a better job of aligning in cases where the SPL response does not do a good job of reflecting phase coherence
 
 ### Update 12/27/2025 PureEQ v2.8.0 changelog -
