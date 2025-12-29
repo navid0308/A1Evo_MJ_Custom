@@ -3023,21 +3023,20 @@
       console.warn("Converting from directional to standard bass for a better sound experience...");
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds, excess phase responses & first IR peak times based on bandpassed responses
+      // isolate SW commandIds, excess phase responses & first IR peak times (based on bandpassed responses)
       const swCmdIdsWithFirstIRPeak = {};
       const swCmdIdsWithEPResponseIndices = {};
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         const mlpIdx = cmdIdIndices[commandId[i]][0];
-        // generate excess phase response and use it for alignment
-        const mlpEPResponse = await genExcessPhaseResponse(mlpIdx);
-        const mlpEPResponseIdx = Object.keys(mlpEPResponse.results)[0];
-        swCmdIdsWithEPResponseIndices[commandId[i]] = mlpEPResponseIdx;
-        await fetch_mREW(mlpEPResponseIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
         // use bandpassed measurement to determine first peak for establishing proximity based delay range
         const mlpWithBPF = await genBandpassedResponse(mlpIdx, start, end); // cleanup LF noise and irrelevant HF
         const mlpWithBPFIdx = Object.keys(mlpWithBPF.results)[0];
         swCmdIdsWithFirstIRPeak[commandId[i]] = await getFirstIRPeak(mlpWithBPFIdx);
-        await postDelete(mlpWithBPFIdx);
+        // generate excess phase response from the bandpassed measurement and use it for alignment
+        const mlpEPResponse = await genExcessPhaseResponse(mlpWithBPFIdx);
+        const mlpEPResponseIdx = Object.keys(mlpEPResponse.results)[0];
+        swCmdIdsWithEPResponseIndices[commandId[i]] = mlpEPResponseIdx;
+        await fetch_mREW(mlpEPResponseIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
       }
       measurements = await fetch_mREW(); // update with the new measurements
       // sort subwoofers using first IR peak times
@@ -3069,7 +3068,7 @@
         mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
         invertSub[nSpeakers + thisSubNumber] = isInverted;
       }
-      // cleanup LPF mlp measurements and all potential alignments
+      // cleanup all temp measurements
       for (let i = currSubIdx; i > mCount; i--) { // make sure mCount isn't updated between start of function and here
         await postDelete(i);
       }
