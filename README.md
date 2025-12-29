@@ -11,6 +11,8 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ### Update 12/29/2025 PureEQ v2.8.1 changelog -
 This change affects anyone using a directional .ady from the MultEQ app or odd.wtf
 * Use excess phase responses to align multiple subwoofers - this seems to do a better job of aligning in cases where the SPL response does not do a good job of reflecting phase coherence
+* Evaluation range when aligning multiple subwoofers will now be based on their aggregate bandwidth
+* First IR peak calculation will now first bandpass the measurement to get rid of infrasonic or HF noise that can mask group delay
 
 ### Update 12/27/2025 PureEQ v2.8.0 changelog -
 Always fun to learn new things - turns out you cannot simply average dB values like regular numbers! It has to be converted to linear power, averaged and then converted back to decibels. So, this update will have fundamental changes to SPL determination/handling and will be applicable for everyone.
