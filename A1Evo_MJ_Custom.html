@@ -3038,7 +3038,6 @@
         swCmdIdsWithEPResponseIndices[commandId[i]] = mlpEPResponseIdx;
         await fetch_mREW(mlpEPResponseIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
       }
-      measurements = await fetch_mREW(); // update with the new measurements
       // sort subwoofers using first IR peak times
       const sortedSwCmdIds = Object.entries(swCmdIdsWithFirstIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
       console.info(`Alignment order based on proximity: ${sortedSwCmdIds}`);
