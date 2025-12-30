@@ -174,7 +174,6 @@
       margin-top: 10px;
       border-top: 1px solid #ccc;
       padding-top: 10px;
-      font-size: 0.9em;
       display: flex;
       flex-direction: column;
       transition: all 0.3s ease;
@@ -185,6 +184,7 @@
     .customization-options label {
       margin-right: 10px;
       margin-bottom: 5px;
+      font-size: 0.95em;
       display: flex;
       align-items: center;
     }
@@ -447,7 +447,8 @@
       border: 1px solid #444;
       border-radius: 8px;
       background-color: #1f1f1f;
-      margin: 20px 0;
+      margin-top: 10px;
+      margin-bottom: 20px;
       padding: 6px 10px;
       font-family: 'Segoe UI', sans-serif;
       transition: padding 0.3s ease, box-shadow 0.3s ease;
@@ -525,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -551,24 +552,8 @@
     <li class="smaller-font">Keep REW at "SPL & Phase" tab and close all REW child windows during the optimization process for a robust experience</li>
     <li class="smaller-font">When all is set, click the 'Optimize calibration' button below and sit back and relax. Your home cinema will be 'transformed' within minutes!</li>
   </ol>
-
   <div class="customization-options">
     <small>
-      <label>
-        <input type="checkbox" id="dialogueEnhancer" onchange="updateCheckboxStates()">
-        Dialogue enhancer
-        <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
-      </label>
-      <label>
-        <input type="checkbox" id="audysseyFiltering" onchange="updateCheckboxStates()">
-        Use Audyssey Filtering
-        <span class="explanation">Preserves measurements in the .ady file and lets Audyssey handle the equalization. Not compatible with manual measurements.</span>
-      </label>
-      <label>
-        <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
-        Avoid subwoofer polarity inversion
-        <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
-      </label>
       <div class="advanced-container" id="advancedContainer">
         <div class="toggle-advance">
           <span id="advancedToggleText" onclick="advancedSettingsToggle()">
@@ -576,6 +561,29 @@
           </span>
         </div>
       <div class="advanced-content" id="advancedContent">
+      <div class="section">
+      <h3 style="color:#FFA500; font-size: 14px;">User Customizations</h3>
+        <label>
+          <input type="checkbox" id="dialogueEnhancer" onchange="updateCheckboxStates()">
+          Dialogue enhancer
+          <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
+        </label>
+        <label>
+          <input type="checkbox" id="audysseyFiltering" onchange="updateCheckboxStates()">
+          Use Audyssey Filtering
+          <span class="explanation">Preserves measurements in the .ady file and lets Audyssey handle the equalization. Not compatible with manual measurements.</span>
+        </label>
+        <label>
+          <input type="checkbox" id="alignToLCR" onchange="updateCheckboxStates()">
+          Align subwoofer to LCR speakers
+          <span class="explanation">Forces subwoofer alignment using LCR speakers exclusively. By default subwoofer is aligned using ALL speakers.</span>
+        </label>
+        <label>
+          <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
+          Avoid subwoofer polarity inversion
+          <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
+        </label>
+      </div>
       <!-- Speaker Section -->
       <div class="section">
       <h3 style="color:#FFA500; font-size: 14px;">Speaker Filter Boost (REW Filtering)</h3>
@@ -727,7 +735,7 @@
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter, isStarted = false;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
     let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, useAudyFiltering = false;
-    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
+    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false, alignToLCR = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 6;
@@ -735,6 +743,7 @@
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
     const combinedSubIRs4AF = [];
+    let thisInstanceTimestamp;
     let speakerIndividualMaxBoost, speakerOverallMaxBoost, speakerHighShelfMin, speakerHighShelfMax;
     let subwooferIndividualMaxBoost, subwooferOverallMaxBoost, subwooferLowShelfMin, subwooferLowShelfMax;
     // TODO: store the user inputs in variables instead of querying it from the document
@@ -1304,6 +1313,8 @@
     }
     function extractAdy(event) {
       console.info("Initializing A1Evo MJ Custom...");
+      thisInstanceTimestamp = getCurrentTimestamp();
+      Object.freeze(thisInstanceTimestamp); // use as a unique identifier for each run
       const file = event.target.files[0];
       fileName = file.name;
       console.info(`Audyssey calibration '${fileName}' has been uploaded!`)
@@ -1429,12 +1440,12 @@
           if (mCount > 0) {
             isAudy = await checkIfAudyMeasurement();
           }
+          updateCheckboxStates(); // enable/disable checkboxes as needed
           if(isCirrusLogic && isAudy) (mCount--);
           if (mCount === totalMeasurements && isAudy) {
             document.getElementById("button2").disabled = false;
             console.infoUpdate(`All ${isCirrusLogic ? mCount + 1 : mCount} measurements have now been successfully imported!`);
             Object.freeze(isAudy);
-            updateCheckboxStates();
             clearInterval(intervalId);
           }
           else if (mCount > 0 && !isAudy) {
@@ -1443,7 +1454,6 @@
               + (isCirrusLogic ? "and ignoring Audy mic cal " : "")
               + "- manual measurements detected!");
             Object.freeze(isAudy);
-            updateCheckboxStates();
             clearInterval(intervalId);
           }
           else {
@@ -1552,12 +1562,15 @@
         document.getElementById('dialogueEnhancer').checked = false;
         document.getElementById('dialogueEnhancer').disabled = true;
       }
-      if (noSub) { // if no subwoofer, disable avoid subwoofer polarity inversion option
+      if (noSub) { // if no subwoofer, disable subwoofer options
+        document.getElementById('alignToLCR').checked = false;
+        document.getElementById('alignToLCR').disabled = true;
         document.getElementById('noInversion').checked = false;
         document.getElementById('noInversion').disabled = true;
       }
       useAudyFiltering = document.getElementById('audysseyFiltering').checked;
       dialogueEnhancer = document.getElementById('dialogueEnhancer').checked;
+      alignToLCR = document.getElementById('alignToLCR').checked;
       noInversion = document.getElementById('noInversion').checked;
       if (useAudyFiltering) { lockSliders(); }
       else { unlockSliders(); }
@@ -1568,6 +1581,8 @@
       Object.freeze(useAudyFiltering);
       document.getElementById('dialogueEnhancer').disabled = true;
       Object.freeze(dialogueEnhancer);
+      document.getElementById('alignToLCR').disabled = true;
+      Object.freeze(alignToLCR);
       document.getElementById('noInversion').disabled = true;
       Object.freeze(noInversion);
       // lock advanced settings
@@ -1704,6 +1719,7 @@
       }
       if (!noSub) {
         console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
+        console.log(`  Subwoofer will be aligned using ${alignToLCR ? "LCR" : "ALL"} speakers.`);
       }
       if (useAudyFiltering) {
         console.warn(`  ***Audyssey Filtering Enabled***`);
@@ -2668,9 +2684,10 @@
       }
     }
     async function optimizeSubDelay() {
-      console.log("Optimizing subwoofer delay for ALL speakers...");
+      console.log(`Optimizing subwoofer delay for ${alignToLCR ? "LCR" : "ALL"} speakers...`);
       const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
+        if (alignToLCR && !["C", "FL", "FR"].includes(commandId[i])) { continue; } // skip for non-LCR if alignToLCR is true
         mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
       // prepare "average" speaker
@@ -3231,9 +3248,7 @@
     }
     async function getSubTrim(idx) {
       // calculates trim where average SPL across 30hz-80hz matches target
-      const startFreq = await getAbsLow3dBPoint(idx, true, 30, 80); // sanity check for
-      const endFreq = await getAbsHigh6dBPoint(idx, true, 30, 80); // limited bandwidth SW
-      const subSPLOffset = await getExactTrim(idx, startFreq, endFreq);
+      const subSPLOffset = await getExactTrim(idx, 30, 80);
       const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
       return subTrim;
     }
@@ -3578,10 +3593,11 @@
       }
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
       const adyNameMJC = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
-                                  + (dialogueEnhancer ? "DE_" : "")
-                                  + swInvMsg + `${tcName}_`
-                                  + `MJC${getCurrentVersion()}`
-                                  + `_${getCurrentTimestamp()}.ady`);
+                                + (dialogueEnhancer ? "DE_" : "")
+                                + (alignToLCR ? "LCR_" : "")
+                                + swInvMsg + `${tcName}_`
+                                + `MJC${getCurrentVersion()}`
+                                + `_${getCurrentTimestamp()}.ady`);
       console.log(`Please save the following optimized .ady file when prompted-\n\n\t'${adyNameMJC}'\n\n`);
       const ady = JSON.stringify(jsonData);
       const blob = new Blob([ady], { type: 'application/json' });
@@ -3595,6 +3611,7 @@
       document.body.removeChild(downloadLink);
     }
     function getCurrentTimestamp() {
+      if (thisInstanceTimestamp) { return thisInstanceTimestamp; } // use this to uniquely identify runs
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');

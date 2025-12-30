@@ -8,6 +8,12 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 12/30/2025 PureEQ v2.8.2 changelog -
+* Revert back to the tried and true 30-80hz range for subwoofer level matching
+* Move the user customizations under advanced settings for a cleaner look
+* *New option to align subwoofer to LCR speakers exclusively - this should be marginally better if your focus is primarily stereo content
+* Upon uploading the .ady file, the current timestamp will be saved internally and used as the unique identifier for logs/.ady/filters from that particular run
+
 ### Update 12/29/2025 PureEQ v2.8.1 changelog -
 This change affects anyone using a directional .ady from the MultEQ app or odd.wtf
 * Use excess phase responses to align multiple subwoofers - this seems to do a better job of aligning in cases where the SPL response does not do a good job of reflecting phase coherence
