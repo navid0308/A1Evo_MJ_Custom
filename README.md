@@ -13,6 +13,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 * Move the user customizations under advanced settings for a cleaner look
 * *New option to align subwoofer to LCR speakers exclusively - this should be marginally better if your focus is primarily stereo content
 * Upon uploading the .ady file, the current timestamp will be saved internally and used as the unique identifier for logs/.ady/filters from that particular run
+* Add countdown when cleaning up processed measurements
 
 ### Update 12/29/2025 PureEQ v2.8.1 changelog -
 This change affects anyone using a directional .ady from the MultEQ app or odd.wtf
@@ -410,6 +411,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
