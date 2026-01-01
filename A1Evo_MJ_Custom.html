@@ -2612,7 +2612,7 @@
       return Math.min(rolloff, end);
     }
     async function calculateSpeakerRolloffs() {
-      console.log("Calculating speaker -3dB points...");
+      console.log("Calculating speaker roll-offs...");
       for (let i = 1; i <= nSpeakers; i++) {
         const spIdx = cmdIdAVGIndices[commandId[i]];
         // check if single channel or speaker pair
