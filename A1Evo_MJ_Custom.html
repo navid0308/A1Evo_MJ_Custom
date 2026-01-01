@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.3</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.4</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1719,7 +1719,7 @@
       }
       if (!noSub) {
         console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
-        console.log(`  Subwoofer will be aligned using ${alignToLCR ? "LCR" : "ALL"} speakers.`);
+        console.log(`  Subwoofer will be aligned using *${alignToLCR ? "LCR" : "ALL"}* speakers.`);
       }
       if (useAudyFiltering) {
         console.warn(`  ***Audyssey Filtering Enabled***`);
@@ -2815,53 +2815,43 @@
       console.log("Finalizing crossover frequencies...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
+      // use min <-> max XO plus an octave on either side to set evaluation range
+      const startFreq = minXO / 2;
+      const endFreq = maxXO * 2;
       for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         const initialXO = customCrossover[i];
-        let bestXO = initialXO, minAvgDip = Infinity;
+        // prepare speaker pair if it's not a single channel
+        let mlpSPIdx = cmdIdMLPIndices[commandId[i]];
+        if (!singleChannel) {
+          const mlpSPIdxR = cmdIdMLPIndices[commandId[i + 1]];
+          const pairSPAvg = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
+          mlpSPIdx = Object.keys(pairSPAvg.results)[0];
+        }
+        let bestXO = initialXO, minAvgDip = Infinity; // initialize
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           const checkXO = freqIndex[j];
           // don't look at XO below speaker initialXO, above 2x initialXO or outside sub bandwidth
           if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 2, maxXO)) { continue; }
-          // use an octave on either side of checkXO to set evaluation range
-          const startFreq = checkXO / 2;
-          const endFreq = checkXO * 2;
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
-          let mlpSPWithHPFIdx;
-          const mlpSPIdx = cmdIdMLPIndices[commandId[i]];
-          if (singleChannel) {
-            const spWithHPF = await genSpeaker(mlpSPIdx, checkXO);
-            mlpSPWithHPFIdx = Object.keys(spWithHPF.results)[0];
-          }
-          else {
-            const mlpSPIdxR = cmdIdMLPIndices[commandId[i + 1]];
-            const pairSPAvg = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
-            const pairSPAvgIdx = Object.keys(pairSPAvg.results)[0];
-            await genSpeaker(pairSPAvgIdx, checkXO); // generates to pairSPAvgIdx + 1
-            await postDelete(pairSPAvgIdx);
-            mlpSPWithHPFIdx = pairSPAvgIdx; // pair avg with HPF now has same idx as pair sp avg idx
-          }
-          const mlpSWWithLPF = await genSub(mlpSWIdx, checkXO);
-          const mlpSWWithLPFIdx = Object.keys(mlpSWWithLPF.results)[0];
-          const mlpXOResult = await postNext('Arithmetic', [mlpSPWithHPFIdx, mlpSWWithLPFIdx], { function: "A + B" }); // response using checkXO
-          const mlpXOResultIdx = Object.keys(mlpXOResult.results)[0];
+          const mlpXOResultIdx = await addSub2Speaker(mlpSPIdx, mlpSWIdx, checkXO); // response using checkXO
           // pick XO with least dips
           const checkXOAvgDip = await getAvgDip(mlpXOResultIdx, startFreq, endFreq);
-          if (checkXOAvgDip < minAvgDip) {
-            minAvgDip = checkXOAvgDip - 0.1; // only go up in XO if dip throughout XO region is reduced by more than 0.1dB
+          if (minAvgDip > checkXOAvgDip) {
+            // progressively require higher improvements for higher XO
+            // e.g. 0.04dB improvement needed to go up from 40hz but 0.12dB improvement needed to go up from 120hz
+            minAvgDip = checkXOAvgDip - checkXO / 1000;
             bestXO = checkXO;
           }
-          // delete in reverse order of creation
-          await postDelete(mlpXOResultIdx);
-          await postDelete(mlpSWWithLPFIdx);
-          await postDelete(mlpSPWithHPFIdx);
+          await postDelete(mlpXOResultIdx); // cleanup checkXO response
         }
         customCrossover[i] = bestXO;
         if (!singleChannel) {
+          await postDelete(mlpSPIdx); // cleanup channel pair average
           customCrossover[i + 1] = bestXO;
           i++;
         }
@@ -2873,10 +2863,10 @@
       const spWithHPFIdx = Object.keys(spWithHPF.results)[0];
       const subWithLPF = await genSub(swIdx, xo);
       const subWithLPFIdx = Object.keys(subWithLPF.results)[0];
-      const finalResponse = await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
+      await postNext('Arithmetic', [spWithHPFIdx, subWithLPFIdx], { function: "A + B" });
       await postDelete(subWithLPFIdx);
-      await postDelete(spWithHPFIdx);
-      return finalResponse;
+      await postDelete(spWithHPFIdx); // final response now at spWithHPFIdx
+      return spWithHPFIdx;
     }
     async function drawResults() {
       console.log("Generating expected final outputs for each channel...");
