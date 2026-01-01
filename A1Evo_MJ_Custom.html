@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2081,9 +2081,9 @@
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function updateEQTargetSettings(mlpIdx, avgIdx, start, end, isSub) {
-      // aggressively line up response to target curve using max FDW of MLP response
+      // aggressively line up response to target curve using FDW of MLP response
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
-      await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "35" }, "Update processed");
+      await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
       if (isSub) {
         const subDynamicBassFill = await getAvgDip(mlpIdx, Math.max(start, 20), Math.min(end, 120));
         tcLevelOffset = Math.max(tcLevelOffset, subDynamicBassFill); // dip compensation
@@ -2655,7 +2655,7 @@
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
-      minXO = findNearestXO(1.5 * subLowFreq); // give subwoofer half an octave to ramp up
+      minXO = findNearestXO(2 * subLowFreq); // give subwoofer an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
       const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
       maxXO = findNearestXO(subHighFreq); // set max XO closest to subwoofer HF roll-off
@@ -2699,9 +2699,9 @@
       const mCount = Object.keys(measurements).length;
       await genSub(cmdIdMLPIndices[commandId[nChannels]]); // make a copy
       const subwooferIdx = mCount + 1;
-      // use min <-> max XO plus half an octave on either side to set evaluation range
-      const startFreq = minXO / 1.5;
-      const endFreq = maxXO * 1.5;
+      // use min <-> max XO plus an octave on either side to set evaluation range
+      const startFreq = minXO / 2;
+      const endFreq = maxXO * 2;
       // set delay limits based on first IR peak delta to prioritize time alignment
       const subwooferIRPeak = await getFirstIRPeak(subwooferIdx); // first IR peak
       const IRPeakDelta = -1000 * subwooferIRPeak; // speakers are at t=0 by now
@@ -2815,9 +2815,6 @@
       console.log("Finalizing crossover frequencies...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
-      // use min <-> max XO plus half an octave on either side to set evaluation range
-      const startFreq = minXO / 1.5;
-      const endFreq = maxXO * 1.5;
       for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
@@ -2827,8 +2824,11 @@
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           const checkXO = freqIndex[j];
-          // don't look at XO below speaker initialXO, above 1.5x initialXO or outside sub bandwidth
-          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 1.5, maxXO)) { continue; }
+          // don't look at XO below speaker initialXO, above 2x initialXO or outside sub bandwidth
+          if (checkXO < Math.max(initialXO, minXO) || checkXO > Math.min(initialXO * 2, maxXO)) { continue; }
+          // use an octave on either side of checkXO to set evaluation range
+          const startFreq = checkXO / 2;
+          const endFreq = checkXO * 2;
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           let mlpSPWithHPFIdx;
@@ -2852,7 +2852,7 @@
           // pick XO with least dips
           const checkXOAvgDip = await getAvgDip(mlpXOResultIdx, startFreq, endFreq);
           if (checkXOAvgDip < minAvgDip) {
-            minAvgDip = checkXOAvgDip - 0.1; // only go up in XO if average dip is reduced by more than 0.1dB
+            minAvgDip = checkXOAvgDip - 0.1; // only go up in XO if dip throughout XO region is reduced by more than 0.1dB
             bestXO = checkXO;
           }
           // delete in reverse order of creation
@@ -2981,6 +2981,7 @@
       // finds the time in seconds of the first IR peak that exceeds the standard deviation of the IR
       const bandpassedResponse = await genBandpassedResponse(idx, start, end); // reduces noise that can mask group delay
       const bandpassedResponseIdx = Object.keys(bandpassedResponse.results)[0];
+      // use FDW to clean up noisy/jittery IR
       await postSafe(`http://localhost:4735/measurements/${bandpassedResponseIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
       const response = await fetchSafe('impulse-response?unit=percent&windowed=true&normalised=true&samplerate=48000', bandpassedResponseIdx);
       const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));

@@ -8,6 +8,14 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 12/31/2025 PureEQ v2.8.3 changelog -
+Happy new year all!
+* (REW filtering) Use room reverberation to determine optimal target level; this will prioritize deeper cuts depending on the SPL drop from FDW
+* Switch back to evaluating crossover choices between initial XO and 2x of initial XO, instead of 1.5x, to better fill in dips
+* Switch back to setting minimum crossover based on 2x subwoofer low frequency extension, instead of 1.5x, to give the subwoofer more room to ramp up
+* Widen the evaluation band for SW alignment to speakers to prioritize alignment over a wider frequency range
+* Tighten up the evaluation range for finalizing XO to increase scrutiny on dips in the crossover region
+
 ### Update 12/30/2025 PureEQ v2.8.2 changelog -
 * Revert back to the tried and true 30-80hz range for subwoofer level matching
 * Move the user customizations under advanced settings for a cleaner look
