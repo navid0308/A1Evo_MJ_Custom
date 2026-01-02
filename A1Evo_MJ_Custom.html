@@ -2685,10 +2685,7 @@
       // prepare "average" speaker
       const avgSpeakerIdx = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
       // prepare subwoofer
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
-      await genSub(cmdIdMLPIndices[commandId[nChannels]]); // make a copy
-      const subwooferIdx = mCount + 1;
+      const subwooferIdx = await genSub(cmdIdMLPIndices[commandId[nChannels]]); // make a copy
       // use min <-> max XO plus an octave on either side to set evaluation range
       const startFreq = minXO / 2;
       const endFreq = maxXO * 2;

@@ -8,6 +8,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v2.8.4 changelog -
+* Use a progressive threshold for finalizing XO; higher XOs will require higher dip reductions to be considered
+* Update log messages to actually count DOWN when cleaning up processed measurements
+* Reduce a ton of clutter in the code by incorporating repeating logic into core functions
+
 ### Update 12/31/2025 PureEQ v2.8.3 changelog -
 Happy new year all!
 * (REW filtering) Use room reverberation to determine optimal target level; this will prioritize deeper cuts depending on the SPL drop from FDW
