@@ -564,24 +564,24 @@
       <div class="section">
       <h3 style="color:#FFA500; font-size: 14px;">User Customizations</h3>
         <label>
+          <input type="checkbox" id="audysseyFiltering" onchange="updateCheckboxStates()">
+          Use Audyssey Filtering
+          <span class="explanation">Optimizes delays and levels but lets Audyssey handle the equalization. Not compatible with manual measurements.</span>
+        </label>
+        <label>
           <input type="checkbox" id="dialogueEnhancer" onchange="updateCheckboxStates()">
           Dialogue enhancer
           <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
         </label>
         <label>
-          <input type="checkbox" id="audysseyFiltering" onchange="updateCheckboxStates()">
-          Use Audyssey Filtering
-          <span class="explanation">Preserves measurements in the .ady file and lets Audyssey handle the equalization. Not compatible with manual measurements.</span>
-        </label>
-        <label>
           <input type="checkbox" id="alignToLCR" onchange="updateCheckboxStates()">
           Align subwoofer to LCR speakers
-          <span class="explanation">Optimizes subwoofer alignment using LCR speakers exclusively. By default, subwoofer is aligned using ALL speakers.</span>
+          <span class="explanation">Aligns subwoofer using LCR speakers exclusively. By default, subwoofer is aligned using ALL speakers.</span>
         </label>
         <label>
           <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
           Avoid subwoofer polarity inversion
-          <span class="explanation">Avoid delays that require subwoofer polarity inversion. Select this option if your subwoofer(s) don't have a polarity/phase inversion flip switch.</span>
+          <span class="explanation">Avoids delays that requires subwoofer polarity inversion. Note: Phase dial at 180° isn't the same as polarity inversion.</span>
         </label>
       </div>
       <!-- Speaker Section -->

@@ -13,6 +13,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 * Use a wider but fixed frequency band for evaluating different XOs so it is more of an apples to apples comparison
 * Update log messages to actually count DOWN when cleaning up processed measurements
 * Reduce a ton of clutter in the code by incorporating repeating logic into core functions
+* Reorder optimization options and update the descriptions for better clarity
 
 ### Update 12/31/2025 PureEQ v2.8.3 changelog -
 Happy new year all!
