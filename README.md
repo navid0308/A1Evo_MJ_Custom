@@ -7,7 +7,8 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.8.4 changelog -
+### Update 1/2/2026 PureEQ v2.8.4 changelog -
+First update of 2026! :D
 * Use a progressive threshold for finalizing XO; higher XOs will require higher dip reductions, relative to target, to be considered
 * Use a wider but fixed frequency band for evaluating different XOs so it is more of an apples to apples comparison
 * Update log messages to actually count DOWN when cleaning up processed measurements
