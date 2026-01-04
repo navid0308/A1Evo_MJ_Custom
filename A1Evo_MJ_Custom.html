@@ -2867,11 +2867,13 @@
             console.infoUpdate("Generating final output for LFE-mlp...");
             let eqSubwoofer = cmdIdMLPIndicesEQ[commandId[i]];
             let LFEChannelIdx = await genSub(eqSubwoofer, 120);
+            await postNext('Add SPL offset', LFEChannelIdx, { offset: 10 }); // for completeness
             await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-mlp-120hz-LPF" });
             // generate LFEfinal-avg
             console.infoUpdate("Generating final output for LFE-avg...");
             eqSubwoofer = cmdIdAVGIndicesEQ[commandId[i]];
             LFEChannelIdx = await genSub(eqSubwoofer, 120);
+            await postNext('Add SPL offset', LFEChannelIdx, { offset: 10 }); // for completeness
             await fetch_mREW(LFEChannelIdx, 'PUT', { title: "LFEfinal-avg-120hz-LPF" });
             continue; // done
           }
