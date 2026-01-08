@@ -1146,6 +1146,7 @@
       });
       updateFilterChain(globalSpeakerPrefix.toLowerCase()); // for all speakers
       commandId.slice(1).forEach(p => updateFilterChain(p.toLowerCase()));
+      organizeTabs(); // so that when user presses tab button, it cycles through the rows first, then columns
     }
 
     function updateInputStates(select) {
@@ -1225,6 +1226,36 @@
         }
       }
     }
+
+    function organizeTabs() {
+      let tabIndex = 1;
+      const globalP = globalSpeakerPrefix.toLowerCase();
+      for (let i = 1; i <= globalSpeakerFilters; i++) {
+        const typeEl = document.getElementById(`${globalP}Type${i}`);
+        const freqEl = document.getElementById(`${globalP}Freq${i}`);
+        const gainEl = document.getElementById(`${globalP}Gain${i}`);
+        const qEl    = document.getElementById(`${globalP}Q${i}`);
+
+        [typeEl, freqEl, gainEl, qEl].forEach(el => {
+          if (el) el.setAttribute("tabindex", tabIndex++);
+        });
+      }
+      const filtersPerSpeaker = 20;
+      commandId.slice(1).forEach(prefix => {
+        const idPrefix = prefix.toLowerCase();
+        for (let i = 1; i <= filtersPerSpeaker; i++) {
+          const typeEl = document.getElementById(`${idPrefix}Type${i}`);
+          const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
+          const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
+          const qEl    = document.getElementById(`${idPrefix}Q${i}`);
+
+          [typeEl, freqEl, gainEl, qEl].forEach(el => {
+            if (el) el.setAttribute("tabindex", tabIndex++);
+          });
+        }
+      });
+    }
+
     function populateCustomFilterTable() {
       // ============================
       // Creat Dynamic Speaker PEQ based on ADY upload
