@@ -1144,7 +1144,7 @@
           updateFilterChain(idPrefix);
         });
       });
-
+      updateFilterChain(globalSpeakerPrefix.toLowerCase()); // for all speakers
       commandId.slice(1).forEach(p => updateFilterChain(p.toLowerCase()));
     }
 
@@ -1194,10 +1194,6 @@
 
     function updateFilterChain(idPrefix) {
       const filtersPerSpeaker = 20;
-      const spkUpper = idPrefix.toUpperCase();
-      const pos = Array.isArray(commandId) ? commandId.indexOf(spkUpper) : -1;
-      const base = pos > 0 ? (pos - 1) * (filtersPerSpeaker * 4) : 0;
-      let tabIndex = base + 1;
 
       for (let i = 1; i <= filtersPerSpeaker; i++) {
         const typeEl = document.getElementById(`${idPrefix}Type${i}`);
@@ -1205,7 +1201,7 @@
         const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
         const qEl    = document.getElementById(`${idPrefix}Q${i}`);
 
-        if (!typeEl) continue;
+        if (!typeEl) continue; // global ends at 15
 
         if (i === 1) {
           typeEl.disabled = false;
@@ -1227,33 +1223,8 @@
             updateInputStates(typeEl);
           }
         }
-
-        if (typeEl) typeEl.tabIndex = tabIndex++;
-        if (freqEl) freqEl.tabIndex = tabIndex++;
-        if (gainEl) gainEl.tabIndex = tabIndex++;
-        if (qEl)    qEl.tabIndex    = tabIndex++;
       }
     }
-
-    // TODO: figure out what it does and if this is necessary
-    document.addEventListener("DOMContentLoaded", () => {
-      const filtersPerSpeaker = 20;
-      let tabIndex = 1;
-
-      commandId.slice(1).forEach(prefix => {
-        const idPrefix = prefix.toLowerCase();
-        for (let i = 1; i <= filtersPerSpeaker; i++) {
-          const typeEl = document.getElementById(`${idPrefix}Type${i}`);
-          const freqEl = document.getElementById(`${idPrefix}Freq${i}`);
-          const gainEl = document.getElementById(`${idPrefix}Gain${i}`);
-          const qEl    = document.getElementById(`${idPrefix}Q${i}`);
-
-          [typeEl, freqEl, gainEl, qEl].forEach(el => {
-            if (el) el.setAttribute("tabindex", tabIndex++);
-          });
-        }
-      });
-    });
     function populateCustomFilterTable() {
       // ============================
       // Creat Dynamic Speaker PEQ based on ADY upload
