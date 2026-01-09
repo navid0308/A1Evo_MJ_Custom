@@ -2952,7 +2952,7 @@
       const variance = squaredDifferences.reduce((sum, value) => sum + value, 0) / array.length;
       return Math.sqrt(variance);
     }
-    async function getFirstIRPeak(idx, start=20, end=120) {
+    async function getFirstIRPeak(idx, start=10, end=320) {
       // finds the time in seconds of the first IR peak that exceeds the standard deviation of the IR
       const bandpassedResponseIdx = await genBandpassedResponse(idx, start, end); // reduces noise that can mask group delay
       // use FDW to clean up noisy/jittery IR
