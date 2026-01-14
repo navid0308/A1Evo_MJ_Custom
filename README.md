@@ -7,6 +7,10 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 1/14/2026 PureEQ v2.8.6 changelog -
+* Experiment with using excess phase for SW integration to system
+* Prior release used minimum phase for alignment but MP does not preserve polarity and is not a viable option
+
 ### Update 1/13/2026 PureEQ v2.8.5 changelog -
 * Leverage minimum phase when integrating subwoofer to the system
 * Update TCx

@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.5</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.6</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2684,17 +2684,16 @@
         if (alignToLCR && !["C", "FL", "FR"].includes(commandId[i])) { continue; } // skip for non-LCR if alignToLCR is true
         mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
-      // prepare "average" speaker's minimum phase response
-      // note: using mininmum phase to align better matches the direct sound/phase
+      // prepare "average" speaker's excess phase response
       const avgSpeakerIdx = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
-      const avgSpeakerMPIdx = await genMinimumPhaseResponse(avgSpeakerIdx);
-      // prepare subwoofer
-      const subwooferIdx = await genSub(cmdIdMLPIndices[commandId[nChannels]]); // make a copy
+      const avgSpeakerEPIdx = await genExcessPhaseResponse(avgSpeakerIdx);
+      // prepare subwoofer's excess phase response
+      const subwooferEPIdx = await genExcessPhaseResponse(cmdIdMLPIndices[commandId[nChannels]]);
       // use min <-> max XO plus an octave on either side to set evaluation range
       const startFreq = minXO / 2;
       const endFreq = maxXO * 2;
       // set delay limits based on first IR peak delta to prioritize time alignment
-      const subwooferIRPeak = await getFirstIRPeak(subwooferIdx); // first IR peak
+      const subwooferIRPeak = await getFirstIRPeak(cmdIdMLPIndices[commandId[nChannels]]); // first IR peak
       const IRPeakDelta = -1000 * subwooferIRPeak; // speakers are at t=0 by now
       let loDelayLimit = IRPeakDelta - minDelayRangeSpan * 2; // compensate for higher delays from LPF slope
       let hiDelayLimit = IRPeakDelta + minDelayRangeSpan;
@@ -2702,12 +2701,12 @@
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
       hiDelayLimit = Math.min(Math.max(hiDelayLimit, loDelay), hiDelay);
-      const [requiredDelay, isInverted] = await align4system(avgSpeakerMPIdx, subwooferIdx,
+      const [requiredDelay, isInverted] = await align4system(avgSpeakerEPIdx, subwooferEPIdx,
                                                              startFreq, endFreq,
                                                              loDelayLimit, hiDelayLimit);
       // cleanup in reverse order of creation
-      await postDelete(subwooferIdx);
-      await postDelete(avgSpeakerMPIdx);
+      await postDelete(subwooferEPIdx);
+      await postDelete(avgSpeakerEPIdx);
       await postDelete(avgSpeakerIdx);
       // apply optimal delay
       const subMoves = requiredDelay / 1000;
@@ -3247,20 +3246,21 @@
       }
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
-      // slopeless integration means finding the delay that causes maximum cancellation
+      // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
       // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
+      // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
+      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postAlign('Reset all');
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set"); // prevents messing with delays
-      // make sure level differences do not affect alignment; no need to revert since these temp measurements will only be deleted
-      const midFreq = Math.sqrt(start * end); // geometric mean
-      const gainA = 75.0 - await getAvgSPL(ind1, midFreq, end); // average speaker
-      const gainB = 75.0 - await getAvgSPL(ind2, start, midFreq); // subwoofer
+      // make sure level differences do not affect alignment
+      const gainA = -1 * await getAvgSPL(ind1, 30, 80);
+      const gainB = -1 * await getAvgSPL(ind2, 30, 80);
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
@@ -3289,6 +3289,8 @@
         }
       }
       console.infoUpdate(`Optimal delay: ${requiredDelay.toFixed(2)}ms, Inverted: ${isInverted}`);
+      // restore original polarity just as a good practice
+      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
       // restore original gain just as a good practice
       await postSafe("http://localhost:4735/alignment-tool/gain-a", 0, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", 0, "Value set");
@@ -3418,15 +3420,6 @@
     }
     async function genExcessPhaseResponse(idx) {
       return await postNext('Excess phase version', idx, {
-        "include cal": false,
-        "append lf tail": false,
-        "append hf tail": false,
-        "frequency warping": false,
-        "replicate data": false
-      });
-    }
-    async function genMinimumPhaseResponse(idx) {
-      return await postNext('Minimum phase version', idx, {
         "include cal": false,
         "append lf tail": false,
         "append hf tail": false,
