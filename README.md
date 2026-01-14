@@ -7,6 +7,10 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 1/13/2026 PureEQ v2.8.5 changelog -
+* Leverage minimum phase when integrating subwoofer to the system
+* Update TCx
+
 ### Update 1/2/2026 PureEQ v2.8.4 changelog -
 First update of 2026! :D
 * Use a progressive threshold for finalizing XO; higher XOs will require higher dip reductions, relative to target, to be considered

@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.4</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.5</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2684,8 +2684,10 @@
         if (alignToLCR && !["C", "FL", "FR"].includes(commandId[i])) { continue; } // skip for non-LCR if alignToLCR is true
         mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
-      // prepare "average" speaker
+      // prepare "average" speaker's minimum phase response
+      // note: using mininmum phase to align better matches the direct sound/phase
       const avgSpeakerIdx = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
+      const avgSpeakerMPIdx = await genMinimumPhaseResponse(avgSpeakerIdx);
       // prepare subwoofer
       const subwooferIdx = await genSub(cmdIdMLPIndices[commandId[nChannels]]); // make a copy
       // use min <-> max XO plus an octave on either side to set evaluation range
@@ -2700,11 +2702,12 @@
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
       hiDelayLimit = Math.min(Math.max(hiDelayLimit, loDelay), hiDelay);
-      const [requiredDelay, isInverted] = await align4system(avgSpeakerIdx, subwooferIdx,
+      const [requiredDelay, isInverted] = await align4system(avgSpeakerMPIdx, subwooferIdx,
                                                              startFreq, endFreq,
                                                              loDelayLimit, hiDelayLimit);
       // cleanup in reverse order of creation
       await postDelete(subwooferIdx);
+      await postDelete(avgSpeakerMPIdx);
       await postDelete(avgSpeakerIdx);
       // apply optimal delay
       const subMoves = requiredDelay / 1000;
@@ -3422,6 +3425,15 @@
         "replicate data": false
       });
     }
+    async function genMinimumPhaseResponse(idx) {
+      return await postNext('Minimum phase version', idx, {
+        "include cal": false,
+        "append lf tail": false,
+        "append hf tail": false,
+        "frequency warping": false,
+        "replicate data": false
+      });
+    }
     function sanityCheckSB(detectedChannels) {
       // odd.wtf can assign enChannelType 9 for SBL but type 9 is mono SB; type 10 is for SBL left channel
       detectedChannels.forEach(channel => {
@@ -3532,6 +3544,7 @@
             let customLevelValue = parseFloat(customLevel[nChannels + k]) + parseFloat(channel.trimAdjustment);
             channel.customDistance = Math.round(parseFloat(customDistanceValue) * 100) / 100;
             channel.customLevel = customLevelValue.toFixed(1);
+            channel.midrangeCompensation = false; // for some reason Audyssey has MRC for subwoofers
             channel.frequencyRangeRolloff = 250;
             if (bassMode === "Directional") {
               if (useAudyFiltering && k > 0) {
