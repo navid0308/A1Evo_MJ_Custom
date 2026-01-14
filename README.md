@@ -9,7 +9,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ## Changelogs
 ### Update 1/14/2026 PureEQ v2.8.6 changelog -
 * Experiment with using excess phase for SW integration to system
-* Prior release used minimum phase for alignment but MP does not preserve polarity and is not a viable option
+* Prior release used minimum phase for alignment, but MP does not preserve polarity and is not a viable option
 
 ### Update 1/13/2026 PureEQ v2.8.5 changelog -
 * Leverage minimum phase when integrating subwoofer to the system
@@ -434,6 +434,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
