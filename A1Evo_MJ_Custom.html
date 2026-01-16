@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.6</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.7</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -574,11 +574,6 @@
           <span class="explanation">Emphasizes the vocal region of the center speaker. You must have a center speaker to use this option.</span>
         </label>
         <label>
-          <input type="checkbox" id="alignToLCR" onchange="updateCheckboxStates()">
-          Align subwoofer to LCR speakers
-          <span class="explanation">Aligns subwoofer using LCR speakers exclusively. By default, subwoofer is aligned using ALL speakers.</span>
-        </label>
-        <label>
           <input type="checkbox" id="noInversion" onchange="updateCheckboxStates()">
           Avoid subwoofer polarity inversion
           <span class="explanation">Avoids delays that requires subwoofer polarity inversion. Note: Phase dial at 180° isn't the same as polarity inversion.</span>
@@ -613,20 +608,20 @@
         <div class="slider-half">
           <div class="slider-label">
             <span>Speaker Min High-shelf</span>
-            <span id="spkHighShelfMinLabel">-6 dB</span>
+            <span id="spkHighShelfMinLabel">-3 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="spkHighShelfMin" class="slider" min="-10" max="0" step="1" value="-6" style="background: linear-gradient(-90deg, #2D3748, #3B82F6);">
+            <input type="range" id="spkHighShelfMin" class="slider" min="-10" max="0" step="1" value="-3" style="background: linear-gradient(-90deg, #2D3748, #3B82F6);">
             <div class="tooltip">Speaker minimum high-shelf filter</div>
           </div>
         </div>
         <div class="slider-half">
           <div class="slider-label">
             <span>Speaker Max High-shelf</span>
-            <span id="spkHighShelfMaxLabel">6 dB</span>
+            <span id="spkHighShelfMaxLabel">3 dB</span>
           </div>
           <div class="tooltip-container">
-            <input type="range" id="spkHighShelfMax" class="slider" min="0" max="10" step="1" value="6">
+            <input type="range" id="spkHighShelfMax" class="slider" min="0" max="10" step="1" value="3">
             <div class="tooltip">Speaker maximum high-shelf filter</div>
           </div>
         </div>
@@ -735,7 +730,7 @@
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter, isStarted = false;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
     let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, useAudyFiltering = false;
-    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false, alignToLCR = false;
+    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 6;
@@ -1565,14 +1560,11 @@
         document.getElementById('dialogueEnhancer').disabled = true;
       }
       if (noSub) { // if no subwoofer, disable subwoofer options
-        document.getElementById('alignToLCR').checked = false;
-        document.getElementById('alignToLCR').disabled = true;
         document.getElementById('noInversion').checked = false;
         document.getElementById('noInversion').disabled = true;
       }
       useAudyFiltering = document.getElementById('audysseyFiltering').checked;
       dialogueEnhancer = document.getElementById('dialogueEnhancer').checked;
-      alignToLCR = document.getElementById('alignToLCR').checked;
       noInversion = document.getElementById('noInversion').checked;
       if (useAudyFiltering) { lockSliders(); }
       else { unlockSliders(); }
@@ -1583,8 +1575,6 @@
       Object.freeze(useAudyFiltering);
       document.getElementById('dialogueEnhancer').disabled = true;
       Object.freeze(dialogueEnhancer);
-      document.getElementById('alignToLCR').disabled = true;
-      Object.freeze(alignToLCR);
       document.getElementById('noInversion').disabled = true;
       Object.freeze(noInversion);
       // lock advanced settings
@@ -1723,7 +1713,6 @@
       }
       if (!noSub) {
         console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
-        console.log(`  Subwoofer will be aligned using *${alignToLCR ? "LCR" : "ALL"}* speakers.`);
       }
       if (useAudyFiltering) {
         console.warn(`  ***Audyssey Filtering Enabled***`);
@@ -1978,30 +1967,11 @@
         flDist = getFLDistFromAdy();
       }
       Object.freeze(flDist);
-      // normalize delays to t=0
-      const loSPDelay = Math.min(...mSec.slice(1, nSpeakers + 1));
-      const hiSPDelay = Math.max(...mSec.slice(1, nSpeakers + 1));
-      const medianSPDelay = (loSPDelay + hiSPDelay) / 2;
-      for (let i = 1; i <= nSpeakers; i++) {
-        mSec[i] -= medianSPDelay;
-      }
-      // shift subwoofer IRs by the same offset used to normalize speaker delays
-      // note: this ensures relative delay of SW compared to speakers stay intact
-      for (let i = 0; i < mlpSWIndices.length; i++) {
-        await postNext('Offset t=0', mlpSWIndices[i], {offset: -medianSPDelay, unit: "seconds"});
-      }
       console.infoUpdate("Time aligned speakers.");
     }
     async function initializeSubwoofers() {
       if (bassMode === "Directional") {
         await directional2standard();
-      }
-      else {
-        // normalize standard bass subwoofer median IR to t=0
-        const IROffset = (subLoDelay + subHiDelay) / 2;
-        const stdSubMLPIdx = cmdIdIndices[commandId[nChannels]][0];
-        await postNext('Offset t=0', stdSubMLPIdx, {offset: IROffset, unit: "seconds"});
-        mSec[nChannels] -= IROffset;
       }
       const SWIndices = cmdIdIndices[commandId[nChannels]];
       if (SWIndices.length > 1) {
@@ -2678,10 +2648,9 @@
       }
     }
     async function optimizeSubDelay() {
-      console.log(`Optimizing subwoofer delay for ${alignToLCR ? "LCR" : "ALL"} speakers...`);
+      console.log("Optimizing subwoofer delay for ALL speakers...");
       const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
-        if (alignToLCR && !["C", "FL", "FR"].includes(commandId[i])) { continue; } // skip for non-LCR if alignToLCR is true
         mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
       }
       // prepare "average" speaker's excess phase response
@@ -3069,13 +3038,6 @@
       // cleanup all temp measurements
       for (let i = aggSubEPIdx; i > mCount; i--) { // make sure mCount isn't updated between start of function and here
         await postDelete(i);
-      }
-      // normalize median subwoofer delay to t=0
-      const loSWDelay = Math.min(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
-      const hiSWDelay = Math.max(...mSec.slice(nSpeakers + 1, nSpeakers + nSubs + 1));
-      const medianSWDelay = (loSWDelay + hiSWDelay) / 2;
-      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
-        mSec[i] -= medianSWDelay;
       }
       // combine subs at the individual position level
       console.info("Generating combined subwoofer response(s)...");
@@ -3581,7 +3543,6 @@
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
       const adyNameMJC = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
                                 + (dialogueEnhancer ? "DE_" : "")
-                                + (alignToLCR ? "LCR_" : "")
                                 + swInvMsg + `${tcName}_`
                                 + `MJC${getCurrentVersion()}`
                                 + `_${getCurrentTimestamp()}.ady`);

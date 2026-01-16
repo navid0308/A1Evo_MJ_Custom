@@ -7,6 +7,12 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 1/16/2026 PureEQ v2.8.7 changelog -
+* Removed "Align subwoofer to LCR speakers" - with the updated SW alignment logic, this should no longer be required
+  * I know this may not be a popular change but I have always wanted custom to align subwoofer to the entire system, primarily because it provides better stability and predictability
+* Removed delay normalization logic that is no longer needed - back when the "Align IR" command was used, min/max delays couldn't both be positive or negative. This is no longer a limitation with recent versions, and so this additional delay normalization logic is no longer required.
+* Updated default high-shelf values to +/-3dB
+
 ### Update 1/14/2026 PureEQ v2.8.6 changelog -
 * Experiment with using excess phase for SW integration to system
 * Prior release used minimum phase for alignment, but MP does not preserve polarity and is not a viable option
