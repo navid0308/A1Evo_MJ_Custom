@@ -2080,7 +2080,7 @@
       await postSafe(`http://localhost:4735/eq/match-target-settings`, {
         startFrequency: start, endFrequency: end,
         individualMaxBoostdB: indMaxBoost, overallMaxBoostdB: ovMaxBoost, flatnessTargetdB: 1,
-        allowNarrowFiltersBelow200Hz: true, varyQAbove200Hz: false,
+        allowNarrowFiltersBelow200Hz: true, varyQAbove200Hz: true,
         allowLowShelf: true, lowShelfMin: LSMin, lowShelfMax: LSMax,
         allowHighShelf: true, highShelfMin: HSMin, highShelfMax: HSMax
       }, "Update processed");
