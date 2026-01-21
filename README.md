@@ -7,6 +7,10 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 1/21/2026 PureEQ v2.8.8 changelog -
+This is purely a technical update and it should not affect performance
+* Switch the proximity based delay range calculation to use IR start instead of first IR peak
+
 ### Update 1/16/2026 PureEQ v2.8.7 changelog -
 * Removed "Align subwoofer to LCR speakers" - with the updated SW alignment logic, this should no longer be required
   * I know this may not be a popular change but I have always wanted custom to align subwoofer to the entire system, primarily because it provides better stability and predictability

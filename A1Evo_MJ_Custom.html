@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.7</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.8</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2661,11 +2661,11 @@
       // use min <-> max XO plus an octave on either side to set evaluation range
       const startFreq = minXO / 2;
       const endFreq = maxXO * 2;
-      // set delay limits based on first IR peak delta to prioritize time alignment
-      const subwooferIRPeak = await getFirstIRPeak(cmdIdMLPIndices[commandId[nChannels]]); // first IR peak
-      const IRPeakDelta = -1000 * subwooferIRPeak; // speakers are at t=0 by now
-      let loDelayLimit = IRPeakDelta - minDelayRangeSpan * 2; // compensate for higher delays from LPF slope
-      let hiDelayLimit = IRPeakDelta + minDelayRangeSpan;
+      // set delay limits based on IR start delta to prioritize time alignment
+      const subwooferIRStart = await getIRStart(cmdIdMLPIndices[commandId[nChannels]]);
+      const IRStartDelta = -1000 * subwooferIRStart; // speakers are at t=0 by now
+      let loDelayLimit = IRStartDelta - minDelayRangeSpan * 2; // compensate for higher delays from LPF slope
+      let hiDelayLimit = IRStartDelta + minDelayRangeSpan;
       // sanity check that delay range is within HW limits
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
@@ -2917,44 +2917,39 @@
       }
       return maxDelta;
     }
-    function getStdDev(array, usePopulation = false) {
+    function getStdDev(array) {
       const mean = array.reduce((sum, value) => sum + value, 0) / array.length;
       const squaredDifferences = array.map(value => Math.pow(value - mean, 2));
       const variance = squaredDifferences.reduce((sum, value) => sum + value, 0) / array.length;
       return Math.sqrt(variance);
     }
-    async function getFirstIRPeak(idx, start=10, end=320) {
-      // finds the time in seconds of the first IR peak that exceeds the standard deviation of the IR
-      const bandpassedResponseIdx = await genBandpassedResponse(idx, start, end); // reduces noise that can mask group delay
+    async function getIRStart(idx, start=10, end=320) {
+      // finds first IR deviation that exceeds the std dev; FDW and BPF is used to better handle messy responses
+      // note: REW has a built-in variable that holds IR start, but it can be hit or miss with noisy IR data
+      const idxWithBPF = await genBandpassedResponse(idx, start, end); // reduces noise that can mask group delay
       // use FDW to clean up noisy/jittery IR
-      await postSafe(`http://localhost:4735/measurements/${bandpassedResponseIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
-      const response = await fetchSafe('impulse-response?unit=percent&windowed=true&normalised=true&samplerate=48000', bandpassedResponseIdx);
+      await postSafe(`http://localhost:4735/measurements/${idxWithBPF}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
+      const response = await fetchSafe('impulse-response?unit=percent&windowed=true&normalised=true&samplerate=48000', idxWithBPF);
       const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
       const dataView = new DataView(bytes.buffer);
       const totalSamples = bytes.length / 4;
       const startTime = response.startTime;
       const sampleInterval = response.sampleInterval;
-      await postDelete(bandpassedResponseIdx);
+      await postDelete(idxWithBPF);
       // use to calculate standard deviation
       const impulseArray = [];
       for (let i = 0; i < totalSamples; i++) {
-        impulseArray.push(dataView.getFloat32(i * 4) * 100);
+        // since we only care about IR start, abs works better for separating noise from signal
+        impulseArray.push(Math.abs(dataView.getFloat32(i * 4) * 100));
       }
       // threshold is set based on standard deviation
-      const threshold = getStdDev(impulseArray.map(Math.abs)); // use abs to better handle noise
-      let inPeak = false;
-      let maxPercent = -Infinity;
-      let peakSampleNumber = 0;
+      const threshold = getStdDev(impulseArray);
       for (let i = 0; i < impulseArray.length; i++) {
-        const IRValuePercent = Math.abs(impulseArray[i]);
-        if (!inPeak && IRValuePercent > threshold) { inPeak = true; }
-        if (inPeak && maxPercent < IRValuePercent) {
-          maxPercent = IRValuePercent;
-          peakSampleNumber = i + 1;
+        const IRValuePercent = impulseArray[i];
+        if (IRValuePercent > threshold) {
+          return startTime + sampleInterval * i;
         }
-        if (inPeak && IRValuePercent < threshold / 2) { break; }
       }
-      return startTime + sampleInterval * peakSampleNumber;
     }
     async function getMaxIRWindow(idxs) {
       // iterates through idxs and returns maximum IR window
@@ -2989,24 +2984,24 @@
       console.warn("Converting from directional to standard bass for a better sound experience...");
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
-      // isolate SW commandIds, excess phase responses & first IR peak times (based on bandpassed responses)
-      const swCmdIdsWithFirstIRPeak = {};
+      // isolate SW commandIds, excess phase responses & IR start times (based on bandpassed responses)
+      const swCmdIdsWithIRStart = {};
       const swCmdIdsWithEPResponseIndices = {};
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
         const mlpIdx = cmdIdIndices[commandId[i]][0];
-        swCmdIdsWithFirstIRPeak[commandId[i]] = await getFirstIRPeak(mlpIdx);
+        swCmdIdsWithIRStart[commandId[i]] = await getIRStart(mlpIdx);
         // generate excess phase response and use it for alignment
         const mlpEPResponseIdx = await genExcessPhaseResponse(mlpIdx);
         swCmdIdsWithEPResponseIndices[commandId[i]] = mlpEPResponseIdx;
         await fetch_mREW(mlpEPResponseIdx, 'PUT', { title: measurements[mlpIdx].title }); // reuse same name
       }
-      // sort subwoofers using first IR peak times
-      const sortedSwCmdIds = Object.entries(swCmdIdsWithFirstIRPeak).sort((a, b) => a[1] - b[1]).map(row => row[0]);
+      // sort subwoofers using IR start times
+      const sortedSwCmdIds = Object.entries(swCmdIdsWithIRStart).sort((a, b) => a[1] - b[1]).map(row => row[0]);
       console.info(`Alignment order based on proximity: ${sortedSwCmdIds}`);
       // index 0 is closest subwoofer and it is treated as the reference
       let aggCmdIds = sortedSwCmdIds[0]; // holds the aggregate commandIds as subwoofers are combined
       let aggSubEPIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[0]]; // holds aggregate EP response
-      const refSubFirstIRPeak = swCmdIdsWithFirstIRPeak[sortedSwCmdIds[0]]; // closest subwoofer
+      const refSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[0]]; // closest subwoofer
       // initial evaluation range based on reference subwoofer bandwidth
       let startFreq = await getAbsLow3dBPoint(cmdIdIndices[sortedSwCmdIds[0]][0]);
       let endFreq = await getAbsHigh6dBPoint(cmdIdIndices[sortedSwCmdIds[0]][0]);
@@ -3014,14 +3009,14 @@
         const thisSubCmdId = sortedSwCmdIds[i];
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1)); // used for delay limit calculations
         const thisSubEPIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[i]];
-        const thisSubFirstIRPeak = swCmdIdsWithFirstIRPeak[sortedSwCmdIds[i]];
+        const thisSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[i]];
         // use aggregate subwoofer bandwidths to set evaluation range
         startFreq = Math.min(startFreq, await getAbsLow3dBPoint(cmdIdIndices[sortedSwCmdIds[i]][0]));
         endFreq = Math.max(endFreq, await getAbsHigh6dBPoint(cmdIdIndices[sortedSwCmdIds[i]][0]));
-        // set delay limits based on first IR peak delta to prioritize time alignment
-        const IRPeakDelta = 1000 * (refSubFirstIRPeak - thisSubFirstIRPeak);
-        let loDelayLimit = IRPeakDelta - minDelayRangeSpan;
-        let hiDelayLimit = IRPeakDelta + minDelayRangeSpan;
+        // set delay limits based on IR start delta to prioritize time alignment
+        const IRStartDelta = 1000 * (refSubIRStart - thisSubIRStart);
+        let loDelayLimit = IRStartDelta - minDelayRangeSpan;
+        let hiDelayLimit = IRStartDelta + minDelayRangeSpan;
         // sanity check that delay range is within HW limits
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
