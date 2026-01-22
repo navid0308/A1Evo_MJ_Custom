@@ -2053,7 +2053,7 @@
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const mlpMinPhaseIdx = await genMinimumPhaseResponse(mlpIdx);
         const startFreq = await getAbsLow3dBPoint(mlpIdx, false, 20); // no subwoofers
-        const endFreq = await getAbsHigh6dBPoint(mlpIdx, false, 20); // should ideally be 320hz
+        const endFreq = await getSpeakerHFRolloff(mlpIdx); // evaluate using the full response
         // regular sum
         const regularSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
         const regularSumdB = await getAvgSPL(regularSumIdx, startFreq, endFreq);
