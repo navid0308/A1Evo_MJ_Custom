@@ -2041,28 +2041,29 @@
       }
     }
     async function polarityCheck() {
-      // seems strange but all testing suggests REW's MP is almost always 180* off from the time aligned response
-      // well, it means it can be used to test absolute polarity (I think?) by checking for max cancellation against MP
+      // audy mic seems to measure as inverted, so an easy polarity check is looking for maximum cancellation against minimum phase response
+      // note: for manual measurements, the logic should be opposite of audy mic, since umik-1 does not measure as inverted
       console.log("Checking absolute polarity of all speakers...");
       console.info("Starting polarity check...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       for (let i = 1; i <= nSpeakers; i++) {
         console.infoUpdate(`Checking polarity of ${commandId[i]}...`);
-        // isolate the MLP response and the bandwidth over which to check summation against MP response
+        // isolate the MLP response, minimum phase response, and the evaluation range
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const mlpMinPhaseIdx = await genMinimumPhaseResponse(mlpIdx);
         const startFreq = await getAbsLow3dBPoint(mlpIdx, false, 20); // no subwoofers
         const endFreq = await getAbsHigh6dBPoint(mlpIdx, false, 20); // should ideally be 320hz
-        // regular sum should result in maximum cancellation with MP
+        // regular sum
         const regularSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
         const regularSumdB = await getAvgSPL(regularSumIdx, startFreq, endFreq);
-        // inverted sum should result in maximum summation with MP
+        // inverted sum
         await postSafe(`${baseUrl}/${mlpMinPhaseIdx}/command`,{command: "Invert"}, "Invert completed");
         const invertedSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
         const invertedSumdB = await getAvgSPL(invertedSumIdx, startFreq, endFreq);
-        // potential phase issue if regular sum is higher than inverted sum
-        if (regularSumdB > invertedSumdB) {
+        // determine polarity based on audy or manual measurement
+        const isInverted = isAudy ? regularSumdB > invertedSumdB : regularSumdB < invertedSumdB;
+        if (isInverted) {
           console.warn(`Possible polarity issue detected for ${commandId[i]}. Please double-check wiring.`);
         }
         // cleanup
