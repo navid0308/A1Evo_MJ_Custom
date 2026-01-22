@@ -9,7 +9,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ## Changelogs
 ### Update PureEQ v2.9.0 changelog -
 * Tighten up proximity based delay range to ignore areas farther away from time alignment
-* Add speaker absolute polarity check (experimental)
+* Add absolute polarity check for speakers (experimental)
 
 ### Update 1/21/2026 PureEQ v2.8.8 changelog -
 This is purely a technical update and it should not affect performance
