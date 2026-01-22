@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.8.8</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -733,7 +733,7 @@
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
-    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 6;
+    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 3;
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
@@ -1917,7 +1917,7 @@
       return [loDelay, hiDelay];
     }
     async function initializeTrims() {
-      console.info("Initializing trims...");
+      console.log("Initializing trims...");
       for (let i = 1; i < commandId.length; i++) {
         const indices = cmdIdIndices[commandId[i]];
         // trim determination using the MLP measurement
@@ -1936,11 +1936,11 @@
           await fixVolBug(indices);
         }
       }
-      console.infoUpdate("Initialized trims.");
+      console.info("Initialized trims.");
     }
     async function timeAlignSpeakers() {
       // note: only MLP positions are used since non-MLP will be cross corr aligned during spatial average
-      console.info("Time aligning speakers...");
+      console.log("Time aligning speakers...");
       const mlpSPIndices = [];
       const mlpSWIndices = [];
       for (let i = 1; i < commandId.length; i++) {
@@ -1967,7 +1967,7 @@
         flDist = getFLDistFromAdy();
       }
       Object.freeze(flDist);
-      console.infoUpdate("Time aligned speakers.");
+      console.info("Time aligned speakers.");
     }
     async function initializeSubwoofers() {
       if (bassMode === "Directional") {
@@ -1976,7 +1976,7 @@
       const SWIndices = cmdIdIndices[commandId[nChannels]];
       if (SWIndices.length > 1) {
         const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
-        console.log(`${commandId[nChannels]} response variation between <${SWIndices.length}> microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
+        console.warn(`${commandId[nChannels]} response variation between ${SWIndices.length} microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
     }
     async function alignVol2MLP(indices) {
@@ -1992,6 +1992,7 @@
       }
     }
     async function spatialAverage() {
+      console.log("Spatially averaging all channels...");
       console.info("Starting spatial averaging...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
@@ -2004,7 +2005,7 @@
         await fetch_mREW(mlpIdx, 'PUT', { title: `${commandId[i]}-mlp` });
         await postNext('Smooth', mlpIdx, { smoothing: "1/48" });
         // spatially average
-        console.infoUpdate(`Spatially averaging channel ${commandId[i]} using <${indices.length}> microphone position(s)...`);
+        console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
         if (indices.length > 1) {
           await alignVol2MLP(indices); // level match non-MLP positions to MLP
           await postNext('Cross corr align', indices); // time align non-MLP positions to MLP
@@ -2039,15 +2040,47 @@
         avgIdx += 2;
       }
     }
+    async function polarityCheck() {
+      // seems strange but all testing suggests REW's MP is almost always 180* off from the time aligned response
+      // well, it means it can be used to test absolute polarity (I think?) by checking for max cancellation against MP
+      console.log("Checking absolute polarity of all speakers...");
+      console.info("Starting polarity check...");
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length;
+      for (let i = 1; i <= nSpeakers; i++) {
+        console.infoUpdate(`Checking polarity of ${commandId[i]}...`);
+        // isolate the MLP response and the bandwidth over which to check summation against MP response
+        const mlpIdx = cmdIdMLPIndices[commandId[i]];
+        const mlpMinPhaseIdx = await genMinimumPhaseResponse(mlpIdx);
+        const startFreq = await getAbsLow3dBPoint(mlpIdx, false, 20); // no subwoofers
+        const endFreq = await getAbsHigh6dBPoint(mlpIdx, false, 20); // should ideally be 320hz
+        // regular sum should result in maximum cancellation with MP
+        const regularSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
+        const regularSumdB = await getAvgSPL(regularSumIdx, startFreq, endFreq);
+        // inverted sum should result in maximum summation with MP
+        await postSafe(`${baseUrl}/${mlpMinPhaseIdx}/command`,{command: "Invert"}, "Invert completed");
+        const invertedSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
+        const invertedSumdB = await getAvgSPL(invertedSumIdx, startFreq, endFreq);
+        // potential phase issue if regular sum is higher than inverted sum
+        if (regularSumdB > invertedSumdB) {
+          console.warn(`Possible polarity issue detected for ${commandId[i]}. Please double-check wiring.`);
+        }
+        // cleanup
+        for (let j = invertedSumIdx; j > mCount; j--) {
+          await postDelete(j);
+        }
+      }
+      console.infoUpdate("Speaker polarity check complete.");
+    }
     async function groundWorks() {
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
-      console.log(`Optimizing${useAudyFiltering ? " " : " spatial averaging, "}volume & time alignment...`);
       await initializeTrims();
       await timeAlignSpeakers();
       if (!noSub) { await initializeSubwoofers(); }
       await spatialAverage();
+      await polarityCheck();
       if (noSub) { return; }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
@@ -2981,7 +3014,7 @@
       combinedSubIRs4AF[pos] = impulseArray;
     }
     async function directional2standard() {
-      console.warn("Converting from directional to standard bass for a better sound experience...");
+      console.log("Converting from directional to standard bass for a better sound experience...");
       let measurements = await fetch_mREW();
       let mCount = Object.keys(measurements).length;
       // isolate SW commandIds, excess phase responses & IR start times (based on bandpassed responses)
@@ -3021,7 +3054,7 @@
         const [loDelay, hiDelay] = getDelayRangeOf(mSec[nSpeakers + thisSubNumber], nSpeakers + 1, nSpeakers + nSubs);
         loDelayLimit = Math.min(Math.max(loDelayLimit, loDelay), hiDelay);
         hiDelayLimit = Math.min(Math.max(hiDelayLimit, loDelay), hiDelay);
-        console.log(`Aligning ${thisSubCmdId} to ${aggCmdIds} over ${startFreq.toFixed(2)}hz - ${endFreq.toFixed(2)}hz...`);
+        console.warn(`Aligning ${thisSubCmdId} to ${aggCmdIds} over ${startFreq.toFixed(2)}hz - ${endFreq.toFixed(2)}hz...`);
         const [requiredDelay, isInverted, sumIndex] = await alignMsub(aggSubEPIdx, thisSubEPIdx,
                                                                       startFreq, endFreq,
                                                                       loDelayLimit, hiDelayLimit);
@@ -3073,7 +3106,7 @@
       console.infoUpdate(`Generated combined subwoofer response(s) for all positions.`);
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
       if (sOs === 300 && volAdjust != 0) {
-        console.log(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
+        console.warn(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           customLevel[i] += volAdjust;
           console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
@@ -3109,7 +3142,7 @@
         }
         cmdIdIndices[cmdId].push(i);
       }
-      console.warn("Directional to standard bass conversion complete.");
+      console.info("Directional to standard bass conversion complete.");
     }
     function response2array(response, start, end, phase=false) {
       let startFreq = response.startFreq;
@@ -3221,7 +3254,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.075) {
+      for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
@@ -3272,7 +3305,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.075) {
+      for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
@@ -3377,6 +3410,15 @@
     }
     async function genExcessPhaseResponse(idx) {
       return await postNext('Excess phase version', idx, {
+        "include cal": false,
+        "append lf tail": false,
+        "append hf tail": false,
+        "frequency warping": false,
+        "replicate data": false
+      });
+    }
+    async function genMinimumPhaseResponse(idx) {
+      return await postNext('Minimum phase version', idx, {
         "include cal": false,
         "append lf tail": false,
         "append hf tail": false,
