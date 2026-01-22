@@ -3254,7 +3254,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.075) {
+      for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
@@ -3305,7 +3305,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.075) {
+      for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');

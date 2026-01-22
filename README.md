@@ -7,7 +7,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.9.0 changelog -
+### Update 1/22/2026 PureEQ v2.9.0 changelog -
 * Tighten up proximity based delay range to ignore areas farther away from time alignment
 * Add absolute polarity check for speakers (experimental)
 
