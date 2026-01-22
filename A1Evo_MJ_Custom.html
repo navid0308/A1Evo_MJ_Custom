@@ -1969,38 +1969,6 @@
       Object.freeze(flDist);
       console.info("Time aligned speakers.");
     }
-    async function polarityCheck() {
-      // seems strange but all testing suggests REW's MP is almost always 180* off from the time aligned response
-      // well, it means it can be used to test absolute polarity (I think?) by checking for max cancellation against MP
-      console.log("Checking absolute polarity of all speakers...");
-      console.info("Starting polarity check...");
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
-      for (let i = 1; i <= nSpeakers; i++) {
-        console.infoUpdate(`Checking polarity of ${commandId[i]}...`);
-        // isolate the MLP response and the bandwidth over which to check summation against MP response
-        const mlpIdx = cmdIdIndices[commandId[i]][0];
-        const mlpMinPhaseIdx = await genMinimumPhaseResponse(mlpIdx);
-        const startFreq = await getAbsLow3dBPoint(mlpIdx, false, 20); // no subwoofers
-        const endFreq = 320; // only evaluate upto the lower frequency region
-        // regular sum should result in maximum cancellation with MP
-        const regularSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
-        const regularSumdB = await getAvgSPL(regularSumIdx, startFreq, endFreq);
-        // inverted sum should result in maximum summation with MP
-        await postSafe(`${baseUrl}/${mlpMinPhaseIdx}/command`,{command: "Invert"}, "Invert completed");
-        const invertedSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
-        const invertedSumdB = await getAvgSPL(invertedSumIdx, startFreq, endFreq);
-        // potential phase issue if regular sum is higher than inverted sum
-        if (regularSumdB > invertedSumdB) {
-          console.warn(`Possible polarity issue detected for ${commandId[i]}. Please double-check wiring.`);
-        }
-        // cleanup
-        for (let j = invertedSumIdx; j > mCount; j--) {
-          await postDelete(j);
-        }
-      }
-      console.infoUpdate("Speaker polarity check complete.");
-    }
     async function initializeSubwoofers() {
       if (bassMode === "Directional") {
         await directional2standard();
@@ -2008,7 +1976,7 @@
       const SWIndices = cmdIdIndices[commandId[nChannels]];
       if (SWIndices.length > 1) {
         const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
-        console.log(`${commandId[nChannels]} response variation between ${SWIndices.length} microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
+        console.warn(`${commandId[nChannels]} response variation between ${SWIndices.length} microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
     }
     async function alignVol2MLP(indices) {
@@ -2072,15 +2040,47 @@
         avgIdx += 2;
       }
     }
+    async function polarityCheck() {
+      // seems strange but all testing suggests REW's MP is almost always 180* off from the time aligned response
+      // well, it means it can be used to test absolute polarity (I think?) by checking for max cancellation against MP
+      console.log("Checking absolute polarity of all speakers...");
+      console.info("Starting polarity check...");
+      const measurements = await fetch_mREW();
+      const mCount = Object.keys(measurements).length;
+      for (let i = 1; i <= nSpeakers; i++) {
+        console.infoUpdate(`Checking polarity of ${commandId[i]}...`);
+        // isolate the MLP response and the bandwidth over which to check summation against MP response
+        const mlpIdx = cmdIdMLPIndices[commandId[i]];
+        const mlpMinPhaseIdx = await genMinimumPhaseResponse(mlpIdx);
+        const startFreq = await getAbsLow3dBPoint(mlpIdx, false, 20); // no subwoofers
+        const endFreq = await getAbsHigh6dBPoint(mlpIdx, false, 20); // should ideally be 320hz
+        // regular sum should result in maximum cancellation with MP
+        const regularSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
+        const regularSumdB = await getAvgSPL(regularSumIdx, startFreq, endFreq);
+        // inverted sum should result in maximum summation with MP
+        await postSafe(`${baseUrl}/${mlpMinPhaseIdx}/command`,{command: "Invert"}, "Invert completed");
+        const invertedSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
+        const invertedSumdB = await getAvgSPL(invertedSumIdx, startFreq, endFreq);
+        // potential phase issue if regular sum is higher than inverted sum
+        if (regularSumdB > invertedSumdB) {
+          console.warn(`Possible polarity issue detected for ${commandId[i]}. Please double-check wiring.`);
+        }
+        // cleanup
+        for (let j = invertedSumIdx; j > mCount; j--) {
+          await postDelete(j);
+        }
+      }
+      console.infoUpdate("Speaker polarity check complete.");
+    }
     async function groundWorks() {
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       await initializeTrims();
       await timeAlignSpeakers();
-      await polarityCheck();
       if (!noSub) { await initializeSubwoofers(); }
       await spatialAverage();
+      await polarityCheck();
       if (noSub) { return; }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
