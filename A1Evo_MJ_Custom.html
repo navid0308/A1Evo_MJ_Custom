@@ -1351,15 +1351,13 @@
         subLoDelay = Infinity;
         subHiDelay = -Infinity;
         jsonData.detectedChannels.forEach(channel => {
-          if (channel.channelReport.isReversePolarity) {
-            console.warn(`${channel.commandId} was flagged as inverted by Audyssey. Please double-check wiring/settings.`);
-          }
           if (channel.commandId && channel.commandId === "C") {
             noCenter = false;
           }
           if (channel.commandId && channel.commandId.startsWith("SW")) {
             if (channel.commandId.startsWith("SWMIX") && channel.commandId != "SWMIX") {
               // deals with a MultEQ app issue where SWMIX is assigned indices for no reason
+              // note: this doesn't update the .ady, only the internal commandIds & extracted measurements
               channel.commandId = "SWMIX";
             }
             swCmdIds.push(channel.commandId);
@@ -1371,6 +1369,12 @@
           }
           else {
             spCmdIds.push(channel.commandId);
+          }
+          // warn about potential phase issue based on Audyssey "isReversePolarity" flag
+          if (channel.channelReport.isReversePolarity) {
+            // for SWMIX, report the subwoofer number
+            const cmdId = channel.commandId === "SWMIX" ? `SW${swChannelCount}` : channel.commandId;
+            console.warn(`${cmdId} was flagged as inverted by Audyssey. Please double-check wiring/settings.`);
           }
         });
         spCmdIds.sort();
@@ -1654,7 +1658,8 @@
       document.getElementById("button2").disabled = false;
     }
     async function addmicCal() {
-      console.info("Applying Audyssey microphone calibration file to measurements...");
+      console.log("Applying Audyssey microphone calibration file to measurements...");
+      console.info("Starting...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       for (let i = 1; i < mCount; i++) {
@@ -1843,7 +1848,6 @@
         console.error('There seems to be a problem with REW installation!');
         throw new Error;
       }
-      if (isCirrusLogic && isAudy) {await addmicCal();} // only apply if all sanity checks pass
       const tcResponse = await fetch('http://localhost:4735/eq/house-curve');
       if (tcResponse.ok) {
         const target = await tcResponse.json();
@@ -1870,7 +1874,10 @@
         throw new Error;
       }
       logCustomizations();
-      return;
+      // only apply audyssey microphone calibration for cirrus logic models after all sanity checks pass
+      if (isCirrusLogic && isAudy) {
+        await addmicCal();
+      }
     }
     function getDelayHeadroom(startIdx, endIdx) {
       const minM = Math.min(...mSec.slice(startIdx, endIdx + 1));
@@ -1996,7 +2003,7 @@
     }
     async function spatialAverage() {
       console.log("Spatially averaging all channels...");
-      console.info("Starting spatial averaging...");
+      console.info("Starting...");
       const measurements = await fetch_mREW();
       const mCount = Object.keys(measurements).length;
       let mlpIdx = mCount + 1;
@@ -3410,6 +3417,7 @@
     }
     function sanityCheckSWMIX(detectedChannels) {
       // new MultEQ app versions can sometimes add random numbers after SWMIX; there shouldn't be any numbers after SWMIX
+      // note: this is used to update the .ady
       detectedChannels.forEach(channel => {
         if (channel.commandId.startsWith("SWMIX") && channel.commandId.length != "SWMIX".length) {
           console.warn(`Subwoofer with enChannelType '${channel.enChannelType}' has incorrect commandId '${channel.commandId}' - changed to 'SWMIX'`);
