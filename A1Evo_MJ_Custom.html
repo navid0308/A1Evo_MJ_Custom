@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1351,6 +1351,9 @@
         subLoDelay = Infinity;
         subHiDelay = -Infinity;
         jsonData.detectedChannels.forEach(channel => {
+          if (channel.channelReport.isReversePolarity) {
+            console.warn(`${channel.commandId} was flagged as inverted by Audyssey. Please double-check wiring/settings.`);
+          }
           if (channel.commandId && channel.commandId === "C") {
             noCenter = false;
           }
@@ -2040,39 +2043,6 @@
         avgIdx += 2;
       }
     }
-    async function polarityCheck() {
-      // audy mic seems to measure as inverted, so an easy polarity check is looking for maximum cancellation against minimum phase response
-      // note: for manual measurements, the logic should be opposite of audy mic, since umik-1 does not measure as inverted
-      console.log("Checking absolute polarity of all speakers...");
-      console.info("Starting polarity check...");
-      const measurements = await fetch_mREW();
-      const mCount = Object.keys(measurements).length;
-      for (let i = 1; i <= nSpeakers; i++) {
-        console.infoUpdate(`Checking polarity of ${commandId[i]}...`);
-        // isolate the MLP response, minimum phase response, and the evaluation range
-        const mlpIdx = cmdIdMLPIndices[commandId[i]];
-        const mlpMinPhaseIdx = await genMinimumPhaseResponse(mlpIdx);
-        const startFreq = await getAbsLow3dBPoint(mlpIdx, false, 20); // no subwoofers
-        const endFreq = await getSpeakerHFRolloff(mlpIdx); // evaluate using the full response
-        // regular sum
-        const regularSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
-        const regularSumdB = await getAvgSPL(regularSumIdx, startFreq, endFreq);
-        // inverted sum
-        await postSafe(`${baseUrl}/${mlpMinPhaseIdx}/command`,{command: "Invert"}, "Invert completed");
-        const invertedSumIdx = await postNext('Arithmetic', [mlpIdx, mlpMinPhaseIdx], {function: "A + B"});
-        const invertedSumdB = await getAvgSPL(invertedSumIdx, startFreq, endFreq);
-        // determine polarity based on audy or manual measurement
-        const isInverted = isAudy ? regularSumdB > invertedSumdB : regularSumdB < invertedSumdB;
-        if (isInverted) {
-          console.warn(`Possible polarity issue detected for ${commandId[i]}. Please double-check wiring.`);
-        }
-        // cleanup
-        for (let j = invertedSumIdx; j > mCount; j--) {
-          await postDelete(j);
-        }
-      }
-      console.infoUpdate("Speaker polarity check complete.");
-    }
     async function groundWorks() {
       if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
       if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
@@ -2081,7 +2051,6 @@
       await timeAlignSpeakers();
       if (!noSub) { await initializeSubwoofers(); }
       await spatialAverage();
-      await polarityCheck();
       if (noSub) { return; }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
@@ -3411,15 +3380,6 @@
     }
     async function genExcessPhaseResponse(idx) {
       return await postNext('Excess phase version', idx, {
-        "include cal": false,
-        "append lf tail": false,
-        "append hf tail": false,
-        "frequency warping": false,
-        "replicate data": false
-      });
-    }
-    async function genMinimumPhaseResponse(idx) {
-      return await postNext('Minimum phase version', idx, {
         "include cal": false,
         "append lf tail": false,
         "append hf tail": false,
