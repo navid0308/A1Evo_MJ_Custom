@@ -2065,26 +2065,26 @@
     }
     async function getDynamicBassFill(idx, start, end) {
       // flips the SW response to ignore peaks and get the general baseline up to target
-      const avgSPL = await getAvgSPL(idx, start, end);
-      const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / A", targetLevel: avgSPL});
-      const dynamicBassFill = await getAvgSPL(flippedIdx, start, end);
+      const avgSPL = await getAvgSPL(idx, start, end, "1%2F6");
+      const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: avgSPL});
+      const dynamicBassFill = await getAvgSPL(flippedIdx, start, end, "1%2F6");
       await postDelete(flippedIdx);
       return dynamicBassFill;
     }
     async function updateEQTargetSettings(mlpIdx, avgIdx, start, end, isSub) {
-      // aggressively line up response to target curve using FDW of MLP response
+      // aggressively line up response to target curve
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
-      await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
       if (isSub) {
-        const subDynamicBassFill = await getDynamicBassFill(mlpIdx, Math.max(start, 20), Math.min(end, 120));
+        const subDynamicBassFill = await getDynamicBassFill(mlpIdx, Math.min(start, 30), Math.max(end, 80));
         tcLevelOffset = Math.max(tcLevelOffset, subDynamicBassFill); // dip compensation
         console.warn(`SW dynamic bass fill (dip compensation): ${subDynamicBassFill.toFixed(2)}dB`);
       }
       else {
+        await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
         const speakerSPLOffsetFDW = await getExactTrim(mlpIdx, Math.max(start, 200), Math.min(end, 2000));
         tcLevelOffset = Math.max(tcLevelOffset, speakerSPLOffsetFDW); // reverb compensation
+        await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "false" }, "Update processed");
       }
-      await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "false" }, "Update processed");
       await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
       await postSafe(`${baseUrl}/${avgIdx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
@@ -3171,7 +3171,7 @@
       const avgSPL = getAvgdB(freqArray);
       return avgSPL; // average dB SPL
     }
-    async function getExactTrim(idx, start, end){
+    async function getExactTrim(idx, start, end) {
       // calculates SPL offset against target curve @75dB
       const idxSPL = await getAvgSPL(idx, start, end);
       const targetArray = response2array(targetResponse, start, end);
