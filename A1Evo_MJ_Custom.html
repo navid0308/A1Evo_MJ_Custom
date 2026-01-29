@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2785,14 +2785,14 @@
       console.log("Finalizing crossover frequencies...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
-      // use min <-> max XO plus an octave on either side to set evaluation range
-      const startFreq = minXO / 2;
-      const endFreq = maxXO * 2;
       for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         const initialXO = customCrossover[i];
+        // use an octave on either side of initialXO to set evaluation range
+        const startFreq = initialXO / 2;
+        const endFreq = initialXO * 2;
         // prepare speaker pair if it's not a single channel
         let mlpSPIdx = cmdIdMLPIndices[commandId[i]];
         if (!singleChannel) {
@@ -2810,10 +2810,10 @@
           const mlpXOResultIdx = await addSub2Speaker(mlpSPIdx, mlpSWIdx, checkXO); // response using checkXO
           // pick XO with least dips
           const checkXOAvgDip = await getAvgDip(mlpXOResultIdx, startFreq, endFreq);
-          if (minAvgDip > checkXOAvgDip) {
+          if (checkXOAvgDip < minAvgDip) {
             // progressively require higher improvements for higher XO
-            // e.g. 0.04dB improvement needed to go up from 40hz but 0.12dB improvement needed to go up from 120hz
-            minAvgDip = checkXOAvgDip - checkXO / 1000;
+            // e.g. 0.4dB improvement needed to go up from 40hz but 1.2dB improvement needed to go up from 120hz
+            minAvgDip = checkXOAvgDip - checkXO / 100;
             bestXO = checkXO;
           }
           await postDelete(mlpXOResultIdx); // cleanup checkXO response
