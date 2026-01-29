@@ -8,7 +8,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 
 ## Changelogs
 ### Update 1/28/2026 PureEQ v2.9.2 changelog -
-* Update XO finalization strategy to further reduce chance of localization
+* Update XO finalization strategy to use group delay
 
 ### Update 1/23/2026 PureEQ v2.9.1 changelog -
 Fun fact: microphones can measure in positive or negative polarity, but there's no way to tell from the data alone. Plus, various crossover designs across different speakers make polarity detection even more challenging. What all of this means is that chasing absolute polarity detection isn't a worthwhile effort. Instead, custom will simply provide a warning if Audyssey flagged anything as being inverted during its polarity check. It's fairly reliable and serves the purpose for catching potential out of phase issues.

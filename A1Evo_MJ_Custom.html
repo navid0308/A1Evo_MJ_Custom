@@ -2799,7 +2799,7 @@
           const mlpSPIdxR = cmdIdMLPIndices[commandId[i + 1]];
           mlpSPIdx = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
         }
-        let bestXO = initialXO, minAvgDip = Infinity; // initialize
+        let bestXO = initialXO, minStdDevGD = Infinity; // initialize
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           const checkXO = freqIndex[j];
@@ -2808,12 +2808,14 @@
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           const mlpXOResultIdx = await addSub2Speaker(mlpSPIdx, mlpSWIdx, checkXO); // response using checkXO
-          // pick XO with least dips
-          const checkXOAvgDip = await getAvgDip(mlpXOResultIdx, startFreq, endFreq);
-          if (checkXOAvgDip < minAvgDip) {
+          const checkXOGD = await fetchSafe("group-delay?smoothing=Psy&ppo=96", mlpXOResultIdx);
+          const checkXOGDArray = response2array(checkXOGD, startFreq, endFreq);
+          const checkXOGDStdDev = getStdDev(checkXOGDArray) * 1000; // convert to milliseconds
+          // pick XO with the most linear group delay
+          if (minStdDevGD > checkXOGDStdDev) {
             // progressively require higher improvements for higher XO
-            // e.g. 0.04dB improvement needed to go up from 40hz but 0.12dB improvement needed to go up from 120hz
-            minAvgDip = checkXOAvgDip - checkXO / 1000;
+            // e.g. 0.04ms improvement needed to go up from 40hz but 0.12ms improvement needed to go up from 120hz
+            minStdDevGD = checkXOGDStdDev - checkXO / 1000;
             bestXO = checkXO;
           }
           await postDelete(mlpXOResultIdx); // cleanup checkXO response
