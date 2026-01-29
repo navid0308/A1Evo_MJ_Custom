@@ -2063,12 +2063,25 @@
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
+    async function getDynamicBassFill(idx, start, end) {
+      // returns average "dip" relative to target curve between start and end frequencies
+      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const freqArray = response2array(freqResponse, start, end);
+      const targetArray = response2array(targetResponse, start, end);
+      const arrayLength = Math.min(freqArray.length, targetArray.length);
+      const dipsArray = []; // records dips and ignores the region above target
+      for (let i = 0; i < arrayLength; i++) {
+        dipsArray.push(Math.min(freqArray[i] - targetArray[i], 0));
+      }
+      const dynamicBassFill = -1 * getAvgdB(dipsArray); // report the average dip as a positive dB value
+      return dynamicBassFill;
+    }
     async function updateEQTargetSettings(mlpIdx, avgIdx, start, end, isSub) {
       // aggressively line up response to target curve using FDW of MLP response
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
       await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
       if (isSub) {
-        const subDynamicBassFill = await getAvgDip(mlpIdx, Math.max(start, 20), Math.min(end, 120));
+        const subDynamicBassFill = await getDynamicBassFill(mlpIdx, Math.max(start, 20), Math.min(end, 120));
         tcLevelOffset = Math.max(tcLevelOffset, subDynamicBassFill); // dip compensation
         console.warn(`SW dynamic bass fill (dip compensation): ${subDynamicBassFill.toFixed(2)}dB`);
       }
@@ -2799,7 +2812,7 @@
           const mlpSPIdxR = cmdIdMLPIndices[commandId[i + 1]];
           mlpSPIdx = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
         }
-        let bestXO = initialXO, minStdDevGD = Infinity; // initialize
+        let bestXO = initialXO, maxAvgSPL = -Infinity; // initialize
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           const checkXO = freqIndex[j];
@@ -2808,14 +2821,12 @@
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           const mlpXOResultIdx = await addSub2Speaker(mlpSPIdx, mlpSWIdx, checkXO); // response using checkXO
-          const checkXOGD = await fetchSafe("group-delay?smoothing=Psy&ppo=96", mlpXOResultIdx);
-          const checkXOGDArray = response2array(checkXOGD, startFreq, endFreq);
-          const checkXOGDStdDev = getStdDev(checkXOGDArray) * 1000; // convert to milliseconds
-          // pick XO with the most linear group delay
-          if (minStdDevGD > checkXOGDStdDev) {
+          const checkXOAvgSPL = await getAvgSPL(mlpXOResultIdx, startFreq, endFreq);
+          // pick XO with highest output
+          if (maxAvgSPL < checkXOAvgSPL) {
             // progressively require higher improvements for higher XO
-            // e.g. 0.04ms improvement needed to go up from 40hz but 0.12ms improvement needed to go up from 120hz
-            minStdDevGD = checkXOGDStdDev - checkXO / 1000;
+            // e.g. 0.4dB improvement needed to go up from 40hz but 1.2dB improvement needed to go up from 120hz
+            maxAvgSPL = checkXOAvgSPL + checkXO / 100;
             bestXO = checkXO;
           }
           await postDelete(mlpXOResultIdx); // cleanup checkXO response
@@ -3164,19 +3175,6 @@
       const freqArray = response2array(freqResponse, start, end);
       const avgSPL = getAvgdB(freqArray);
       return avgSPL; // average dB SPL
-    }
-    async function getAvgDip(idx, start, end) {
-      // returns average "dip" relative to target curve between start and end frequencies
-      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
-      const freqArray = response2array(freqResponse, start, end);
-      const targetArray = response2array(targetResponse, start, end);
-      const arrayLength = Math.min(freqArray.length, targetArray.length);
-      const dipsArray = []; // records dips and ignores the region above target
-      for (let i = 0; i < arrayLength; i++) {
-        dipsArray.push(Math.min(freqArray[i] - targetArray[i], 0));
-      }
-      const avgDip = -1 * getAvgdB(dipsArray); // report the average dip as a positive dB value
-      return avgDip;
     }
     async function getExactTrim(idx, start, end){
       // calculates SPL offset against target curve @75dB
