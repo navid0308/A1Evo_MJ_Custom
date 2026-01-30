@@ -7,7 +7,8 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.9.3 changelog -
+### Update 1/30/2026 PureEQ v2.9.3 changelog -
+Thanks to all who tested and validated the performance of this change!
 * Revamp dynamic bass fill to better handle subwoofers with lots of dips
 
 ### Update 1/28/2026 PureEQ v2.9.2 changelog -

@@ -2075,13 +2075,13 @@
       // aggressively line up response to target curve
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
       if (isSub) {
-        const subDynamicBassFill = await getDynamicBassFill(mlpIdx, Math.min(start, 30), Math.max(end, 80));
+        const subDynamicBassFill = await getDynamicBassFill(mlpIdx, Math.min(start, 30), Math.max(end, 80)); // use full bandwidth if possible
         tcLevelOffset = Math.max(tcLevelOffset, subDynamicBassFill); // dip compensation
         console.warn(`SW dynamic bass fill (dip compensation): ${subDynamicBassFill.toFixed(2)}dB`);
       }
       else {
         await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
-        const speakerSPLOffsetFDW = await getExactTrim(mlpIdx, Math.max(start, 200), Math.min(end, 2000));
+        const speakerSPLOffsetFDW = await getExactTrim(mlpIdx, Math.max(start, 200), 2000); // emphasize SBIR affected region
         tcLevelOffset = Math.max(tcLevelOffset, speakerSPLOffsetFDW); // reverb compensation
         await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "false" }, "Update processed");
       }
