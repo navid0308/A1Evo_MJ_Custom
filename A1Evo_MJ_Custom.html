@@ -1597,15 +1597,15 @@
       await disableGraph();
       await enableBlock();
       await bootUp();
-      await groundWorks();
+      await initializeTrims();
+      await timeAlignSpeakers();
+      await initializeSubwoofers();
+      await spatialAverage();
       await calculateSpeakerRolloffs();
-      if (!noSub) {
-        await calculateSubBandwidth();
-        await optimizeSubDelay();
-        await finalizeXO();
-      }
-      if (useAudyFiltering) { await generateTargetCurves(); }
-      else { await generateREWFilters(); }
+      await calculateSubBandwidth();
+      await optimizeSubDelay();
+      await finalizeXO();
+      useAudyFiltering ? await generateTargetCurves() : await generateREWFilters();
       finalizeTrims();
       finalizeDistances();
       await drawResults();
@@ -1980,6 +1980,11 @@
       console.info("Time aligned speakers.");
     }
     async function initializeSubwoofers() {
+      if (noSub) { return; }
+      console.log("Initializing subwoofer(s)...");
+      if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
+      if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
+      if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
       if (bassMode === "Directional") {
         await directional2standard();
       }
@@ -1988,6 +1993,9 @@
         const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
         console.warn(`${commandId[nChannels]} response variation between ${SWIndices.length} microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
+      const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
+      console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
+      console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function alignVol2MLP(indices) {
       // level matches non-MLP positions to MLP
@@ -2049,19 +2057,6 @@
         mlpIdx += 2;
         avgIdx += 2;
       }
-    }
-    async function groundWorks() {
-      if (bassMode === "Directional") {console.info(`'Directional bass' mode with '${swChannelCount}' subwoofers detected.`);}
-      if (bassMode != "Directional" && swChannelCount > 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofers detected.`);}
-      if (bassMode != "Directional" && swChannelCount === 1) {console.info(`'Standard bass' mode with '${swChannelCount}' subwoofer detected.`);}
-      await initializeTrims();
-      await timeAlignSpeakers();
-      if (!noSub) { await initializeSubwoofers(); }
-      await spatialAverage();
-      if (noSub) { return; }
-      const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
-      console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
-      console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
     async function getDynamicBassFill(idx, start, end) {
       // flips the SW response to ignore peaks and get the general baseline up to target
@@ -2469,7 +2464,7 @@
         if (trimOffset != 0) {
           const customLevelOriginal = customLevel[i];
           customLevel[i] += trimOffset;
-          logUpdate += ` | ${commandId[i].padStart(3, ".")} auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
+          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
         console.infoUpdate(logUpdate);
       }
@@ -2633,6 +2628,7 @@
       }
     }
     async function calculateSubBandwidth() {
+      if (noSub) { return; }
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
@@ -2666,6 +2662,7 @@
       }
     }
     async function optimizeSubDelay() {
+      if (noSub) { return; }
       console.log("Optimizing subwoofer delay for ALL speakers...");
       const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
@@ -2790,6 +2787,7 @@
       }
     }
     async function finalizeXO() {
+      if (noSub) { return; }
       console.log("Finalizing crossover frequencies...");
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
@@ -2807,7 +2805,7 @@
           const mlpSPIdxR = cmdIdMLPIndices[commandId[i + 1]];
           mlpSPIdx = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
         }
-        let bestXO = initialXO, maxAvgSPL = -Infinity; // initialize
+        let bestXO = initialXO, minAvgDip = Infinity; // initialize
         console.info("Starting...");
         for (let j = 0; j < freqIndex.length; j++) {
           const checkXO = freqIndex[j];
@@ -2816,12 +2814,12 @@
           // final XO determination logic
           console.infoUpdate(`${cmdIds} - Initial XO: ${initialXO}hz → Checking XO: ${checkXO}hz`);
           const mlpXOResultIdx = await addSub2Speaker(mlpSPIdx, mlpSWIdx, checkXO); // response using checkXO
-          const checkXOAvgSPL = await getAvgSPL(mlpXOResultIdx, startFreq, endFreq);
-          // pick XO with highest output
-          if (maxAvgSPL < checkXOAvgSPL) {
+          // pick XO with least dips
+          const checkXOAvgDip = await getAvgDip(mlpXOResultIdx, startFreq, endFreq);
+          if (minAvgDip > checkXOAvgDip) {
             // progressively require higher improvements for higher XO
             // e.g. 0.4dB improvement needed to go up from 40hz but 1.2dB improvement needed to go up from 120hz
-            maxAvgSPL = checkXOAvgSPL + checkXO / 100;
+            minAvgDip = checkXOAvgDip - checkXO / 100;
             bestXO = checkXO;
           }
           await postDelete(mlpXOResultIdx); // cleanup checkXO response
@@ -3015,7 +3013,7 @@
       }
       // sort subwoofers using IR start times
       const sortedSwCmdIds = Object.entries(swCmdIdsWithIRStart).sort((a, b) => a[1] - b[1]).map(row => row[0]);
-      console.info(`Alignment order based on proximity: ${sortedSwCmdIds}`);
+      console.info(`Alignment order based on proximity: ${sortedSwCmdIds.join(', ')}`);
       // index 0 is closest subwoofer and it is treated as the reference
       let aggCmdIds = sortedSwCmdIds[0]; // holds the aggregate commandIds as subwoofers are combined
       let aggSubEPIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[0]]; // holds aggregate EP response
@@ -3127,7 +3125,7 @@
         }
         cmdIdIndices[cmdId].push(i);
       }
-      console.info("Directional to standard bass conversion complete.");
+      console.log("Directional to standard bass conversion complete.");
     }
     function response2array(response, start, end, phase=false) {
       let startFreq = response.startFreq;
@@ -3170,6 +3168,19 @@
       const freqArray = response2array(freqResponse, start, end);
       const avgSPL = getAvgdB(freqArray);
       return avgSPL; // average dB SPL
+    }
+    async function getAvgDip(idx, start, end) {
+      // returns average "dip" relative to target curve between start and end frequencies
+      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
+      const freqArray = response2array(freqResponse, start, end);
+      const targetArray = response2array(targetResponse, start, end);
+      const arrayLength = Math.min(freqArray.length, targetArray.length);
+      const dipsArray = []; // records dips and ignores the region above target
+      for (let i = 0; i < arrayLength; i++) {
+        dipsArray.push(Math.min(freqArray[i] - targetArray[i], 0));
+      }
+      const avgDip = -1 * getAvgdB(dipsArray); // report the average dip as a positive dB value
+      return avgDip;
     }
     async function getExactTrim(idx, start, end) {
       // calculates SPL offset against target curve @75dB
