@@ -13,6 +13,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
   * This will also perform the speaker rolloff and subwoofer bandwidth detection after EQ
 * Force collapse advanced section during optimization; it'll be unlocked pre and post optimization
 * Cleanup an old "groundworks" function which was consolidating a lot of things in one place
+* Update the rolloff detection logic to only use the shelf values when determining EQ bandwidth
 * General code improvements and logging cleanup
 
 ### Update 1/30/2026 PureEQ v2.9.3 changelog -
