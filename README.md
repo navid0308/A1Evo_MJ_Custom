@@ -7,6 +7,14 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/1/2026 PureEQ v2.10.0 changelog -
+* Shuffle around the different steps so EQ is performed earlier in the chain
+  * This will do a better job of selecting XOs since it will consider gains from EQ filters
+  * This will also perform the speaker rolloff and subwoofer bandwidth detection after EQ
+* Force collapse advanced section during optimization; it'll be unlocked pre and post optimization
+* Cleanup an old "groundworks" function which was consolidating a lot of things in one place
+* General code improvements and logging cleanup
+
 ### Update 1/30/2026 PureEQ v2.9.3 changelog -
 Thanks to all who tested and validated the performance of this change!
 * Revamp dynamic bass fill to better handle subwoofers with lots of dips
