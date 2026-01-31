@@ -2827,8 +2827,8 @@
           const checkXOAvgDip = await getAvgDip(mlpXOResultIdx, startFreq, endFreq);
           if (minAvgDip > checkXOAvgDip) {
             // progressively require higher improvements for higher XO
-            // e.g. 0.04dB improvement needed to go up from 40hz but 0.12dB improvement needed to go up from 120hz
-            minAvgDip = checkXOAvgDip - checkXO / 1000;
+            // e.g. 0.4dB improvement needed to go up from 40hz but 1.2dB improvement needed to go up from 120hz
+            minAvgDip = checkXOAvgDip - checkXO / 100;
             bestXO = checkXO;
           }
           await postDelete(mlpXOResultIdx); // cleanup checkXO response
