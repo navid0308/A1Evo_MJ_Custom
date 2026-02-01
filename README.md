@@ -7,6 +7,13 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/1/2026 PureEQ v2.9.4 changelog -
+* Move the finalize XO step after filter generation to take advantage of any EQ gains
+  * This has the benefit of optimizing crossovers based on gains from EQ when using REW filtering mode
+  * Crossovers will now vary between AF and RF mode, since AF still relies on the raw responses
+* Optimize dynamic bass fill based the chosen target curve
+* Fine tune XO finalization range & weighting
+
 ### Update 1/30/2026 PureEQ v2.9.3 changelog -
 Thanks to all who tested and validated the performance of this change!
 * Revamp dynamic bass fill to better handle subwoofers with lots of dips
