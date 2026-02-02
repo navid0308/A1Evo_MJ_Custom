@@ -10,6 +10,8 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ### Update PureEQ v2.9.5 changelog -
 * Move rolloff and subwoofer bandwidth determination after equalization
   * This will take advantage of any bandwidth gains from EQ and correctly identify the usable XO range
+* Move SW integration with speaker optimization step after equalization
+* Update rolloff detection functions to better handle the usage of shelf filters
 
 ### Update 2/1/2026 PureEQ v2.9.4 changelog -
 * Move the finalize XO step after filter generation to take advantage of any EQ gains
