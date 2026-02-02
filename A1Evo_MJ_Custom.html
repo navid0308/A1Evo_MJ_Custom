@@ -2558,9 +2558,9 @@
       }
       return Math.min(rolloff, end);
     }
-    async function getAbsHigh6dBPoint(idx, isSub=true, start=10, end=320) {
+    async function getSubwooferHFRolloff(idx, start=10, end=320) {
       // finds high -6dB point from mean SPL
-      const idxSPL = isSub ? await getAvgSPL(idx, 30, 80) : await getAvgSPL(idx, 500, 2000);
+      const idxSPL = await getAvgSPL(idx, 30, 80);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2641,7 +2641,7 @@
       const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
       minXO = findNearestXO(2 * subLowFreq); // give subwoofer an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
-      const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
+      const subHighFreq = await getSubwooferHFRolloff(cmdIdAVGIndices[commandId[nChannels]]);
       maxXO = findNearestXO(subHighFreq); // set max XO closest to subwoofer HF roll-off
       if (minXO >= maxXO) {
         minXO = maxXO;
@@ -3026,7 +3026,7 @@
       const refSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[0]]; // closest subwoofer
       // initial evaluation range based on reference subwoofer bandwidth
       let startFreq = await getAbsLow3dBPoint(cmdIdIndices[sortedSwCmdIds[0]][0]);
-      let endFreq = await getAbsHigh6dBPoint(cmdIdIndices[sortedSwCmdIds[0]][0]);
+      let endFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0]);
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
         const thisSubCmdId = sortedSwCmdIds[i];
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1)); // used for delay limit calculations
@@ -3034,7 +3034,7 @@
         const thisSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[i]];
         // use aggregate subwoofer bandwidths to set evaluation range
         startFreq = Math.min(startFreq, await getAbsLow3dBPoint(cmdIdIndices[sortedSwCmdIds[i]][0]));
-        endFreq = Math.max(endFreq, await getAbsHigh6dBPoint(cmdIdIndices[sortedSwCmdIds[i]][0]));
+        endFreq = Math.max(endFreq, await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0]));
         // set delay limits based on IR start delta to prioritize time alignment
         const IRStartDelta = 1000 * (refSubIRStart - thisSubIRStart);
         let loDelayLimit = IRStartDelta - minDelayRangeSpan;
