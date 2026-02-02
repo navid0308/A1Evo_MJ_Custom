@@ -2784,7 +2784,7 @@
         customDistance[i] = Math.round(parseFloat(customDistance[i]) * 100) / 100;
         if (i > nSpeakers) {
           console.warn(`${commandId[i].padStart(3, ".")} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
-          swInvMsg += invertSub[i] ? `inv${commandId[i]}_` : "";
+          swInvMsg += invertSub[i] ? `_inv${commandId[i]}` : "";
         } else {
           console.info(`${commandId[i].padStart(3, ".")} - distance: ${customDistance[i].toFixed(2)}m`);
         }
@@ -3559,10 +3559,10 @@
         }
       }
       const tcName = targetCurveName === "" ? "DEQ" : targetCurveName;
-      const adyNameMJC = getadyName(fileName, "_" + (useAudyFiltering ? "AF_" : "")
-                                + (dialogueEnhancer ? "DE_" : "")
-                                + swInvMsg + `${tcName}_`
-                                + `MJC${getCurrentVersion()}`
+      const adyNameMJC = getadyName(fileName, `_MJC${getCurrentVersion()}`
+                                + (useAudyFiltering ? "-AF" : "")
+                                + (dialogueEnhancer ? "-DE" : "")
+                                + `${swInvMsg}_${tcName}` // these tend to be long
                                 + `_${getCurrentTimestamp()}.ady`);
       console.log(`Please save the following optimized .ady file when prompted-\n\n\t'${adyNameMJC}'\n\n`);
       const ady = JSON.stringify(jsonData);
