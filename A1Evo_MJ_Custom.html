@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.4</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.5</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -734,7 +734,7 @@
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 3;
-    const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
+    const cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
     const combinedSubIRs4AF = [];
@@ -1601,11 +1601,12 @@
       await timeAlignSpeakers();
       await initializeSubwoofers();
       await spatialAverage();
+      useAudyFiltering ? await generateTargetCurves() : await generateREWFilters();
+      // after EQ takes into account any gains from REW filters
       await calculateSpeakerRolloffs();
       await calculateSubBandwidth();
       await optimizeSubDelay();
-      useAudyFiltering ? await generateTargetCurves() : await generateREWFilters();
-      await finalizeXO(); // after EQ takes into account any gains from REW filters
+      await finalizeXO();
       finalizeTrims();
       finalizeDistances();
       await drawResults();
@@ -2357,16 +2358,20 @@
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
+        // find EQ bandwidths
+        const startFreq = Math.round(await getAbsLow3dBPoint(avgIdx, isSub, -subwooferLowShelfMax));
+        const endFreq = Math.round(isSub ? await getSubwooferHFRolloff(avgIdx)
+                                         : await getSpeakerHFRolloff(avgIdx, -speakerHighShelfMax));
         // line up response to target aggressively and set target type
-        await updateEQTargetSettings(mlpIdx, avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        await updateEQTargetSettings(mlpIdx, avgIdx, startFreq, endFreq, isSub);
         // plug in boost parameters
         if (isSub) {
-          await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
+          await updateEQFilterSettings(startFreq, endFreq,
             subwooferIndividualMaxBoost, subwooferOverallMaxBoost,
             subwooferLowShelfMin, subwooferLowShelfMax, 0, 0); // no HS
         }
         else {
-          await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
+          await updateEQFilterSettings(startFreq, endFreq,
             speakerIndividualMaxBoost, speakerOverallMaxBoost,
             0, 0, speakerHighShelfMin, speakerHighShelfMax); // no LS
         }
@@ -2543,24 +2548,25 @@
       }
       return xo;
     }
-    async function getAbsLow3dBPoint(idx, isSub=true, start=10, end=320) {
+    async function getAbsLow3dBPoint(idx, isSub=true, dropSPL=-3) {
       // finds low -3dB point from mean SPL
+      dropSPL = isSub ? Math.min(-3, dropSPL) : -3; // in case user zeroes out the max low shelf
+      const start = isSub ? 10 : 20, end = 320;
       const idxSPL = isSub ? await getAvgSPL(idx, 30, 80) : await getAvgSPL(idx, 500, 2000);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
-      let dropSPL = -3;
-      if (!useAudyFiltering && isSub) { dropSPL = Math.min(-3, -subwooferLowShelfMax); } // for REW filtering, account low freq ext gain from LS
       for (let i = 0; i < rpArray.length; i++) {
         if ((rpArray[i] - idxSPL) >= dropSPL) { break; }
         rolloff *= octave;
       }
       return Math.min(rolloff, end);
     }
-    async function getAbsHigh6dBPoint(idx, isSub=true, start=10, end=320) {
+    async function getSubwooferHFRolloff(idx) {
       // finds high -6dB point from mean SPL
-      const idxSPL = isSub ? await getAvgSPL(idx, 30, 80) : await getAvgSPL(idx, 500, 2000);
+      const start = 10, end = 320;
+      const idxSPL = await getAvgSPL(idx, 30, 80);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2571,8 +2577,10 @@
       }
       return Math.max(rolloff, start);
     }
-    async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
+    async function getSpeakerHFRolloff(idx, dropSPL=-3) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
+      dropSPL = Math.min(-3, dropSPL); // in case user zeroes out the max high shelf
+      const start=10000, end=20000;
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const tcArray = response2array(targetResponse, start, end);
@@ -2581,15 +2589,13 @@
       let checkFreq = start;
       let rolloff = checkFreq;
       let lowestSPL = rpArray[0];
-      let dropSPL = -3;
-      if (!useAudyFiltering) { dropSPL = Math.min(-3, -speakerHighShelfMax); }
       for (let i = 0; i < arrLength; i++) {
         if (rpArray[i] < lowestSPL) {
           lowestSPL = rpArray[i];
           rolloff = checkFreq;
         }
         // if HF peak exceeds lowest point by 3dB, set roll-off before that peak
-        // if HF drops below target by -3dB (Audy) or max high shelf (REW), stop there otherwise high shelf will fail
+        // if HF drops below target by max high shelf, stop there otherwise high shelf will fail
         if ((rpArray[i] - lowestSPL >= 3) || ((rpArray[i] - tcArray[i]) <= dropSPL)) { break; }
         checkFreq *= octave;
       }
@@ -2598,36 +2604,27 @@
     async function calculateSpeakerRolloffs() {
       console.log("Calculating speaker roll-offs...");
       for (let i = 1; i <= nSpeakers; i++) {
-        const spIdx = cmdIdAVGIndices[commandId[i]];
+        const spIdx = cmdIdAVGIndicesEQ[commandId[i]];
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         // rolloff determination logic
         let idx = spIdx;
         if (!singleChannel) {
-          const spIdxR = cmdIdAVGIndices[commandId[i + 1]]
+          const spIdxR = cmdIdAVGIndicesEQ[commandId[i + 1]]
           idx = await postNext('Magn plus phase average', [spIdx, spIdxR]); // do not use VA. it unfairly benefits single channel speakers
         }
-        const rolloff = await getAbsLow3dBPoint(idx, false, 20);
+        const rolloff = await getAbsLow3dBPoint(idx, false);
         let initialXO = findNearestXO(rolloff + 15); // look for initial XO that's ~15hz above roll-off
         // edge case for no subwoofer
         if (noSub && cmdIds.endsWith("FL & FR")) {
           initialXO = "L";
         }
         customCrossover[i] = initialXO;
-        // used for EQ limits
-        const rolloffLF = await getAbsLow3dBPoint(spIdx, false, 20); // speaker specific, not pair specific
-        const rolloffHF = await getSpeakerHFRolloff(spIdx); // speaker specific, not pair specific
-        m3dBPoints[i] = [Math.round(rolloffLF), Math.round(rolloffHF)];
         if (!singleChannel) {
           // assign initialXO to the right channel of the speaker pair
           customCrossover[i + 1] = initialXO;
           await postDelete(idx); // cleanup
-          // used for EQ limits
-          const spIdxR = cmdIdAVGIndices[commandId[i + 1]]
-          const rolloffLFR = await getAbsLow3dBPoint(spIdxR, false, 20); // speaker specific, not pair specific
-          const rolloffHFR = await getSpeakerHFRolloff(spIdxR); // speaker specific, not pair specific
-          m3dBPoints[i + 1] = [Math.round(rolloffLFR), Math.round(rolloffHFR)];
           i++;
         }
         const logMessage = initialXO === "L" ? "Large/Full Range" : `Initial XO: ${initialXO}hz`;
@@ -2638,16 +2635,15 @@
       if (noSub) { return; }
       console.log("Calculating subwoofer bandwidth...")
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
-      const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
+      const subLowFreq = await getAbsLow3dBPoint(cmdIdAVGIndicesEQ[commandId[nChannels]]);
       minXO = findNearestXO(2 * subLowFreq); // give subwoofer an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
-      const subHighFreq = await getAbsHigh6dBPoint(cmdIdAVGIndices[commandId[nChannels]]);
+      const subHighFreq = await getSubwooferHFRolloff(cmdIdAVGIndicesEQ[commandId[nChannels]]);
       maxXO = findNearestXO(subHighFreq); // set max XO closest to subwoofer HF roll-off
       if (minXO >= maxXO) {
         minXO = maxXO;
         console.warn(`Subwoofer has very little bandwidth and can only support ${minXO}hz crossover!`);
       }
-      m3dBPoints[nChannels] = [Math.round(subLowFreq), Math.round(subHighFreq)];
       Object.freeze(minXO);
       Object.freeze(maxXO);
       console.info(`${commandId[nChannels].padStart(3, ".")} bandwidth: ${subLowFreq.toFixed(2)}hz - ${subHighFreq.toFixed(2)}hz → Usable XO range: ${minXO}hz - ${maxXO}hz`);
@@ -2673,18 +2669,18 @@
       console.log("Optimizing subwoofer delay for ALL speakers...");
       const mlpSPIndices = [];
       for (let i = 1; i <= nSpeakers; i++) {
-        mlpSPIndices.push(cmdIdMLPIndices[commandId[i]]);
+        mlpSPIndices.push(cmdIdMLPIndicesEQ[commandId[i]]);
       }
       // prepare "average" speaker's excess phase response
       const avgSpeakerIdx = await postNext('Magn plus phase average', Array.from(mlpSPIndices));
       const avgSpeakerEPIdx = await genExcessPhaseResponse(avgSpeakerIdx);
       // prepare subwoofer's excess phase response
-      const subwooferEPIdx = await genExcessPhaseResponse(cmdIdMLPIndices[commandId[nChannels]]);
+      const subwooferEPIdx = await genExcessPhaseResponse(cmdIdMLPIndicesEQ[commandId[nChannels]]);
       // use min <-> max XO plus an octave on either side to set evaluation range
       const startFreq = minXO / 2;
       const endFreq = maxXO * 2;
       // set delay limits based on IR start delta to prioritize time alignment
-      const subwooferIRStart = await getIRStart(cmdIdMLPIndices[commandId[nChannels]]);
+      const subwooferIRStart = await getIRStart(cmdIdMLPIndicesEQ[commandId[nChannels]]);
       const IRStartDelta = -1000 * subwooferIRStart; // speakers are at t=0 by now
       let loDelayLimit = IRStartDelta - minDelayRangeSpan * 2; // compensate for higher delays from LPF slope
       let hiDelayLimit = IRStartDelta + minDelayRangeSpan;
@@ -2704,9 +2700,13 @@
       if (isInverted) {
         await postSafe(`${baseUrl}/${cmdIdMLPIndices[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
         await postSafe(`${baseUrl}/${cmdIdAVGIndices[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
+        await postSafe(`${baseUrl}/${cmdIdMLPIndicesEQ[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
+        await postSafe(`${baseUrl}/${cmdIdAVGIndicesEQ[commandId[nChannels]]}/command`,{command: "Invert"}, "Invert completed");
       }
       await postNext('Offset t=0', cmdIdMLPIndices[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
       await postNext('Offset t=0', cmdIdAVGIndices[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
+      await postNext('Offset t=0', cmdIdMLPIndicesEQ[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
+      await postNext('Offset t=0', cmdIdAVGIndicesEQ[commandId[nChannels]], {offset: -subMoves, unit: "seconds"});
       if (bassMode === "Directional") {
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           mSec[i] += subMoves;
@@ -3026,7 +3026,7 @@
       const refSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[0]]; // closest subwoofer
       // initial evaluation range based on reference subwoofer bandwidth
       let startFreq = await getAbsLow3dBPoint(cmdIdIndices[sortedSwCmdIds[0]][0]);
-      let endFreq = await getAbsHigh6dBPoint(cmdIdIndices[sortedSwCmdIds[0]][0]);
+      let endFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0]);
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
         const thisSubCmdId = sortedSwCmdIds[i];
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1)); // used for delay limit calculations
@@ -3034,7 +3034,7 @@
         const thisSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[i]];
         // use aggregate subwoofer bandwidths to set evaluation range
         startFreq = Math.min(startFreq, await getAbsLow3dBPoint(cmdIdIndices[sortedSwCmdIds[i]][0]));
-        endFreq = Math.max(endFreq, await getAbsHigh6dBPoint(cmdIdIndices[sortedSwCmdIds[i]][0]));
+        endFreq = Math.max(endFreq, await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0]));
         // set delay limits based on IR start delta to prioritize time alignment
         const IRStartDelta = 1000 * (refSubIRStart - thisSubIRStart);
         let loDelayLimit = IRStartDelta - minDelayRangeSpan;
