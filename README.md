@@ -9,7 +9,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ## Changelogs
 ### Update 2/4/2026 PureEQ v2.9.5 changelog -
 * Use FDW-ed MLP responses to set mean SPL for determining -3dB points for both speakers and subwoofers
-  * This better compensates for extra SPL from reverberations and exposes the actuall roll off
+  * This better compensates for extra SPL from reverberations and exposes the actual roll off
 * Roll in the usage of dynamic bass fill when determining SW bandwidth using the raw responses
   * This should take into account any potential bandwidth gains from EQ filters
 
@@ -473,6 +473,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
