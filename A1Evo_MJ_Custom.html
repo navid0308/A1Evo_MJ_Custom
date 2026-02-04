@@ -2589,7 +2589,7 @@
     }
     async function getSubwooferLFRolloff(idx, meanSPL, start=10, end=320) {
       // finds low -3dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx); }
+      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx); } // used for directional2standard conversion
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2604,7 +2604,7 @@
     }
     async function getSubwooferHFRolloff(idx, meanSPL, start=10, end=320) {
       // finds high -6dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx); }
+      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx); } // used for directional2standard conversion
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
