@@ -2619,17 +2619,17 @@
       console.log("Calculating speaker roll-offs...");
       for (let i = 1; i <= nSpeakers; i++) {
         // use MLP with FDW as mean SPL for finding -3dB point
-        const meanSPLL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i]], false);
+        let meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i]], false);
         // used for EQ limits
-        const spIdxL = cmdIdAVGIndices[commandId[i]];
-        const rolloffLF = await getSpeakerLFRolloff(spIdxL, meanSPLL); // speaker specific, not pair specific
-        const rolloffHF = await getSpeakerHFRolloff(spIdxL); // speaker specific, not pair specific
+        const spIdx = cmdIdAVGIndices[commandId[i]];
+        const rolloffLF = await getSpeakerLFRolloff(spIdx, meanSPL); // speaker specific, not pair specific
+        const rolloffHF = await getSpeakerHFRolloff(spIdx); // speaker specific, not pair specific
         m3dBPoints[i] = [Math.round(rolloffLF), Math.round(rolloffHF)];
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         // add in the other channel if it's a pair
-        let idx = spIdxL, meanSPL = meanSPLL;
+        let idx = spIdx;
         if (!singleChannel) {
           // use MLP with FDW as mean SPL for finding -3dB point
           const meanSPLR = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i + 1]], false);
@@ -2639,8 +2639,8 @@
           const rolloffHFR = await getSpeakerHFRolloff(spIdxR); // speaker specific, not pair specific
           m3dBPoints[i + 1] = [Math.round(rolloffLFR), Math.round(rolloffHFR)];
           // average channel pair and meanSPL
-          idx = await postNext('Magn plus phase average', [spIdxL, spIdxR]); // do not use VA. it unfairly benefits single channel speakers
-          meanSPL = getAvgdB([meanSPLL, meanSPLR]);
+          idx = await postNext('Magn plus phase average', [spIdx, spIdxR]); // do not use VA. it unfairly benefits single channel speakers
+          meanSPL = getAvgdB([meanSPL, meanSPLR]);
         }
         const rolloff = await getSpeakerLFRolloff(idx, meanSPL);
         let initialXO = findNearestXO(rolloff + 15); // look for initial XO that's ~15hz above roll-off
@@ -2667,7 +2667,7 @@
       const meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[nChannels]]) - await getDynamicBassFill(cmdIdMLPIndices[commandId[nChannels]]);
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]], meanSPL);
-      minXO = findNearestXO(2 * subLowFreq); // give subwoofer an octave to ramp up
+      minXO = findNearestXO(subLowFreq * 2); // give subwoofer an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
       const subHighFreq = await getSubwooferHFRolloff(cmdIdAVGIndices[commandId[nChannels]], meanSPL);
       maxXO = findNearestXO(subHighFreq); // set max XO closest to subwoofer HF roll-off
