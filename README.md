@@ -7,7 +7,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.9.5b changelog -
+### Update 2/4/2026 PureEQ v2.9.5 changelog -
 * Use FDW-ed MLP responses to set mean SPL for determining -3dB points for both speakers and subwoofers
   * This better compensates for extra SPL from reverberations and exposes the actuall roll off
 * Roll in the usage of dynamic bass fill when determining SW bandwidth using the raw responses
