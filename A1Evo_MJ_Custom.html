@@ -2061,6 +2061,7 @@
     async function getDynamicBassFill(idx, start=30, end=80) {
       // flips the SW response along the target curve to ignore peaks and determine offset needed to bring SW response baseline to target
       // note: always use the spatial average for this calculation as using MLP can overdo things
+      // note2: ensure idx is initially leveled to the target curve before running this function
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = await getFreqArrayAvgdB(targetArray);
       const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: 2 * targetSPL});
