@@ -2064,10 +2064,10 @@
       // note2: ensure idx is initially leveled to the target curve before running this function
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = await getFreqArrayAvgdB(targetArray);
-      await postNext('Smooth', idx, { smoothing: "Psy" }); // this smoothing ensures that nulls don't drastically affect results
+      await postNext('Smooth', idx, { smoothing: "Psy" }); // ensures that nulls don't drastically affect calculations
       const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: 2 * targetSPL});
-      await postNext('Smooth', idx, { smoothing: "1/48" }); // use as less smoothing as possible for better accuracy
-      const dynamicBassFill = -1 * await getExactTrim(flippedIdx, start, end, "1%2F48");
+      await postNext('Smooth', idx, { smoothing: "1/48" }); // revert
+      const dynamicBassFill = -1 * await getExactTrim(flippedIdx, start, end);
       await postDelete(flippedIdx);
       return dynamicBassFill;
     }
@@ -2636,23 +2636,12 @@
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
-      let checkFreq = start, rolloff = start, breakFreq = start * 2;
-      let inRolloff = false, dropSPL = -6;
-      for (let i = 0; i < rpArray.length; i++) {
-        if ((rpArray[i] - meanSPL) >= dropSPL) {
-          inRolloff = false;
-          rolloff = checkFreq;
-          breakFreq = rolloff / 2;
-        }
-        else {
-          inRolloff = true;
-        }
-        if (inRolloff && checkFreq >= breakFreq) {
-          break;
-        }
-        checkFreq *= octave;
+      let rolloff = end;
+      for (let i = rpArray.length - 1; i >= 0; i--) {
+        if ((rpArray[i] - meanSPL) >= -6) { break; } // keep this one simple
+        rolloff /= octave;
       }
-      return Math.min(rolloff, end);
+      return Math.max(rolloff, start);
     }
     async function calculateSpeakerRolloffs() {
       console.log("Calculating speaker roll-offs...");
@@ -3255,9 +3244,9 @@
       const avgDip = -1 * getFreqArrayAvgdB(dipsArray); // report the average dip as a positive dB value
       return avgDip;
     }
-    async function getExactTrim(idx, start, end, smoothing="Psy") {
+    async function getExactTrim(idx, start, end) {
       // calculates SPL offset against target curve @75dB
-      const idxSPL = await getAvgSPL(idx, start, end, smoothing);
+      const idxSPL = await getAvgSPL(idx, start, end);
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const offset = targetSPL - idxSPL;
