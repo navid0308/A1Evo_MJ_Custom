@@ -13,6 +13,7 @@ After the recent changes to use FDW and DBF, an unwanted side effect is custom h
   * This should deal with the cases where the response rolls off early but then picks back up due to infrasonic noise
 * Fine tune smoothing used for dynamic bass fill
   * Fun fact: the smoothing used when flipping the SW response has a big effect on what SPL the flipped response initially settles on
+* Allow more delay headroom for alignment
 
 ### Update 2/5/2026 PureEQ v2.9.6 changelog -
 * Switch to using the SW spatial average for determining dynamic bass fill, instead of SW MLP response
