@@ -2062,10 +2062,9 @@
       // flips the SW response along the target curve to ignore peaks and determine offset needed to bring SW response baseline to target
       // note: always use the spatial average for this calculation as using MLP can overdo things
       // note2: ensure idx is initially leveled to the target curve before running this function
-      const targetArray = response2array(targetResponse, start, end);
-      const targetSPL = await getFreqArrayAvgdB(targetArray);
-      await postNext('Smooth', idx, { smoothing: "Psy" }); // ensures that nulls don't drastically affect calculations
-      const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: 2 * targetSPL});
+      const avgSPL = await getAvgSPL(idx, start, end);
+      await postNext('Smooth', idx, { smoothing: "Psy" }); // ensures that nulls don't drastically affect the flip
+      const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: 2 * avgSPL});
       await postNext('Smooth', idx, { smoothing: "1/48" }); // revert
       const dynamicBassFill = -1 * await getExactTrim(flippedIdx, start, end);
       await postDelete(flippedIdx);
