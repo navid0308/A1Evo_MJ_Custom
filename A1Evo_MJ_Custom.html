@@ -2059,9 +2059,11 @@
       }
     }
     async function getDynamicBassFill(idx, start=30, end=80) {
-      // flips the SW response to ignore peaks and get the general baseline up to target
-      const avgSPL = await getAvgSPL(idx, start, end, "1%2F6");
-      const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: 2 * avgSPL});
+      // flips the SW response along the target curve to ignore peaks and determine offset needed to bring SW response baseline to target
+      // note: always use the spatial average for this calculation as using MLP can overdo things
+      const targetArray = response2array(targetResponse, start, end);
+      const targetSPL = await getFreqArrayAvgdB(targetArray);
+      const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: 2 * targetSPL});
       const dynamicBassFill = -1 * await getExactTrim(flippedIdx, start, end, "1%2F6");
       await postDelete(flippedIdx);
       return dynamicBassFill;
@@ -2070,7 +2072,7 @@
       // aggressively line up response to target curve
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
       if (isSub) {
-        const subDynamicBassFill = await getDynamicBassFill(mlpIdx, Math.min(start, 30), Math.max(end, 80)); // use full bandwidth if possible
+        const subDynamicBassFill = await getDynamicBassFill(avgIdx, Math.min(start, 30), Math.max(end, 80)); // use full bandwidth if possible
         tcLevelOffset = Math.max(tcLevelOffset, subDynamicBassFill); // dip compensation
         console.warn(`SW dynamic bass fill (dip compensation): ${subDynamicBassFill.toFixed(2)}dB`);
       }
@@ -2640,7 +2642,7 @@
           m3dBPoints[i + 1] = [Math.round(rolloffLFR), Math.round(rolloffHFR)];
           // average channel pair and meanSPL
           idx = await postNext('Magn plus phase average', [spIdx, spIdxR]); // do not use VA. it unfairly benefits single channel speakers
-          meanSPL = getAvgdB([meanSPL, meanSPLR]);
+          meanSPL = getFreqArrayAvgdB([meanSPL, meanSPLR]);
         }
         const rolloff = await getSpeakerLFRolloff(idx, meanSPL);
         let initialXO = findNearestXO(rolloff + 15); // look for initial XO that's ~15hz above roll-off
@@ -2664,7 +2666,7 @@
       console.log("Calculating subwoofer bandwidth...");
       // use MLP with FDW as mean SPL for finding -3dB point
       // roll in DBF to the meanSPL calculation to account for any potential bandwidth gains from EQ
-      const meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[nChannels]]) - await getDynamicBassFill(cmdIdMLPIndices[commandId[nChannels]]);
+      const meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[nChannels]]) - await getDynamicBassFill(cmdIdAVGIndices[commandId[nChannels]]);
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]], meanSPL);
       minXO = findNearestXO(subLowFreq * 2); // give subwoofer an octave to ramp up
@@ -3183,7 +3185,7 @@
       }
       return responseArray;
     }
-    function getAvgdB(freqArray) {
+    function getFreqArrayAvgdB(freqArray) {
       // converts dB array to linear power to calculate the mathmatically correct mean SPL
       if (!freqArray || freqArray.length === 0) return 0;
       // 1. Convert each dB value to linear energy ratio: 10^(L/10)
@@ -3200,7 +3202,7 @@
       // calculates average SPL between start and end frequencies
       const freqResponse = await fetchSafe(`frequency-response?smoothing=${smoothing}&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);
-      const avgSPL = getAvgdB(freqArray);
+      const avgSPL = getFreqArrayAvgdB(freqArray);
       return avgSPL; // average dB SPL
     }
     async function getAvgDip(idx, start, end) {
@@ -3213,7 +3215,7 @@
       for (let i = 0; i < arrayLength; i++) {
         dipsArray.push(Math.min(freqArray[i] - targetArray[i], 0));
       }
-      const avgDip = -1 * getAvgdB(dipsArray); // report the average dip as a positive dB value
+      const avgDip = -1 * getFreqArrayAvgdB(dipsArray); // report the average dip as a positive dB value
       return avgDip;
     }
     async function getExactTrim(idx, start, end, smoothing="Psy") {
@@ -3276,13 +3278,13 @@
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
-        let tempMagSum = getAvgdB(tempSumArray);
+        let tempMagSum = getFreqArrayAvgdB(tempSumArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
           const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
-          const tempMagSumInv = getAvgdB(tempSumArrayInv);
+          const tempMagSumInv = getFreqArrayAvgdB(tempSumArrayInv);
           if (tempMagSum > tempMagSumInv) {
             tempMagSum = tempMagSumInv;
             tempSumInverted = true;
@@ -3327,13 +3329,13 @@
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
-        let tempMagSum = getAvgdB(tempSumArray);
+        let tempMagSum = getFreqArrayAvgdB(tempSumArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
           const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
-          const tempMagSumInv = getAvgdB(tempSumArrayInv);
+          const tempMagSumInv = getFreqArrayAvgdB(tempSumArrayInv);
           if (tempMagSum > tempMagSumInv) {
             tempMagSum = tempMagSumInv;
             tempSumInverted = true;

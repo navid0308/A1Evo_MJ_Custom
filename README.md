@@ -7,6 +7,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/5/2026 PureEQ v2.9.6 changelog -
+* Switch to using the SW spatial average for determining dynamic bass fill, instead of SW MLP response
+  * DBF is primarily a function of bandwidth and EQ, which are both determined using the spatial average
+* Use the target curve for determining target level for DBF, instead of using the SW response SPL
+
 ### Update 2/4/2026 PureEQ v2.9.5 changelog -
 * Use FDW-ed MLP responses to set mean SPL for determining -3dB points for both speakers and subwoofers
   * This better compensates for extra SPL from reverberations and exposes the actual roll off
