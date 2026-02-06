@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.6</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v2.9.7</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -733,7 +733,7 @@
     let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
-    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 3;
+    const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 6;
     const m3dBPoints = {}, cmdIdIndices = {}, cmdIdFilterIndices = {};
     const cmdIdMLPIndices = {}, cmdIdAVGIndices = {};
     const cmdIdMLPIndicesEQ = {}, cmdIdAVGIndicesEQ = {};
@@ -2059,13 +2059,12 @@
       }
     }
     async function getDynamicBassFill(idx, start=30, end=80) {
-      // flips the SW response along the target curve to ignore peaks and determine offset needed to bring SW response baseline to target
+      // flips the SW response to ignore peaks and determine offset needed to bring SW response baseline to target
       // note: always use the spatial average for this calculation as using MLP can overdo things
-      // note2: ensure idx is initially leveled to the target curve before running this function
-      const targetArray = response2array(targetResponse, start, end);
-      const targetSPL = await getFreqArrayAvgdB(targetArray);
-      const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: 2 * targetSPL});
-      const dynamicBassFill = -1 * await getExactTrim(flippedIdx, start, end, "1%2F6");
+      const avgSPL = await getAvgSPL(idx, start, end, "1%2F6");
+      await postNext('Smooth', idx, { smoothing: "1/48" }); // looks really messy after flipping, but works best
+      const flippedIdx = await postNext("Arithmetic", [idx, idx], {function: "1 / |A|", targetLevel: avgSPL});
+      const dynamicBassFill = await getAvgSPL(flippedIdx, start, end, "1%2F6");
       await postDelete(flippedIdx);
       return dynamicBassFill;
     }
@@ -2075,7 +2074,9 @@
       if (isSub) {
         const subDynamicBassFill = await getDynamicBassFill(avgIdx, Math.min(start, 30), Math.max(end, 80)); // use full bandwidth if possible
         tcLevelOffset = Math.max(tcLevelOffset, subDynamicBassFill); // dip compensation
-        console.warn(`SW dynamic bass fill (dip compensation): ${subDynamicBassFill.toFixed(2)}dB`);
+        if (tcLevelOffset > 0) {
+          console.warn(`SW dynamic bass fill (dip compensation): ${subDynamicBassFill.toFixed(2)}dB`);
+        }
       }
       else {
         await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
@@ -2548,7 +2549,7 @@
     }
     async function getAvgSPLWithFDW(idx, isSub=true) {
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
-      const start = isSub ? 30 : 500, end = isSub ? 80 : 2000;
+      const start = isSub ? 30 : 200, end = isSub ? 80 : 2000;
       const idxSPL = await getAvgSPL(idx, start, end);
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "false" }, "Update processed");
       return idxSPL;
@@ -2559,12 +2560,23 @@
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
-      let rolloff = start;
-      for (let i = 0; i < rpArray.length; i++) {
-        if ((rpArray[i] - meanSPL) >= -3) { break; }
-        rolloff *= octave;
+      let checkFreq = end, rolloff = end, breakFreq = end / 2;
+      let inRolloff = false, dropSPL = -3;
+      for (let i = rpArray.length - 1; i >= 0; i--) {
+        if ((rpArray[i] - meanSPL) >= dropSPL) {
+          inRolloff = false;
+          rolloff = checkFreq;
+          breakFreq = rolloff / 2;
+        }
+        else {
+          inRolloff = true;
+        }
+        if (inRolloff && checkFreq <= breakFreq) {
+          break;
+        }
+        checkFreq /= octave;
       }
-      return Math.min(rolloff, end);
+      return Math.max(rolloff, start);
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=20000) {
       // goal of this function is to find the roll-off past 10k before any HF peaks that can mess with the high shelf
@@ -2577,7 +2589,7 @@
       let rolloff = checkFreq;
       let lowestSPL = rpArray[0];
       let dropSPL = -3;
-      if (!useAudyFiltering) { dropSPL = Math.min(-3, -speakerHighShelfMax); }
+      if (!useAudyFiltering) { dropSPL = Math.min(-3, -speakerHighShelfMax); } // for REW filtering, account high freq gain from HS
       for (let i = 0; i < arrLength; i++) {
         if (rpArray[i] < lowestSPL) {
           lowestSPL = rpArray[i];
@@ -2590,22 +2602,32 @@
       }
       return Math.min(rolloff, end);
     }
-    async function getSubwooferLFRolloff(idx, meanSPL, start=10, end=320) {
+    async function getSubwooferLFRolloff(idx, meanSPL, start=10, end=80) {
       // finds low -3dB point from mean SPL
       if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx); } // used for directional2standard conversion
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
-      let rolloff = start;
-      let dropSPL = -3;
+      let checkFreq = end, rolloff = end, breakFreq = end / 2;
+      let inRolloff = false, dropSPL = -3;
       if (!useAudyFiltering) { dropSPL = Math.min(-3, -subwooferLowShelfMax); } // for REW filtering, account low freq ext gain from LS
-      for (let i = 0; i < rpArray.length; i++) {
-        if ((rpArray[i] - meanSPL) >= dropSPL) { break; }
-        rolloff *= octave;
+      for (let i = rpArray.length - 1; i >= 0; i--) {
+        if ((rpArray[i] - meanSPL) >= dropSPL) {
+          inRolloff = false;
+          rolloff = checkFreq;
+          breakFreq = rolloff / 2;
+        }
+        else {
+          inRolloff = true;
+        }
+        if (inRolloff && checkFreq <= breakFreq) {
+          break;
+        }
+        checkFreq /= octave;
       }
-      return Math.min(rolloff, end);
+      return Math.max(rolloff, start);
     }
-    async function getSubwooferHFRolloff(idx, meanSPL, start=10, end=320) {
+    async function getSubwooferHFRolloff(idx, meanSPL, start=30, end=320) {
       // finds high -6dB point from mean SPL
       if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx); } // used for directional2standard conversion
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
@@ -2613,7 +2635,7 @@
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - meanSPL) >= -6) { break; }
+        if ((rpArray[i] - meanSPL) >= -6) { break; } // keep this one simple
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
@@ -3219,9 +3241,9 @@
       const avgDip = -1 * getFreqArrayAvgdB(dipsArray); // report the average dip as a positive dB value
       return avgDip;
     }
-    async function getExactTrim(idx, start, end, smoothing="Psy") {
+    async function getExactTrim(idx, start, end) {
       // calculates SPL offset against target curve @75dB
-      const idxSPL = await getAvgSPL(idx, start, end, smoothing);
+      const idxSPL = await getAvgSPL(idx, start, end);
       const targetArray = response2array(targetResponse, start, end);
       const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
       const offset = targetSPL - idxSPL;
@@ -3274,7 +3296,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.03) {
+      for (let i = loDelay; i <= hiDelay; i += 0.075) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
@@ -3325,7 +3347,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.03) {
+      for (let i = loDelay; i <= hiDelay; i += 0.075) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
