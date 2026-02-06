@@ -2588,7 +2588,7 @@
       let rolloff = checkFreq;
       let lowestSPL = rpArray[0];
       let dropSPL = -3;
-      if (!useAudyFiltering) { dropSPL = Math.min(-3, -speakerHighShelfMax); }
+      if (!useAudyFiltering) { dropSPL = Math.min(-3, -speakerHighShelfMax); } // for REW filtering, account high freq gain from HS
       for (let i = 0; i < arrLength; i++) {
         if (rpArray[i] < lowestSPL) {
           lowestSPL = rpArray[i];
