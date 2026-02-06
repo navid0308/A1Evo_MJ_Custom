@@ -11,8 +11,9 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 After the recent changes to use FDW and DBF, an unwanted side effect is custom has become more sensitive to infrasonic noise. This change focuses on addressing that.
 * Rework roll-off detection logic to search from high frequencies and go down to low frequencies, looking for an output gap of an octave
   * This should deal with the cases where the response rolls off early but then picks back up due to infrasonic noise
+* Allow more delay headroom when aligning subwoofers
 * Remove target curve dependency of dynamic bass fill and simply use SW response SPL as target SPL for flipping
-* Fine tune smoothing used for dynamic bass fill
+* Fine tune smoothing used for dynamic bass fill to make it less aggressive
   * Fun fact: the smoothing used when flipping the SW response has a big effect on what SPL the flipped response initially settles on
 
 ### Update 2/5/2026 PureEQ v2.9.6 changelog -
