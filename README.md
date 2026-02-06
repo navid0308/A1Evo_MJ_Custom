@@ -7,7 +7,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v2.9.7 changelog -
+### Update 2/6/2026 PureEQ v2.9.7 changelog -
 After the recent changes to use FDW and DBF for roll-off determination, an unwanted side effect is custom has become more sensitive to infrasonic noise. This change focuses on addressing that.
 * Rework roll-off detection logic to search from high frequencies and go down to low frequencies, looking for an output gap of an octave
   * This should deal with the cases where the response rolls off early but then picks back up due to infrasonic noise
