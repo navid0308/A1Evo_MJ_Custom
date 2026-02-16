@@ -7,6 +7,18 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/16/2026 PureEQ v3.0.0 changelog -
+This update contains performance improvements for all filtering types, and a few fixes which should help with SW integration & overall imaging
+* Switch to Var smoothing for SPL determination - more accurate for SW level, negligible difference for speakers
+  * This will impact target level determination for speakers, and result in slightly different final trims with REW filtering
+* Use bandpassed midrange responses of speakers for performing time alignment
+  * This ignores early arriving signals from tweeters and better focuses on time aligning the critical 500-2khz region
+  * Distances will vary slightly compared to what prior optimizations produced
+* Use minimum phase version of the SW response for determining dynamic bass fill
+  * Reduces artifacts when flipping and it's more true to the original response
+* Use the precedence (Haas) effect to emphasize the center channel when dialogue enhancer is enabled
+* Experiment with a different calculation for generating audy2umik - this should result in slightly better accuracy in the low bass
+
 ### Update 2/6/2026 PureEQ v2.9.7 changelog -
 After the recent changes to use FDW and DBF for roll-off determination, an unwanted side effect is custom has become more sensitive to infrasonic noise. This change focuses on addressing that.
 * Rework roll-off detection logic to search from high frequencies and go down to low frequencies, looking for an output gap of an octave
