@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.0.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.1.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1958,14 +1958,17 @@
         if (commandId[i].startsWith("SW")) {
           continue; // SW alignment will be handled later, using excess phase
         }
-        // use the midrange for speaker time alignment
-        console.infoUpdate(`Bandpassing the midrange of ${commandId[i]} for time alignment...`);
-        const mlpSPMidrange = await genBandpassedResponse(cmdIdIndices[commandId[i]][0], 500, 2000);
+        // use the FDW-ed midrange for speaker time alignment
+        console.infoUpdate(`Extracting the midrange of ${commandId[i]}...`);
+        const mlpSPIdx = cmdIdIndices[commandId[i]][0];
+        await postSafe(`http://localhost:4735/measurements/${mlpSPIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
+        const mlpSPMidrange = await genBandpassedResponse(mlpSPIdx, 500, 2000);
         mlpSPIndices.push(mlpSPMidrange);
+        await postSafe(`http://localhost:4735/measurements/${mlpSPIdx}/ir-windows`, { addFDW: "false" }, "Update processed");
       }
-      console.infoUpdate("Bandpassed the midrange of all speakers for time alignment.");
+      console.infoUpdate("Extracted the midrange of all speakers.");
       // time align speakers only
-      console.info("Time aligning speakers using the bandpassed responses...");
+      console.info("Time aligning speakers using their midrange...");
       await postNext('Time align', mlpSPIndices);
       const measurements = await fetch_mREW();
       for (let i = 0; i < mlpSPIndices.length; i++) {
@@ -1977,7 +1980,7 @@
         mSec[i + 1] -= IRShift;
         await postNext('Offset t=0', cmdIdIndices[commandId[i + 1]][0], {offset: IRShift, unit: "seconds"});
       }
-      console.infoUpdate("Time aligned all speakers using their bandpassed responses.");
+      console.infoUpdate("Time aligned all speakers using their midrange.");
       // cleanup the bandpassed responses
       console.info("Deleting processed measurements...");
       for (let i = mlpSPIndices.length - 1; i >= 0; i--) {
@@ -2578,13 +2581,13 @@
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
-      let checkFreq = end, rolloff = end, breakFreq = end / 2;
+      let checkFreq = end, rolloff = end, breakFreq = end / 1.5;
       let inRolloff = false, dropSPL = -3;
       for (let i = rpArray.length - 1; i >= 0; i--) {
         if ((rpArray[i] - meanSPL) >= dropSPL) {
           inRolloff = false;
           rolloff = checkFreq;
-          breakFreq = rolloff / 2;
+          breakFreq = rolloff / 1.5;
         }
         else {
           inRolloff = true;
@@ -2620,20 +2623,22 @@
       }
       return Math.min(rolloff, end);
     }
-    async function getSubwooferLFRolloff(idx, meanSPL, start=10, end=80) {
+    async function getSubwooferLFRolloff(idx, meanSPL, start=10, end=50) {
       // finds low -3dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx); } // used for directional2standard conversion
+      if (!meanSPL) { // used for directional2standard conversion
+        meanSPL = await getAvgSPLWithFDW(idx) - await getDynamicBassFill(idx);
+      }
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
-      let checkFreq = end, rolloff = end, breakFreq = end / 2;
+      let checkFreq = end, rolloff = end, breakFreq = end / 1.5;
       let inRolloff = false, dropSPL = -3;
       if (!useAudyFiltering) { dropSPL = Math.min(-3, -subwooferLowShelfMax); } // for REW filtering, account low freq ext gain from LS
       for (let i = rpArray.length - 1; i >= 0; i--) {
         if ((rpArray[i] - meanSPL) >= dropSPL) {
           inRolloff = false;
           rolloff = checkFreq;
-          breakFreq = rolloff / 2;
+          breakFreq = rolloff / 1.5;
         }
         else {
           inRolloff = true;
@@ -2645,9 +2650,11 @@
       }
       return Math.max(rolloff, start);
     }
-    async function getSubwooferHFRolloff(idx, meanSPL, start=30, end=320) {
+    async function getSubwooferHFRolloff(idx, meanSPL, start=50, end=320) {
       // finds high -6dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx); } // used for directional2standard conversion
+      if (!meanSPL) { // used for directional2standard conversion
+        meanSPL = await getAvgSPLWithFDW(idx) - await getDynamicBassFill(idx);
+      }
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -3095,17 +3102,20 @@
       let aggCmdIds = sortedSwCmdIds[0]; // holds the aggregate commandIds as subwoofers are combined
       let aggSubEPIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[0]]; // holds aggregate EP response
       const refSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[0]]; // closest subwoofer
-      // initial evaluation range based on reference subwoofer bandwidth
-      let startFreq = await getSubwooferLFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0]);
-      let endFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0]);
+      // initial "aggregate" subwoofer is the reference subwoofer
+      let aggSubStartFreq = await getSubwooferLFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0]);
+      let aggSubEndFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0]);
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
         const thisSubCmdId = sortedSwCmdIds[i];
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1)); // used for delay limit calculations
         const thisSubEPIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[i]];
         const thisSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[i]];
-        // use aggregate subwoofer bandwidths to set evaluation range
-        startFreq = Math.min(startFreq, await getSubwooferLFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0]));
-        endFreq = Math.max(endFreq, await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0]));
+        // determine bandwidth of "this" subwoofer
+        const thisSubStartFreq = await getSubwooferLFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0]);
+        const thisSubEndFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0]);
+        // use overlapping subwoofer bandwidths to set evaluation range
+        const startFreq = Math.max(aggSubStartFreq, thisSubStartFreq);
+        const endFreq = Math.min(aggSubEndFreq, thisSubEndFreq);
         // set delay limits based on IR start delta to prioritize time alignment
         const IRStartDelta = 1000 * (refSubIRStart - thisSubIRStart);
         let loDelayLimit = IRStartDelta - minDelayRangeSpan;
@@ -3122,6 +3132,9 @@
         aggCmdIds += ` & ${thisSubCmdId}`;
         mSec[nSpeakers + thisSubNumber] += (requiredDelay / 1000);
         invertSub[nSpeakers + thisSubNumber] = isInverted;
+        // update bandwidth of "aggregate" subwoofer
+        aggSubStartFreq = Math.min(aggSubStartFreq, thisSubStartFreq);
+        aggSubEndFreq = Math.max(aggSubEndFreq, thisSubEndFreq);
       }
       // cleanup all temp measurements
       for (let i = aggSubEPIdx; i > mCount; i--) { // make sure mCount isn't updated between start of function and here
@@ -3239,7 +3252,7 @@
       // 4. Convert back to dB: 10 * log10(averageEnergy)
       return 10 * Math.log10(averageEnergy);
     }
-    async function getAvgSPL(idx, start, end, smoothing="Var") {
+    async function getAvgSPL(idx, start, end, smoothing="1%2F48") {
       // calculates average SPL between start and end frequencies
       const freqResponse = await fetchSafe(`frequency-response?smoothing=${smoothing}&ppo=96`, idx);
       const freqArray = response2array(freqResponse, start, end);

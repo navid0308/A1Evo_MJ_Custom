@@ -7,6 +7,17 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/19/2026 PureEQ v3.1.0 changelog -
+This update fixes a few edge cases with timing and roll-off determination, primarily with noisy data. Also, trying out 1/48 smoothing for SPL determination.
+* Experiment with 1/48 smoothing for average SPL calculations - seems like linear power averaging does very well with lower smoothing
+* Use frequency dependent windowing, prior to bandpassing speaker midrange, for time alignment
+  * This fixes an issue where sometimes a speaker could be incorrectly timed due to noisy midrange IR
+* Switch to a half octave gap detection for separating noise from response - nulls are typically 1/6 to 1/3 octaves wide
+* Fine tune SW roll-off detection frequency ranges to avoid potential false positives from stacked nulls
+* Leverage dynamic bass fill when converting from directional to standard bass -
+  * Individual subwoofer's roll-offs will be determined by taking into account any potential gains from DBF
+  * The evaluation range when aligning directional subwoofers will be based on their overlapping region instead of the aggregate
+
 ### Update 2/16/2026 PureEQ v3.0.0 changelog -
 This update contains performance improvements for all filtering types, and a few fixes which should help with SW integration & overall imaging
 * Switch to Var smoothing for SPL determination - more accurate for SW level, negligible difference for speakers
