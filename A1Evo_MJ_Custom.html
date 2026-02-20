@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.1.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.1.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2101,10 +2101,9 @@
         }
       }
       else {
-        await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
-        const speakerSPLOffsetFDW = await getExactTrim(mlpIdx, Math.max(start, 200), 2000); // emphasize SBIR affected region
+        const speakerSPLOffsetFDW = await getAvgSPL(mlpIdx, Math.max(start, 200), 2000) // emphasize SBIR affected region
+                                  - await getAvgSPLWithFDW(mlpIdx, Math.max(start, 200), 2000);
         tcLevelOffset = Math.max(tcLevelOffset, speakerSPLOffsetFDW); // reverb compensation
-        await postSafe(`http://localhost:4735/measurements/${mlpIdx}/ir-windows`, { addFDW: "false" }, "Update processed");
       }
       await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
       await postSafe(`${baseUrl}/${avgIdx}/target-settings`, {
@@ -2125,8 +2124,8 @@
       }, "Update processed");
     }
     async function getALOffset(idx, isSub) {
-      // note: 1/1 best matches auto-leveling, do not change unless new data suggests otherwise
-      const offset = isSub ? await getAvgSPL(idx, 30, 80, "1%2F1") : await getAvgSPL(idx, 500, 2000, "1%2F1");
+      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const offset = getAvgSPL(idx, startFreq, endFreq);
       return offset;
     }
     async function getNextEQIdx(idx) {
@@ -2569,16 +2568,15 @@
       }
       return xo;
     }
-    async function getAvgSPLWithFDW(idx, isSub=true) {
+    async function getAvgSPLWithFDW(idx, start, end) {
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
-      const start = isSub ? 30 : 200, end = isSub ? 80 : 2000;
-      const idxSPL = await getAvgSPL(idx, start, end);
+      const avgSPLWithFDW = await getAvgSPL(idx, start, end);
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "false" }, "Update processed");
-      return idxSPL;
+      return avgSPLWithFDW;
     }
     async function getSpeakerLFRolloff(idx, meanSPL, start=20, end=250) {
       // finds low -3dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, false); } // fallback
+      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, 300, 3000); } // fallback
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2624,10 +2622,10 @@
       }
       return Math.min(rolloff, end);
     }
-    async function getSubwooferLFRolloff(idx, meanSPL, start=10, end=50) {
+    async function getSubwooferLFRolloff(idx, meanSPL, start=10, end=80) {
       // finds low -3dB point from mean SPL
       if (!meanSPL) { // used for directional2standard conversion
-        meanSPL = await getAvgSPLWithFDW(idx) - await getDynamicBassFill(idx);
+        meanSPL = await getAvgSPL(idx, 30, 80) - await getDynamicBassFill(idx);
       }
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
@@ -2651,10 +2649,10 @@
       }
       return Math.max(rolloff, start);
     }
-    async function getSubwooferHFRolloff(idx, meanSPL, start=50, end=320) {
+    async function getSubwooferHFRolloff(idx, meanSPL, start=30, end=320) {
       // finds high -6dB point from mean SPL
       if (!meanSPL) { // used for directional2standard conversion
-        meanSPL = await getAvgSPLWithFDW(idx) - await getDynamicBassFill(idx);
+        meanSPL = await getAvgSPL(idx, 30, 80) - await getDynamicBassFill(idx);
       }
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
@@ -2670,7 +2668,7 @@
       console.log("Calculating speaker roll-offs...");
       for (let i = 1; i <= nSpeakers; i++) {
         // use MLP with FDW as mean SPL for finding -3dB point
-        let meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i]], false);
+        let meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i]], 300, 3000);
         // used for EQ limits
         const spIdx = cmdIdAVGIndices[commandId[i]];
         const rolloffLF = await getSpeakerLFRolloff(spIdx, meanSPL); // speaker specific, not pair specific
@@ -2683,7 +2681,7 @@
         let idx = spIdx;
         if (!singleChannel) {
           // use MLP with FDW as mean SPL for finding -3dB point
-          const meanSPLR = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i + 1]], false);
+          const meanSPLR = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i + 1]], 300, 3000);
           // used for EQ limits
           const spIdxR = cmdIdAVGIndices[commandId[i + 1]]
           const rolloffLFR = await getSpeakerLFRolloff(spIdxR, meanSPLR); // speaker specific, not pair specific
@@ -2713,9 +2711,9 @@
     async function calculateSubBandwidth() {
       if (noSub) { return; }
       console.log("Calculating subwoofer bandwidth...");
-      // use MLP with FDW as mean SPL for finding -3dB point
-      // roll in DBF to the meanSPL calculation to account for any potential bandwidth gains from EQ
-      const meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[nChannels]]) - await getDynamicBassFill(cmdIdAVGIndices[commandId[nChannels]]);
+      // roll DBF in to the meanSPL calculation to account for any potential bandwidth gains from EQ
+      const meanSPL = await getAvgSPL(cmdIdMLPIndices[commandId[nChannels]], 30, 80)
+                    - await getDynamicBassFill(cmdIdAVGIndices[commandId[nChannels]]);
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]], meanSPL);
       minXO = findNearestXO(subLowFreq * 2); // give subwoofer an octave to ramp up
@@ -3253,9 +3251,9 @@
       // 4. Convert back to dB: 10 * log10(averageEnergy)
       return 10 * Math.log10(averageEnergy);
     }
-    async function getAvgSPL(idx, start, end, smoothing="1%2F48") {
+    async function getAvgSPL(idx, start, end) {
       // calculates average SPL between start and end frequencies
-      const freqResponse = await fetchSafe(`frequency-response?smoothing=${smoothing}&ppo=96`, idx);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
       const freqArray = response2array(freqResponse, start, end);
       const avgSPL = getFreqArrayAvgdB(freqArray);
       return avgSPL; // average dB SPL
@@ -3296,16 +3294,16 @@
     async function fixVolBug(indices) {
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
-      const mlpIdx = indices[0];
-      const mlpVolume = measurements[mlpIdx].title.startsWith("SW") ? await getSubTrim(mlpIdx) : await getSpeakerTrim(mlpIdx);
-      for (let i = 0; i < indices.length; i++) {
-        if (indices[i] === mlpIdx) { continue; }
-        const idxVolume = measurements[indices[i]].title.startsWith("SW") ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
-        const delta = idxVolume - mlpVolume;
+      const isSub = measurements[indices[0]].title.startsWith("SW");
+      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
+      for (let i = 1; i < indices.length; i++) {
+        const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
+        const delta = mlpSPL - idxSPL;
         if (Math.abs(delta) > 5) {
-          const correction = Math.round(delta / 6) * 6;
-          console.warn(`${measurements[indices[i]].title} shifted by ${correction}dB due to a known MultEQ volume bug.`);
-          await postNext('Add SPL offset', indices[i], { offset: correction });
+          const volAdjust = Math.round(delta / 6) * 6;
+          console.warn(`${measurements[indices[i]].title} shifted by ${volAdjust}dB due to a known MultEQ volume bug.`);
+          await postNext('Add SPL offset', indices[i], { offset: volAdjust });
         }
       }
     }

@@ -7,6 +7,15 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/20/2026 PureEQ v3.1.2 changelog -
+* General improvements to roll-off determination with noisy data
+  * SW roll-off evaluation frequency range reverted to the wider range used prior to 3.1.0
+  * SW mean SPL calculation now no longer uses FDW - not really necessary in the low frequencies
+  * Speaker roll-off determination is now relative to FDW-ed mean SPL between 300-3khz
+* Switch to 1/48 smoothing for auto-level offset calculation - seems like the way to go
+* Use higher granularity when checking and compensating for the Android volume bug
+* Improve code consistency
+
 ### Update 2/19/2026 PureEQ v3.1.1 changelog -
 * Switch from "Time Align" to "Align IR start" REW command for time aligning speakers
   * In more than one case, the "Time Align" command seemed to incorrectly time speakers when using the midrange
