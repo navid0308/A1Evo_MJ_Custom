@@ -7,6 +7,13 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/19/2026 PureEQ v3.1.1 changelog -
+* Switch from "Time Align" to "Align IR start" REW command for time aligning speakers
+  * In more than one case, the "Time Align" command seemed to incorrectly time speakers when using the midrange
+  * The "Align IR start" command will correctly sync midrange arrival times (thanks Michael for the bug report!)
+* Improve non-MLP to MLP volume alignment precision - previously it was adjusting in 0.5dB increments
+* Minor code cleanup
+
 ### Update 2/19/2026 PureEQ v3.1.0 changelog -
 This update fixes a few edge cases with timing and roll-off determination, primarily with noisy data. Also, trying out 1/48 smoothing for SPL determination.
 * Experiment with 1/48 smoothing for average SPL calculations - seems like linear power averaging does very well with lower smoothing

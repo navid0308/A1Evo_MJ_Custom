@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.1.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.1.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1967,9 +1967,9 @@
         await postSafe(`http://localhost:4735/measurements/${mlpSPIdx}/ir-windows`, { addFDW: "false" }, "Update processed");
       }
       console.infoUpdate("Extracted the midrange of all speakers.");
-      // time align speakers only
+      // time align speakers by syncing midrange arrival times
       console.info("Time aligning speakers using their midrange...");
-      await postNext('Time align', mlpSPIndices);
+      await postNext('Align IR start', mlpSPIndices);
       const measurements = await fetch_mREW();
       for (let i = 0; i < mlpSPIndices.length; i++) {
         let IRShift = measurements[mlpSPIndices[i]].cumulativeIRShiftSeconds;
@@ -2021,10 +2021,11 @@
       // assumes first measurement in 'indices' is MLP
       const measurements = await fetch_mREW();
       const isSub = measurements[indices[0]].title.startsWith("SW");
-      const mlpTrim = isSub ? await getSubTrim(indices[0]) : await getSpeakerTrim(indices[0]);
+      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
       for (let i = 1; i < indices.length; i++) {
-        const idxTrim = isSub ? await getSubTrim(indices[i]) : await getSpeakerTrim(indices[i]);
-        const volAdjust = parseFloat(idxTrim - mlpTrim);
+        const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
+        const volAdjust = parseFloat(mlpSPL - idxSPL);
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
     }
@@ -3534,8 +3535,9 @@
       // preps the filter as a frequency response array
       // note: anti-HF roll-off is 10hz-24khz @ 96ppo; do not change ranges or ppo!
       const fltPoints = [];
-      const startFreq = isSub ? 5 : 10; // allow lower frequency points for subwoofers
-      const endFreq = isSub ? 500 : 22500; // UHF filter reduces responses to just below 24khz
+      // note 1: allow lower frequency points for subwoofers
+      // note 2: UHF filter reduces responses to just below 24khz
+      const [startFreq, endFreq] = isSub ? [5, 500] : [10, 22500];
       const octave = Math.pow(2, 1 / 96);
       const fltResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', fltIdx);
       const fltArray = response2array(fltResponse, startFreq, endFreq);
