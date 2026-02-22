@@ -1926,25 +1926,38 @@
       }
       return [loDelay, hiDelay];
     }
+    async function alignVol2MLP(indices, mlpTrim) {
+      // level matches non-MLP positions to MLP
+      // assumes first measurement in 'indices' is MLP
+      const measurements = await fetch_mREW();
+      const isSub = measurements[indices[0]].title.startsWith("SW");
+      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
+      for (let i = 1; i < indices.length; i++) {
+        const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
+        const volAdjust = parseFloat(mlpSPL - idxSPL);
+        // check if a position needs significantly more offset than MLP to reach target
+        if (Math.round(Math.abs(volAdjust - mlpTrim)) > 3) {
+          console.warn(`${measurements[indices[i]].title} shifted by ${(volAdjust - mlpTrim).toFixed(2)}dB due to a known MultEQ volume bug.`);
+        }
+        await postNext('Add SPL offset', indices[i], { offset: volAdjust });
+      }
+    }
     async function initializeTrims() {
       console.log("Initializing trims...");
       for (let i = 1; i < commandId.length; i++) {
         const indices = cmdIdIndices[commandId[i]];
         // trim determination using the MLP measurement
         if (commandId[i].startsWith("SW")) {
-          customLevel[i] = await getSubTrim(indices[0]);
+          customLevel[i] = await getSubwooferTrim(indices[0]);
         }
         else {
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
-        // shift all measurements for this channel based on trim
-        for (j = 0; j < indices.length; j++) {
-          await postNext('Add SPL offset', indices[j], { offset: customLevel[i] });
-        }
-        // attempt to fix android volume bug where measurements are off by multiples of +/-6dB
-        if (isCirrusLogic && isAudy) {
-          await fixVolBug(indices);
-        }
+        // align MLP response to target curve
+        await postNext('Add SPL offset', indices[0], { offset: customLevel[i] });
+        // level match non-MLP responses to MLP
+        await alignVol2MLP(indices, customLevel[i]);
       }
       console.info("Initialized trims.");
     }
@@ -2016,19 +2029,6 @@
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
-    async function alignVol2MLP(indices) {
-      // level matches non-MLP positions to MLP
-      // assumes first measurement in 'indices' is MLP
-      const measurements = await fetch_mREW();
-      const isSub = measurements[indices[0]].title.startsWith("SW");
-      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
-      const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
-      for (let i = 1; i < indices.length; i++) {
-        const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
-        const volAdjust = parseFloat(mlpSPL - idxSPL);
-        await postNext('Add SPL offset', indices[i], { offset: volAdjust });
-      }
-    }
     async function spatialAverage() {
       console.log("Spatially averaging all channels...");
       console.info("Starting...");
@@ -2045,7 +2045,6 @@
         // spatially average
         console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
         if (indices.length > 1) {
-          await alignVol2MLP(indices); // level match non-MLP positions to MLP
           await postNext('Cross corr align', indices); // time align non-MLP positions to MLP
           await postNext('Magn plus phase average', indices); // do not use VA, it reduces SPL!
           // apply widest IR window to average
@@ -2434,7 +2433,7 @@
         // compensate equalized response & trims for auto level
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
         const trimOffset = customFilterTrimOffset + // compensate for any AL shift from custom filters
-                          (isSub ? await getSubTrim(mlpEqResponseIdx) : await getSpeakerTrim(mlpEqResponseIdx));
+                          (isSub ? await getSubwooferTrim(mlpEqResponseIdx) : await getSpeakerTrim(mlpEqResponseIdx));
         if (trimOffset != 0) {
           await postNext('Add SPL offset', mlpIdx, { offset: trimOffset }); // offset "-mlp"
           await postNext('Add SPL offset', avgIdx, { offset: trimOffset }); // offset "-avg"
@@ -3151,7 +3150,7 @@
         await fetch_mREW(iPosCombinedSWIdx, 'PUT', { title: `SW1${i}` });
         if (i === 0) {
           // offset multi-sub gain using MLP measurement
-          volAdjust = await getSubTrim(iPosCombinedSWIdx);
+          volAdjust = await getSubwooferTrim(iPosCombinedSWIdx);
         }
         await postNext('Add SPL offset', iPosCombinedSWIdx, { offset: volAdjust });
         if (useAudyFiltering) {
@@ -3274,27 +3273,11 @@
       const speakerTrim = Math.round(speakerSPLOffset * 2) / 2; // round to nearest 0.5;
       return speakerTrim;
     }
-    async function getSubTrim(idx) {
+    async function getSubwooferTrim(idx) {
       // calculates trim where average SPL across 30hz-80hz matches target
       const subSPLOffset = await getExactTrim(idx, 30, 80);
       const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
       return subTrim;
-    }
-    async function fixVolBug(indices) {
-      if (indices.length <= 1) { return; }
-      const measurements = await fetch_mREW();
-      const isSub = measurements[indices[0]].title.startsWith("SW");
-      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
-      const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
-      for (let i = 1; i < indices.length; i++) {
-        const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
-        const delta = mlpSPL - idxSPL;
-        if (Math.abs(delta) > 5) {
-          const volAdjust = Math.round(delta / 6) * 6;
-          console.warn(`${measurements[indices[i]].title} shifted by ${volAdjust}dB due to a known MultEQ volume bug.`);
-          await postNext('Add SPL offset', indices[i], { offset: volAdjust });
-        }
-      }
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2

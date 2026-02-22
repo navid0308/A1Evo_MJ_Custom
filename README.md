@@ -12,6 +12,8 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
   * Prior method was to set target level based on FDW SPL drop, but it could be too aggressive
   * Equalized responses will now have slightly more imperfections but sound more natural
 * Streamline the roll-off determination logic to speed up calculations & improve performance
+* Remove the separate Android volume bug fix logic, since all non-MLP responses are level matched to MLP anyway
+  * This will reduce a lot of unnecessary calculations and speed up the script
 * Don't allow extra negative delay headroom when aligning SW to speakers to preserve time alignment
 * Update TCx - this is my personal target curve and will be updated as I continue to tinker
 * Reorganize the code a bit for better consistency & readability
