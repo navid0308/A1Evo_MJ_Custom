@@ -17,7 +17,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 * Don't allow extra negative delay headroom when aligning SW to speakers to preserve time alignment
 * Update TCx - this is my personal target curve and will be updated as I continue to tinker
 * Update import filter logic to correctly populate subwoofer PEQs regardless of if the CommandID is SW1 or SWMIX
-  * Previously it would ignore SW filters if the file contained SW1 but .ady contained SWMIX
+  * Previously it would ignore SW filters if the file contained SW1 but .ady contained SWMIX, or vice versa
 * Reorganize the code a bit for better consistency & readability
 
 ### Update 2/20/2026 PureEQ v3.1.2 changelog -
@@ -539,6 +539,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
