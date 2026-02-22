@@ -7,6 +7,15 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v3.2.0b changelog -
+* Use similar logic to dynamic bass fill to set target level for speakers
+  * Prior method was to set target level based on FDW SPL drop, but it could be too aggressive
+  * Equalized responses will now have slightly more imperfections but sound more natural
+* Streamline the roll-off determination logic to speed up calculations & improve performance
+* Don't allow extra negative delay headroom when aligning SW to speakers to preserve time alignment
+* Update TCx - this is my personal target curve and will be updated as I continue to tinker
+* Reorganize the code a bit for better consistency & readability
+
 ### Update 2/20/2026 PureEQ v3.1.2 changelog -
 * General improvements to roll-off determination with noisy data
   * SW roll-off evaluation frequency range reverted to the wider range used prior to 3.1.0
