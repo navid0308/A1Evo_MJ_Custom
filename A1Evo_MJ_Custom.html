@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.2.0b</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.2.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -904,6 +904,19 @@
           return;
         }
         const data = JSON.parse(e.target.result);
+        Object.keys(data).forEach(prefix => {
+          if (prefix.toUpperCase().startsWith("SW")) {
+            commandId.slice(1).forEach(spk => {
+              if (spk.toUpperCase().startsWith("SW")) {
+                if (prefix.toUpperCase() != spk.toUpperCase()) {
+                  console.warn(`Imported filters contain ${prefix.toUpperCase()} but the closest match is ${spk.toUpperCase()}.`);
+                  Object.defineProperty(data, spk.toLowerCase(), Object.getOwnPropertyDescriptor(data, prefix.toLowerCase()));
+                  delete data[prefix.toLowerCase()];
+                }
+              }
+            });
+          }
+        });
         Object.keys(data).forEach(prefix => {
           const p = prefix.toLowerCase();
           const container =

@@ -7,7 +7,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v3.2.0b changelog -
+### Update 2/22/2026 PureEQ v3.2.0 changelog -
 * Use similar logic to dynamic bass fill to set target level for speakers
   * Prior method was to set target level based on FDW SPL drop, but it could be too aggressive
   * Equalized responses will now have slightly more imperfections but sound more natural
@@ -16,6 +16,8 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
   * This will reduce a lot of unnecessary calculations and speed up the script
 * Don't allow extra negative delay headroom when aligning SW to speakers to preserve time alignment
 * Update TCx - this is my personal target curve and will be updated as I continue to tinker
+* Update import filter logic to correctly populate subwoofer PEQs regardless of if the CommandID is SW1 or SWMIX
+  * Previously it would ignore SW filters if the file contained SW1 but .ady contained SWMIX
 * Reorganize the code a bit for better consistency & readability
 
 ### Update 2/20/2026 PureEQ v3.1.2 changelog -
