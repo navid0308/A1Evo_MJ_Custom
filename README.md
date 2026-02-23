@@ -7,6 +7,15 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/23/2026 PureEQ v3.2.2 changelog -
+* Fix an issue where the target level calculation was not using linear power average
+* Use target curve for determining optimal target level offset (previously called dynamic bass fill)
+  * This balances EQ filters based on target shape, and reduces unnecessary cuts
+* Revert back to the older approach of initially compensating for MultEQ volume bug and later aligning non-MLP positions to MLP
+  * Adds extra calculations, but it is more accurate for the SW response variation metric
+* Minor tweak to SW mean SPL calculation for determining bandwidth
+* Minor tweak to TCx
+
 ### Update 2/22/2026 PureEQ v3.2.1 changelog -
 * Fix an issue where SW PEQ filters would not import correctly for directional .adys
 

@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.2.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.2.2</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1941,7 +1941,7 @@
       }
       return [loDelay, hiDelay];
     }
-    async function alignVol2MLP(indices, mlpTrim) {
+    async function alignVol2MLP(indices) {
       // level matches non-MLP positions to MLP
       // assumes first measurement in 'indices' is MLP
       const measurements = await fetch_mREW();
@@ -1951,10 +1951,6 @@
       for (let i = 1; i < indices.length; i++) {
         const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
         const volAdjust = parseFloat(mlpSPL - idxSPL);
-        // check if a position needs significantly more offset than MLP to reach target
-        if (Math.round(Math.abs(volAdjust - mlpTrim)) > 3) {
-          console.warn(`${measurements[indices[i]].title} shifted by ${(volAdjust - mlpTrim).toFixed(2)}dB due to a known MultEQ volume bug.`);
-        }
         await postNext('Add SPL offset', indices[i], { offset: volAdjust });
       }
     }
@@ -1969,10 +1965,14 @@
         else {
           customLevel[i] = await getSpeakerTrim(indices[0]);
         }
-        // align MLP response to target curve
-        await postNext('Add SPL offset', indices[0], { offset: customLevel[i] });
-        // level match non-MLP responses to MLP
-        await alignVol2MLP(indices, customLevel[i]);
+        // shift all measurements for this channel based on trim
+        for (j = 0; j < indices.length; j++) {
+          await postNext('Add SPL offset', indices[j], { offset: customLevel[i] });
+        }
+        // attempt to fix android volume bug where measurements are off by multiples of +/-3dB
+        if (isCirrusLogic && isAudy) {
+          await fixVolBug(indices);
+        }
       }
       console.info("Initialized trims.");
     }
@@ -2060,6 +2060,7 @@
         // spatially average
         console.infoUpdate(`Spatially averaging channel ${commandId[i]} using ${indices.length} microphone position(s)...`);
         if (indices.length > 1) {
+          await alignVol2MLP(indices); // level match non-MLP positions to MLP
           await postNext('Cross corr align', indices); // time align non-MLP positions to MLP
           await postNext('Magn plus phase average', indices); // do not use VA, it reduces SPL!
           // apply widest IR window to average
@@ -2095,31 +2096,35 @@
     async function getTargetLevelOffset(idx, start, end) {
       // flips the response to ignore peaks and determine offset needed to bring the baseline to target
       // note: always use the spatial average for this calculation as using MLP can overdo things
+      const targetArray = response2array(targetResponse, start, end);
+      const targetSPL = getFreqArrayAvgdB(targetArray);
+      // use min. phase to avoid artifacts from flipping
       const minPhaseIdx = await genMinimumPhaseResponse(idx);
-      const avgMinPhaseSPL = await getAvgSPL(minPhaseIdx, start, end);
-      await postNext('Smooth', minPhaseIdx, { smoothing: "1/48" }); // with min. phase, this flip seems to be the most precise
-      const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx], {function: "1 / |A|", targetLevel: avgMinPhaseSPL});
-      const targetLevelOffset = await getAvgSPL(flippedMPIdx, start, end); // peaks are now dips, and linear power avg will ignore them
+      await postNext('Smooth', minPhaseIdx, { smoothing: "1/48" }); // maintain high precision
+      const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
+                                {function: "1 / |A|", targetLevel: targetSPL * 2}); // x2 so flip happens 'about' target SPL
+      // peaks are now dips, and linear power avg will ignore them
+      const targetLevelOffset = -1 * await getExactTrim(flippedMPIdx, start, end); // -1x since trim & target level offset are opposite
       await postDelete(flippedMPIdx);
       await postDelete(minPhaseIdx);
       return targetLevelOffset;
     }
-    async function updateEQTargetSettings(mlpIdx, avgIdx, start, end, isSub) {
+    async function updateEQTargetSettings(idx, start, end, isSub) {
       // gets response baseline up to target so EQ primarily focuses on cuts
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
       if (isSub) {
-        const subTargetLevelOffset = await getTargetLevelOffset(avgIdx, Math.min(start, 30), Math.max(end, 80)); // use full bandwidth if possible
+        const subTargetLevelOffset = await getTargetLevelOffset(idx, Math.min(start, 30), Math.max(end, 80)); // use full bandwidth if possible
         tcLevelOffset = Math.max(tcLevelOffset, subTargetLevelOffset);
         if (tcLevelOffset > 0) {
           console.warn(`SW dynamic bass fill (dip compensation): ${subTargetLevelOffset.toFixed(2)}dB`);
         }
       }
       else {
-        const speakerTargetLevelOffset = await getTargetLevelOffset(avgIdx, Math.max(start, 200), Math.min(end, 20000));
+        const speakerTargetLevelOffset = await getTargetLevelOffset(idx, Math.max(start, 200), Math.min(end, 20000));
         tcLevelOffset = Math.max(tcLevelOffset, speakerTargetLevelOffset);
       }
-      await fetchSafe('target-level', avgIdx, 75.0 - tcLevelOffset);
-      await postSafe(`${baseUrl}/${avgIdx}/target-settings`, {
+      await fetchSafe('target-level', idx, 75.0 - tcLevelOffset);
+      await postSafe(`${baseUrl}/${idx}/target-settings`, {
         shape: isSub ? "Subwoofer" : "Full range",
         lowFreqCutoffHz: (isSub && start === 10) ? 0 : start,
         lowFreqSlopedBPerOctave: 48, // steep slope to EQ without effect and keep REW happy
@@ -2396,7 +2401,7 @@
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
         // line up response to target aggressively and set target type
-        await updateEQTargetSettings(mlpIdx, avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        await updateEQTargetSettings(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
         // plug in boost parameters
         if (isSub) {
           await updateEQFilterSettings(m3dBPoints[i][0], m3dBPoints[i][1],
@@ -2709,7 +2714,7 @@
       if (noSub) { return; }
       console.log("Calculating subwoofer bandwidth...");
       // roll in target level offset to the meanSPL calculation & account for any potential bandwidth gains from EQ
-      const meanSPL = await getAvgSPL(cmdIdMLPIndices[commandId[nChannels]], 30, 80)
+      const meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[nChannels]], 30, 80)
                     - await getTargetLevelOffset(cmdIdAVGIndices[commandId[nChannels]], 30, 80);
       // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]], meanSPL);
@@ -3278,7 +3283,7 @@
       // calculates SPL offset against target curve @75dB
       const idxSPL = await getAvgSPL(idx, start, end);
       const targetArray = response2array(targetResponse, start, end);
-      const targetSPL = targetArray.reduce((acc, val) => acc + val, 0) / targetArray.length;
+      const targetSPL = getFreqArrayAvgdB(targetArray);
       const offset = targetSPL - idxSPL;
       return offset; // raw dB offset
     }
@@ -3293,6 +3298,22 @@
       const subSPLOffset = await getExactTrim(idx, 30, 80);
       const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
       return subTrim;
+    }
+    async function fixVolBug(indices) {
+      if (indices.length <= 1) { return; }
+      const measurements = await fetch_mREW();
+      const isSub = measurements[indices[0]].title.startsWith("SW");
+      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
+      for (let i = 1; i < indices.length; i++) {
+        const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
+        const delta = mlpSPL - idxSPL;
+        if (Math.abs(delta) > 3) {
+          const volAdjust = Math.round(delta / 3) * 3;
+          console.warn(`${measurements[indices[i]].title} shifted by ${volAdjust}dB due to a known MultEQ volume bug.`);
+          await postNext('Add SPL offset', indices[i], { offset: volAdjust });
+        }
+      }
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
