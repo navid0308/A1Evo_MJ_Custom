@@ -911,7 +911,7 @@
               if (ignoreList.includes(spk.toLowerCase())) { return; }
               if (spk.toUpperCase().startsWith("SW")) {
                 if (prefix.toUpperCase() != spk.toUpperCase()) {
-                  console.warn(`Imported filters contain ${prefix.toUpperCase()} but the closest match is ${spk.toUpperCase()}.`);
+                  console.warn(`Imported filters contain ${prefix.toUpperCase()} but the closest match was ${spk.toUpperCase()}.`);
                   Object.defineProperty(data, spk.toLowerCase(), Object.getOwnPropertyDescriptor(data, prefix.toLowerCase()));
                   delete data[prefix.toLowerCase()];
                 }
