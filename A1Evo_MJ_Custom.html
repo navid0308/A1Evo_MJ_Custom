@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.2.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.2.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -906,7 +906,9 @@
         const data = JSON.parse(e.target.result);
         Object.keys(data).forEach(prefix => {
           if (prefix.toUpperCase().startsWith("SW")) {
+            const ignoreList = ["sw2", "sw3", "sw4"];
             commandId.slice(1).forEach(spk => {
+              if (ignoreList.includes(spk.toLowerCase())) { return; }
               if (spk.toUpperCase().startsWith("SW")) {
                 if (prefix.toUpperCase() != spk.toUpperCase()) {
                   console.warn(`Imported filters contain ${prefix.toUpperCase()} but the closest match is ${spk.toUpperCase()}.`);

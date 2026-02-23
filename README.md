@@ -7,6 +7,9 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/22/2026 PureEQ v3.2.1 changelog -
+* Fix an issue where SW PEQ filters would not import correctly for directional .adys
+
 ### Update 2/22/2026 PureEQ v3.2.0 changelog -
 * Use similar logic to dynamic bass fill to set target level for speakers
   * Prior method was to set target level based on FDW SPL drop, but it could be too aggressive
