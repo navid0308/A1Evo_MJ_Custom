@@ -1941,17 +1941,20 @@
       }
       return [loDelay, hiDelay];
     }
-    async function alignVol2MLP(indices) {
-      // level matches non-MLP positions to MLP
-      // assumes first measurement in 'indices' is MLP
+    async function fixVolBug(indices) {
+      if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
       const isSub = measurements[indices[0]].title.startsWith("SW");
       const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
       const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
       for (let i = 1; i < indices.length; i++) {
         const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
-        const volAdjust = parseFloat(mlpSPL - idxSPL);
-        await postNext('Add SPL offset', indices[i], { offset: volAdjust });
+        const delta = parseFloat(mlpSPL - idxSPL);
+        if (Math.abs(delta) > 3) {
+          const volAdjust = Math.round(delta / 3) * 3;
+          console.warn(`${measurements[indices[i]].title} shifted by ${volAdjust}dB due to a known MultEQ volume bug.`);
+          await postNext('Add SPL offset', indices[i], { offset: volAdjust });
+        }
       }
     }
     async function initializeTrims() {
@@ -2044,6 +2047,19 @@
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
       console.info(`Total subwoofer 'delay headroom' available → ${(hiDelay-loDelay).toFixed(2)}ms`);
     }
+    async function alignVol2MLP(indices) {
+      // level matches non-MLP positions to MLP
+      // assumes first measurement in 'indices' is MLP
+      const measurements = await fetch_mREW();
+      const isSub = measurements[indices[0]].title.startsWith("SW");
+      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
+      for (let i = 1; i < indices.length; i++) {
+        const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
+        const volAdjust = parseFloat(mlpSPL - idxSPL);
+        await postNext('Add SPL offset', indices[i], { offset: volAdjust });
+      }
+    }
     async function spatialAverage() {
       console.log("Spatially averaging all channels...");
       console.info("Starting...");
@@ -2113,7 +2129,8 @@
       // gets response baseline up to target so EQ primarily focuses on cuts
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
       if (isSub) {
-        const subTargetLevelOffset = await getTargetLevelOffset(idx, Math.min(start, 30), Math.max(end, 80)); // use full bandwidth if possible
+        // use full bandwidth if possible
+        const subTargetLevelOffset = await getTargetLevelOffset(idx, Math.min(start, 30), Math.max(end, 80));
         tcLevelOffset = Math.max(tcLevelOffset, subTargetLevelOffset);
         if (tcLevelOffset > 0) {
           console.warn(`SW dynamic bass fill (dip compensation): ${subTargetLevelOffset.toFixed(2)}dB`);
@@ -3298,22 +3315,6 @@
       const subSPLOffset = await getExactTrim(idx, 30, 80);
       const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
       return subTrim;
-    }
-    async function fixVolBug(indices) {
-      if (indices.length <= 1) { return; }
-      const measurements = await fetch_mREW();
-      const isSub = measurements[indices[0]].title.startsWith("SW");
-      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
-      const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
-      for (let i = 1; i < indices.length; i++) {
-        const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
-        const delta = mlpSPL - idxSPL;
-        if (Math.abs(delta) > 3) {
-          const volAdjust = Math.round(delta / 3) * 3;
-          console.warn(`${measurements[indices[i]].title} shifted by ${volAdjust}dB due to a known MultEQ volume bug.`);
-          await postNext('Add SPL offset', indices[i], { offset: volAdjust });
-        }
-      }
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
