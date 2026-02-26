@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.2.2</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.2.3</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1992,10 +1992,9 @@
         // use the FDW-ed midrange for speaker time alignment
         console.infoUpdate(`Extracting the midrange of ${commandId[i]}...`);
         const mlpSPIdx = cmdIdIndices[commandId[i]][0];
-        await postSafe(`http://localhost:4735/measurements/${mlpSPIdx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
-        const mlpSPMidrange = await genBandpassedResponse(mlpSPIdx, 500, 2000);
+        const mlpSPMidrange = await genBandpassedResponse(mlpSPIdx, 300, 3000);
+        await postSafe(`http://localhost:4735/measurements/${mlpSPMidrange}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
         mlpSPIndices.push(mlpSPMidrange);
-        await postSafe(`http://localhost:4735/measurements/${mlpSPIdx}/ir-windows`, { addFDW: "false" }, "Update processed");
       }
       console.infoUpdate("Extracted the midrange of all speakers.");
       // time align speakers by syncing midrange arrival times

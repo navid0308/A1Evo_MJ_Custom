@@ -7,6 +7,10 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/26/2026 PureEQ v3.2.3 changelog -
+* Use a wider 300-3khz midrange bandwidth for time aligning speakers instead of the 500-2khz region
+  * Seems to be marginally more accurate
+
 ### Update 2/23/2026 PureEQ v3.2.2 changelog -
 * Fix an issue where the target level calculation was not using linear power average
 * Use target curve for determining optimal target level offset (previously called dynamic bass fill)
