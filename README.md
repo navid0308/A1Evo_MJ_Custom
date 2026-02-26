@@ -8,7 +8,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 
 ## Changelogs
 ### Update 2/26/2026 PureEQ v3.2.3 changelog -
-* Use a wider 300-3khz midrange bandwidth for time aligning speakers instead of the 500-2khz region
+* Use a wider 300-3khz midrange bandwidth for time aligning speakers instead of the narrower 500-2khz region
   * Seems to be marginally more accurate
 
 ### Update 2/23/2026 PureEQ v3.2.2 changelog -
@@ -555,6 +555,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
