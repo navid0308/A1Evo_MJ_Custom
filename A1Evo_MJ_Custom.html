@@ -1696,7 +1696,7 @@
       }
       console.infoUpdate("Deleting processed measurements...");
       for (let i = mCount; i > 0; i--) {
-        console.infoUpdate(`Deleting processed measurements... remaining: ${i}`);
+        console.infoUpdate(`Deleting processed measurements - remaining: ${i}`);
         await postDelete(i);
       }
       console.infoUpdate("Completed applying Audyssey microphone calibration file to measurements.");
@@ -2015,7 +2015,7 @@
       // cleanup the bandpassed responses
       console.info("Deleting processed measurements...");
       for (let i = mlpSPIndices.length - 1; i >= 0; i--) {
-        console.infoUpdate(`Deleting processed measurements... remaining: ${i + 1}`);
+        console.infoUpdate(`Deleting processed measurements - remaining: ${i + 1}`);
         await postDelete(mlpSPIndices[i]);
       }
       console.infoUpdate("Deleted processed measurements.");
@@ -2095,7 +2095,7 @@
       console.infoUpdate(`Spatially averaged all channels.`);
       console.info("Deleting processed measurements...");
       for (let i = mCount; i > 0; i--) {
-        console.infoUpdate(`Deleting processed measurements... remaining: ${i}`);
+        console.infoUpdate(`Deleting processed measurements - remaining: ${i}`);
         await postDelete(i);
       }
       console.infoUpdate("Deleted processed measurements.");
@@ -3207,7 +3207,7 @@
       console.info("Cleaning up individual subwoofer response(s)...");
       const individualSWIndices = swIndices.flat().sort(function(a, b) { return a - b; });
       for (let i = individualSWIndices.length - 1; i >= 0; i--) {
-        console.infoUpdate(`Cleaning up individual subwoofer response(s)... remaining: ${i + 1}`);
+        console.infoUpdate(`Cleaning up individual subwoofer response(s) - remaining: ${i + 1}`);
         await postDelete(individualSWIndices[i]);
       }
       console.infoUpdate("Cleaned up individual subwoofer response(s).");
