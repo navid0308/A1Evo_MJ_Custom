@@ -7,6 +7,17 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/27/2026 PureEQ v3.3.0 changelog -
+* Incorporate Audy2Umik as a selectable option in the script
+  * Works with both Audyssey and REW filtering
+  * Optimized filename will now show "A2U" when the option is used
+* Use a fixed auto-level compensation adjustment when Audy2Umik option is selected
+  * This is kind of a 'Band-Aid', but works well enough for now
+  * Trims are slightly different compared to using the Audy2Umik file manually
+* Update Audy2Umik with marginally more smoothing and extending the frequency range to 5-24khz
+  * You can use the file or the option, but don't use both as it'll overcorrect the optimization
+* Minor code cleanup
+
 ### Update 2/26/2026 PureEQ v3.2.3 changelog -
 * Use a wider 300-3khz midrange bandwidth for time aligning speakers instead of the narrower 500-2khz region
   * Seems to be marginally more accurate
