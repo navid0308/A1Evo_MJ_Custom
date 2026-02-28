@@ -7,6 +7,13 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 2/28/2026 PureEQ v3.3.1 changelog -
+* Fix an issue where the subwoofer PEQ auto-level compensation was not being applied to all subwoofers
+  * This issue only affects Audyssey filtering mode
+* Minor update to the fixed auto-level offsets for Audy2Umik
+* Update PEQ table default frequency value to 50hz for subwoofer
+* Tone down dynamic bass fill to only focus on the deeper & wider dips
+
 ### Update 2/27/2026 PureEQ v3.3.0 changelog -
 * Incorporate Audy2Umik as a selectable option in the script
   * Works with both Audyssey and REW filtering

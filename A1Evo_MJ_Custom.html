@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.3.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.3.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1184,7 +1184,7 @@
       const noQTypes    = ["Modal","LP","HP","LP1","HP1","LS","HS","LS 6dB","HS 6dB","LS 12dB","HS 12dB","Notch"];
 
       if (freqEl) {
-        freqEl.value = freqEl.value === "" ? "1000" : freqEl.value;
+        freqEl.value = freqEl.value === "" ? idPrefix.toUpperCase().startsWith("SW") ? "50" : "1000" : freqEl.value;
       }
 
       if (gainEl) {
@@ -2124,7 +2124,7 @@
       const targetSPL = getFreqArrayAvgdB(targetArray);
       // use min. phase to avoid artifacts from flipping
       const minPhaseIdx = await genMinimumPhaseResponse(idx);
-      await postNext('Smooth', minPhaseIdx, { smoothing: "1/48" }); // maintain high precision
+      await postNext('Smooth', minPhaseIdx, { smoothing: "Psy" }); // prevents drastic adjustments
       const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
                                 {function: "1 / |A|", targetLevel: targetSPL * 2}); // x2 so flip happens 'about' target SPL
       // peaks are now dips, and linear power avg will ignore them
@@ -2532,7 +2532,14 @@
         let logUpdate = `${commandId[i].padStart(3, ".")} - target curve created`;
         if (trimOffset != 0) {
           const customLevelOriginal = customLevel[i];
-          customLevel[i] += trimOffset;
+          if(isSub) {
+            for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
+              customLevel[j] += trimOffset;
+            }
+          }
+          else {
+            customLevel[i] += trimOffset;
+          }
           logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
         }
         console.infoUpdate(logUpdate);
@@ -20736,8 +20743,8 @@
     8.133999824523926,
     8.133999824523926]);
     // audy2umik specific variables
-    const a2uSpeakerALOffset = 0.08079003715035238; // bandaid, for now...
-    const a2uSubwooferALOffset = -0.24409900091202819; // bandaid, for now...
+    const a2uSpeakerALOffset = 0.07860658100344615; // bandaid, for now...
+    const a2uSubwooferALOffset = -0.24168676642693188; // bandaid, for now...
     const a2uSpeakerStart = 96; // audy2umik is 5hz-24khz. Subwoofer filters start at 5hz, but speaker filters start at 10hz - from the 96th element.
     const audy2umik = [-5.901,
     -5.901,
