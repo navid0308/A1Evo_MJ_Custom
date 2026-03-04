@@ -3219,7 +3219,7 @@
         console.warn(`Adjusting combined sub level by ${volAdjust.toFixed(2)}dB to best follow the target curve...`);
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           customLevel[i] += volAdjust;
-          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
+          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${(customLevel[i] - volAdjust).toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
         }
       }
       // cleanup individual sub measurements
