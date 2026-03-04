@@ -2597,9 +2597,7 @@
         if (customLevelOriginal != customLevel[i]) {
           console.warn(`${commandId[i].padStart(3, ".")} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
         }
-        else {
-          console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i].toFixed(2)}dB`);
-        }
+        console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i].toFixed(2)}dB → ${(Math.round(customLevel[i] * 2) / 2).toFixed(1)}dB`);
       }
       if (noSub) { return; } // no need to go further without subwoofer
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
@@ -2609,9 +2607,7 @@
         if (customLevelOriginal != customLevel[i]) {
           console.warn(`${commandId[i].padStart(3, ".")} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
         }
-        else {
-          console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i].toFixed(2)}dB`);
-        }
+        console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i].toFixed(2)}dB → ${(Math.round(customLevel[i] * 2) / 2).toFixed(1)}dB`);
       }
     }
     function isSingleChannel(channelCmdId) {
