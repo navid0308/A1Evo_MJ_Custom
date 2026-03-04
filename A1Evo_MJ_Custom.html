@@ -2120,13 +2120,11 @@
     async function getTargetLevelOffset(idx, start, end) {
       // flips the response to ignore peaks and determine offset needed to bring the baseline to target
       // note: always use the spatial average for this calculation as using MLP can overdo things
-      const targetArray = response2array(targetResponse, start, end);
-      const targetSPL = getFreqArrayAvgdB(targetArray);
-      // use min. phase to avoid artifacts from flipping
-      const minPhaseIdx = await genMinimumPhaseResponse(idx);
+      const minPhaseIdx = await genMinimumPhaseResponse(idx); // use min. phase to avoid artifacts from flipping
+      const targetSPL = await getAvgSPL(minPhaseIdx, start, end);
       await postNext('Smooth', minPhaseIdx, { smoothing: "Psy" }); // prevents drastic adjustments
       const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
-                                {function: "1 / |A|", targetLevel: targetSPL * 2}); // x2 so flip happens 'about' target SPL
+                                {function: "1 / A", targetLevel: targetSPL * 2}); // x2 so flip happens 'about' target SPL
       // peaks are now dips, and linear power avg will ignore them
       const targetLevelOffset = -1 * await getExactTrim(flippedMPIdx, start, end); // -1x since trim & target level offset are opposite
       await postDelete(flippedMPIdx);
@@ -2399,13 +2397,20 @@
     async function getUHFFilter(idxWithEQ, targetCurveIdx) {
       // returns min. phase filter for knocking down any ultra high frequency peaks
       const tempEQSpeakerIdx = await postNext('Generate predicted measurement', idxWithEQ);
-      const tempEQSpeakerMPIdx = await genMinimumPhaseResponse(tempEQSpeakerIdx); // prevents artifacts and produces min.phase filter
       const volAdjust = 75.0 - await fetchSafe("target-level", idxWithEQ);
-      await postNext('Add SPL offset', tempEQSpeakerMPIdx, { offset: volAdjust });
-      const UHFFilterIdx = await postNext('Arithmetic', [targetCurveIdx, tempEQSpeakerMPIdx],
-                                        { function: "|A| / |B|", // magnitude only is more accurate
+      await postNext('Add SPL offset', tempEQSpeakerIdx, { offset: volAdjust });
+      const UHFFilterIdx = await postNext('Arithmetic', [targetCurveIdx, tempEQSpeakerIdx],
+                                        { function: "A / B", // magnitude only violates maxGain limit
                                           maxGain: 0, lowerLimit: 10000, upperLimit: 25000});
-      await postDelete(tempEQSpeakerMPIdx);
+      // convert to minimum phase
+      await postNext('Minimum phase version', UHFFilterIdx, {
+        "include cal": false,
+        "append lf tail": false,
+        "append hf tail": false,
+        "frequency warping": false,
+        "replicate data": true
+      });
+      await postDelete(UHFFilterIdx);
       await postDelete(tempEQSpeakerIdx); // UHF filter now at tempEQSpeakerIdx
       return tempEQSpeakerIdx;
     }

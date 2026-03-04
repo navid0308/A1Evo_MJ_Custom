@@ -9,7 +9,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ## Changelogs
 ### Update PureEQ v3.4.0 changelog -
 * Use precise trims and distances for optimization and let the MultEQ app round the data as needed
-* Fix an issue where the ultra high frequency filter creation was producing unwanted artifacts
+* Minor tweak to the target level offset logic
 * Fix an issue where the auto-level offset from the audy2umik option was being applied at the wrong time
 
 ### Update 2/28/2026 PureEQ v3.3.1 changelog -
