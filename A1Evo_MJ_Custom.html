@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.3.1</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.4.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2126,7 +2126,7 @@
       const minPhaseIdx = await genMinimumPhaseResponse(idx);
       await postNext('Smooth', minPhaseIdx, { smoothing: "Psy" }); // prevents drastic adjustments
       const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
-                                {function: "1 / |A|", targetLevel: targetSPL * 2}); // x2 so flip happens 'about' target SPL
+                                {function: "1 / A", targetLevel: targetSPL * 2}); // x2 so flip happens 'about' target SPL
       // peaks are now dips, and linear power avg will ignore them
       const targetLevelOffset = -1 * await getExactTrim(flippedMPIdx, start, end); // -1x since trim & target level offset are opposite
       await postDelete(flippedMPIdx);
@@ -2402,16 +2402,10 @@
       const volAdjust = 75.0 - await fetchSafe("target-level", idxWithEQ);
       await postNext('Add SPL offset', tempEQSpeakerIdx, { offset: volAdjust });
       const UHFFilterIdx = await postNext('Arithmetic', [targetCurveIdx, tempEQSpeakerIdx],
-                                        { function: "A / B", // magnitude only can produce artifacts
+                                        { function: "A / B", // magnitude only violates maxGain limit
                                           maxGain: 0, lowerLimit: 10000, upperLimit: 25000});
       // convert to minimum phase
-      await postNext('Minimum phase version', UHFFilterIdx, {
-        "include cal": true,
-        "append lf tail": false,
-        "append hf tail": false,
-        "frequency warping": false,
-        "replicate data": true
-      });
+      await genMinimumPhaseResponse(UHFFilterIdx);
       await postDelete(UHFFilterIdx);
       await postDelete(tempEQSpeakerIdx); // UHF filter now at tempEQSpeakerIdx
       return tempEQSpeakerIdx;
@@ -2461,7 +2455,7 @@
         }
         // add any user desired customizations & prepare AL compensation trim offset for custom filters
         const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]);
-        const customFilterTrimOffset = Math.round(await getALOffset(customFilterIdx, isSub) / 2) * 2;
+        const customFilterTrimOffset = await getALOffset(customFilterIdx, isSub);
         await postNext('Arithmetic', [filterIdx, customFilterIdx], {function: "A * B"}); // combined filter
         await postDelete(customFilterIdx);
         await postDelete(filterIdx); // combined filters now at filterIdx
@@ -2493,7 +2487,7 @@
           else {
             customLevel[i] += trimOffset;
           }
-          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
+          logUpdate += ` | auto-level offset: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB (${trimOffset.toFixed(2)}dB)`;
         }
         console.infoUpdate(logUpdate);
         // store for later; subtract 1 because target curve will be removed
@@ -2528,7 +2522,7 @@
         await postNext('Add SPL offset', customFilterIdx, { offset: -(TCOffset + ALOffset) });
         await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
         // auto-level compensation for custom filters
-        const trimOffset = Math.round(ALOffset * 2) / 2;
+        const trimOffset = ALOffset;
         let logUpdate = `${commandId[i].padStart(3, ".")} - target curve created`;
         if (trimOffset != 0) {
           const customLevelOriginal = customLevel[i];
@@ -2540,7 +2534,7 @@
           else {
             customLevel[i] += trimOffset;
           }
-          logUpdate += ` | auto-level offset: ${customLevelOriginal}dB → ${customLevel[i]}dB (${trimOffset}dB)`;
+          logUpdate += ` | auto-level offset: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB (${trimOffset.toFixed(2)}dB)`;
         }
         console.infoUpdate(logUpdate);
         // store for later; subtract 1 because target curve will be removed
@@ -2551,6 +2545,20 @@
         cmdIdAVGIndicesEQ[commandId[i]] = avgIdx;
       }
       await postDelete(targetCurveIdx);
+    }
+    function addAudy2UmikALOffset() {
+      for (let i = 1; i <= nSpeakers; i++) {
+        if (i === 1) {
+          console.warn(`Shifting all speaker trims by ${a2uSpeakerALOffset.toFixed(2)}dB for Audy2Umik auto-level offset.`);
+        }
+        customLevel[i] += a2uSpeakerALOffset;
+      }
+      for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+        if (i === nSpeakers + 1) {
+          console.warn(`Shifting all subwoofer trim(s) by ${a2uSubwooferALOffset.toFixed(2)}dB for Audy2Umik auto-level offset.`);
+        }
+        customLevel[i] += a2uSubwooferALOffset;
+      }
     }
     function sanityCheckSpeakerTrims() {
       // if a speaker is too sensitive or not sensitive enough, it may end up outside +/-12dB
@@ -2566,7 +2574,7 @@
         offset = Math.max(requiredOffset, -12 - minSpeakerTrim); // limited by minSpeakerTrim
       }
       if (offset != 0) {
-        console.warn(`Trims are being shifted by ${offset}dB to best stay within hardware limits!`)
+        console.warn(`Trims are being shifted by ${offset.toFixed(2)}dB to best stay within hardware limits!`)
         for (let i = 1; i <= nSpeakers + nSubs; i++) {
           customLevel[i] += offset;
         }
@@ -2574,17 +2582,16 @@
     }
     function finalizeTrims() {
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " trims:")
+      if (useAudy2Umik) { addAudy2UmikALOffset(); }
       sanityCheckSpeakerTrims();
       for (let i = 1; i <= nSpeakers; i++) {
         const customLevelOriginal = customLevel[i];
         customLevel[i] = Math.max(-12, customLevel[i]);
         customLevel[i] = Math.min(customLevel[i], 12);
         if (customLevelOriginal != customLevel[i]) {
-          console.warn(`${commandId[i].padStart(3, ".")} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal}dB → ${customLevel[i]}dB`);
+          console.warn(`${commandId[i].padStart(3, ".")} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
         }
-        else {
-          console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i]}dB`);
-        }
+        console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i].toFixed(2)}dB → ${(Math.round(customLevel[i] * 2) / 2).toFixed(1)}dB`);
       }
       if (noSub) { return; } // no need to go further without subwoofer
       for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
@@ -2592,11 +2599,9 @@
         customLevel[i] = Math.max(subLoTrim, customLevel[i]);
         customLevel[i] = Math.min(customLevel[i], subHiTrim);
         if (customLevelOriginal != customLevel[i]) {
-          console.warn(`${commandId[i].padStart(3, ".")} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal}dB → ${customLevel[i]}dB`);
+          console.warn(`${commandId[i].padStart(3, ".")} required volume adjustment beyond hardware limits - shifted: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
         }
-        else {
-          console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i]}dB`);
-        }
+        console.info(`${commandId[i].padStart(3, ".")} - applied adjustment: ${customLevel[i].toFixed(2)}dB → ${(Math.round(customLevel[i] * 2) / 2).toFixed(1)}dB`);
       }
     }
     function isSingleChannel(channelCmdId) {
@@ -2620,7 +2625,7 @@
     }
     async function getSpeakerLFRolloff(idx, meanSPL, start=20, end=250) {
       // finds low -3dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, 300, 3000); }
+      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, 200, 2000); }
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2876,7 +2881,6 @@
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " distances:");
       for (let i = 1; i <= nSpeakers + nSubs; i++) {
         customDistance[i] += flDist + (mSec[flIndex] - mSec[i]) * sOs;
-        customDistance[i] = Math.round(parseFloat(customDistance[i]) * 100) / 100;
         if (i > nSpeakers) {
           console.warn(`${commandId[i].padStart(3, ".")} - distance: ${customDistance[i].toFixed(2)}m, ${invertSub[i] ? "please SWITCH this subwoofer's POLARITY!!!" : "keep this subwoofer's polarity 'as is'."}`);
           swInvMsg += invertSub[i] ? `_inv${commandId[i]}` : "";
@@ -3212,10 +3216,10 @@
       console.infoUpdate(`Generated combined subwoofer response(s) for all positions.`);
       // newer AVRs that support directional already compensates for combined subwoofer volume and doesn't need adjustment
       if (sOs === 300 && volAdjust != 0) {
-        console.warn(`Adjusting combined sub level by ${volAdjust}dB to best follow the target curve...`);
+        console.warn(`Adjusting combined sub level by ${volAdjust.toFixed(2)}dB to best follow the target curve...`);
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
           customLevel[i] += volAdjust;
-          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust}dB → ${customLevel[i]}dB`);
+          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevel[i] - volAdjust.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
         }
       }
       // cleanup individual sub measurements
@@ -3321,15 +3325,13 @@
     }
     async function getSpeakerTrim(idx) {
       // calculates trim where average SPL across 500hz-2khz matches target
-      const speakerSPLOffset = await getExactTrim(idx, 500, 2000) + (useAudy2Umik ? a2uSpeakerALOffset : 0);
-      const speakerTrim = Math.round(speakerSPLOffset * 2) / 2; // round to nearest 0.5;
+      const speakerTrim = await getExactTrim(idx, 500, 2000);
       return speakerTrim;
     }
     async function getSubwooferTrim(idx) {
       // calculates trim where average SPL across 30hz-80hz matches target
-      const subSPLOffset = await getExactTrim(idx, 30, 80) + (useAudy2Umik ? a2uSubwooferALOffset : 0);
-      const subTrim = Math.round(subSPLOffset * 2) / 2; // round to nearest 0.5;
-      return subTrim;
+      const subwooferTrim = await getExactTrim(idx, 30, 80);
+      return subwooferTrim;
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
@@ -3510,7 +3512,7 @@
         "append lf tail": false,
         "append hf tail": false,
         "frequency warping": false,
-        "replicate data": false
+        "replicate data": true
       });
     }
     async function genMinimumPhaseResponse(idx) {
@@ -3519,7 +3521,7 @@
         "append lf tail": false,
         "append hf tail": false,
         "frequency warping": false,
-        "replicate data": false
+        "replicate data": true
       });
     }
     function sanityCheckSB(detectedChannels) {
@@ -3619,8 +3621,8 @@
         thisChannel.customTargetCurvePoints = customTargetCurvePoints;
         thisChannel.midrangeCompensation = false;
         thisChannel.frequencyRangeRolloff = 20000;
-        thisChannel.customLevel = customLevel[i].toFixed(1);
-        thisChannel.customDistance = customDistance[i];
+        thisChannel.customLevel = customLevel[i]; // MultEQ app will round to what it needs
+        thisChannel.customDistance = customDistance[i]; // MultEQ app will round to what it needs
         thisChannel.customCrossover = customCrossover[i] === "L" ? "F" : String(customCrossover[i]);
         thisChannel.customSpeakerType = customCrossover[i] === "L" ? "L" : "S";
         thisChannel.channelReport.customEnSpeakerConnect = customCrossover[i] === "L" ? 2 : 1;
@@ -3634,9 +3636,9 @@
         for (let channel of jsonData.detectedChannels) {
           if (channel.commandId.startsWith("SW")) {
             const customDistanceValue = parseFloat(customDistance[nChannels + k]) - parseFloat(channel.delayAdjustment);
-            let customLevelValue = parseFloat(customLevel[nChannels + k]) + parseFloat(channel.trimAdjustment);
-            channel.customDistance = Math.round(parseFloat(customDistanceValue) * 100) / 100;
-            channel.customLevel = customLevelValue.toFixed(1);
+            const customLevelValue = parseFloat(customLevel[nChannels + k]) + parseFloat(channel.trimAdjustment);
+            channel.customDistance = customDistanceValue; // MultEQ app will round to what it needs
+            channel.customLevel = customLevelValue; // MultEQ app will round to what it needs
             channel.midrangeCompensation = false; // for some reason Audyssey has MRC for subwoofers
             channel.frequencyRangeRolloff = 250;
             if (bassMode === "Directional") {
