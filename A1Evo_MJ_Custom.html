@@ -2405,13 +2405,7 @@
                                         { function: "A / B", // magnitude only violates maxGain limit
                                           maxGain: 0, lowerLimit: 10000, upperLimit: 25000});
       // convert to minimum phase
-      await postNext('Minimum phase version', UHFFilterIdx, {
-        "include cal": false,
-        "append lf tail": false,
-        "append hf tail": false,
-        "frequency warping": false,
-        "replicate data": true
-      });
+      await genMinimumPhaseResponse(UHFFilterIdx);
       await postDelete(UHFFilterIdx);
       await postDelete(tempEQSpeakerIdx); // UHF filter now at tempEQSpeakerIdx
       return tempEQSpeakerIdx;
@@ -3518,7 +3512,7 @@
         "append lf tail": false,
         "append hf tail": false,
         "frequency warping": false,
-        "replicate data": false
+        "replicate data": true
       });
     }
     async function genMinimumPhaseResponse(idx) {
@@ -3527,7 +3521,7 @@
         "append lf tail": false,
         "append hf tail": false,
         "frequency warping": false,
-        "replicate data": false
+        "replicate data": true
       });
     }
     function sanityCheckSB(detectedChannels) {
