@@ -7,7 +7,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v3.4.0 changelog -
+### Update 3/4/2026 PureEQ v3.4.0 changelog -
 * Use precise trims and distances for optimization and let the MultEQ app round the data as needed
 * Fix an issue where the auto-level offset from the audy2umik option was being applied at the wrong time
 

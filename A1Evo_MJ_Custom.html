@@ -2625,7 +2625,7 @@
     }
     async function getSpeakerLFRolloff(idx, meanSPL, start=20, end=250) {
       // finds low -3dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, 300, 3000); }
+      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, 200, 2000); }
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
