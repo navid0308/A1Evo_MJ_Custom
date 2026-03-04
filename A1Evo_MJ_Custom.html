@@ -2120,8 +2120,10 @@
     async function getTargetLevelOffset(idx, start, end) {
       // flips the response to ignore peaks and determine offset needed to bring the baseline to target
       // note: always use the spatial average for this calculation as using MLP can overdo things
-      const minPhaseIdx = await genMinimumPhaseResponse(idx); // use min. phase to avoid artifacts from flipping
-      const targetSPL = await getAvgSPL(minPhaseIdx, start, end);
+      const targetArray = response2array(targetResponse, start, end);
+      const targetSPL = getFreqArrayAvgdB(targetArray);
+      // use min. phase to avoid artifacts from flipping
+      const minPhaseIdx = await genMinimumPhaseResponse(idx);
       await postNext('Smooth', minPhaseIdx, { smoothing: "Psy" }); // prevents drastic adjustments
       const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
                                 {function: "1 / A", targetLevel: targetSPL * 2}); // x2 so flip happens 'about' target SPL
