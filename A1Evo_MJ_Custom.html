@@ -526,7 +526,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.4.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v3.4.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2625,7 +2625,6 @@
     }
     async function getSpeakerLFRolloff(idx, meanSPL, start=20, end=250) {
       // finds low -3dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, 200, 2000); }
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2673,7 +2672,6 @@
     }
     async function getSubwooferLFRolloff(idx, meanSPL, start=10, end=80) {
       // finds low -3dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, 30, 80); } // used for directional2standard conversion
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2698,7 +2696,6 @@
     }
     async function getSubwooferHFRolloff(idx, meanSPL, start=30, end=320) {
       // finds high -6dB point from mean SPL
-      if (!meanSPL) { meanSPL = await getAvgSPLWithFDW(idx, 30, 80); } // used for directional2standard conversion
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2714,7 +2711,8 @@
       for (let i = 1; i <= nSpeakers; i++) {
         // used for EQ limits
         const spIdx = cmdIdAVGIndices[commandId[i]];
-        const rolloffLF = await getSpeakerLFRolloff(spIdx); // speaker specific, not pair specific
+        const meanSPL = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i]], 200, 2000);
+        const rolloffLF = await getSpeakerLFRolloff(spIdx, meanSPL); // speaker specific, not pair specific
         const rolloffHF = await getSpeakerHFRolloff(spIdx); // speaker specific, not pair specific
         m3dBPoints[i] = [Math.round(rolloffLF), Math.round(rolloffHF)];
         // used for setting initial XO
@@ -2724,8 +2722,9 @@
         const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[i + 1]}`).padStart(9, ".");
         if (!singleChannel) {
           // used for EQ limits
-          const spIdxR = cmdIdAVGIndices[commandId[i + 1]]
-          const rolloffLFR = await getSpeakerLFRolloff(spIdxR); // speaker specific, not pair specific
+          const spIdxR = cmdIdAVGIndices[commandId[i + 1]];
+          const meanSPLR = await getAvgSPLWithFDW(cmdIdMLPIndices[commandId[i + 1]], 200, 2000);
+          const rolloffLFR = await getSpeakerLFRolloff(spIdxR, meanSPLR); // speaker specific, not pair specific
           const rolloffHFR = await getSpeakerHFRolloff(spIdxR); // speaker specific, not pair specific
           m3dBPoints[i + 1] = [Math.round(rolloffLFR), Math.round(rolloffHFR)];
           // geometric average the roll-offs
@@ -3140,16 +3139,18 @@
       let aggSubEPIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[0]]; // holds aggregate EP response
       const refSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[0]]; // closest subwoofer
       // initial "aggregate" subwoofer is the reference subwoofer
-      let aggSubStartFreq = await getSubwooferLFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0]);
-      let aggSubEndFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0]);
+      const aggSubMeanSPL = await getAvgSPLWithFDW(cmdIdIndices[sortedSwCmdIds[0]][0], 30, 80);
+      let aggSubStartFreq = await getSubwooferLFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0], aggSubMeanSPL);
+      let aggSubEndFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[0]][0], aggSubMeanSPL);
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
         const thisSubCmdId = sortedSwCmdIds[i];
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1)); // used for delay limit calculations
         const thisSubEPIdx = swCmdIdsWithEPResponseIndices[sortedSwCmdIds[i]];
         const thisSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[i]];
         // determine bandwidth of "this" subwoofer
-        const thisSubStartFreq = await getSubwooferLFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0]);
-        const thisSubEndFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0]);
+        const thisSubMeanSPL = await getAvgSPLWithFDW(cmdIdIndices[sortedSwCmdIds[i]][0], 30, 80);
+        const thisSubStartFreq = await getSubwooferLFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0], thisSubMeanSPL);
+        const thisSubEndFreq = await getSubwooferHFRolloff(cmdIdIndices[sortedSwCmdIds[i]][0], thisSubMeanSPL);
         // use overlapping subwoofer bandwidths to set evaluation range
         const startFreq = Math.max(aggSubStartFreq, thisSubStartFreq);
         const endFreq = Math.min(aggSubEndFreq, thisSubEndFreq);
@@ -3297,6 +3298,7 @@
       return avgSPL; // average dB SPL
     }
     async function getAvgSPLWithFDW(idx, start, end) {
+      // note: ensure that idx is NOT a spatial average; otherwise this calculation is meaningless
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "true", fdwWidthCycles: "15" }, "Update processed");
       const avgSPLWithFDW = await getAvgSPL(idx, start, end);
       await postSafe(`http://localhost:4735/measurements/${idx}/ir-windows`, { addFDW: "false" }, "Update processed");
