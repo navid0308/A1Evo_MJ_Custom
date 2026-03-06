@@ -2750,6 +2750,7 @@
     async function calculateSubBandwidth() {
       if (noSub) { return; }
       console.log("Calculating subwoofer bandwidth...");
+      // find low freq point based on max low shelf (REW) or -3dB (Audy) & set minXO
       const subLowFreq = await getSubwooferLFRolloff(cmdIdAVGIndices[commandId[nChannels]]);
       minXO = findNearestXO(subLowFreq * 2); // give subwoofer an octave to ramp up
       // find high freq -6dB point (since LPF is 24dB/oct) and set maxXO
