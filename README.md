@@ -10,8 +10,8 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 ### Update PureEQ v4.0.0 changelog -
 One thing I have been quietly chasing is bass that's weighty like Audyssey filtering, with a natural sounding midrange and treble like REW filtering. This was the primary motivation for v4.
 * Completely rewrite REW filtering to boost using wide filters and cut using narrow filters
-  * Wide boosts - uses REW arithmetic to generate a boost filter using 1/1 smoothing
-  * Precise cuts - uses REW arithmetic to generate a cut filter using Var smoothing
+  * Wide boosts - uses REW arithmetic to generate boost filters using 1/1 smoothing
+  * Precise cuts - uses REW arithmetic to generate cut filters using Var smoothing
   * Significantly better target curve tracking
 * Use raw MLP responses when finalizing XO so it's in sync with Audyssey filtering
 * Rewrite speaker high frequency roll-off calculation

@@ -2102,7 +2102,7 @@
       await postDelete(baseFilterIdx);
       return baseFilterIdx; // combined filter consisting of all customizations
     }
-    async function getBoostsFilter(idx, start, end, targetCurveIdx) {
+    async function generateBoostFilters(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
       await postNext('Smooth', idx, { smoothing: "1/1" }); // boost as broad as possible
       await postNext('Smooth', targetCurveIdx, { smoothing: "1/1" });
@@ -2115,22 +2115,22 @@
                                   lowerLimit: start, // adding in the limits seem to prevent
                                   upperLimit: end }); // excessive boosting beyond roll-off
       await postNext('Smooth', flippedTCIdx, { smoothing: "Psy" }); // smoothes out artifacts from limits
-      const flippedBoostIdx = await postNext("Arithmetic", [flippedTCIdx, flippedIdx],
+      const flippedBoostsIdx = await postNext("Arithmetic", [flippedTCIdx, flippedIdx],
                                 { function: "A / B",
                                   maxGain: 0,
                                   lowerLimit: start,
                                   upperLimit: end });
-      const boostIdx = await postNext("Arithmetic", [flippedBoostIdx, flippedBoostIdx],
+      const boostsIdx = await postNext("Arithmetic", [flippedBoostsIdx, flippedBoostsIdx],
                                 { function: "1 / A",
                                   targetLevel: 0.0 }); // flip the boost filter right side up
-      await genMinimumPhaseResponse(boostIdx);
-      await postDelete(boostIdx);
-      await postDelete(flippedBoostIdx);
+      await genMinimumPhaseResponse(boostsIdx); // improves phase stability
+      await postDelete(boostsIdx);
+      await postDelete(flippedBoostsIdx);
       await postDelete(flippedTCIdx);
       await postDelete(flippedIdx);
       return flippedIdx; // min. phase boosts filter now at flippedIdx
     }
-    async function getCutsFilter(idx, start, end, targetCurveIdx) {
+    async function generateCutFilters(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
       await postNext('Smooth', idx, { smoothing: "Var" }); // cut as precisely as possible
       await postNext('Smooth', targetCurveIdx, { smoothing: "Var" });
@@ -2139,17 +2139,17 @@
                                   maxGain: 0,
                                   lowerLimit: start,
                                   upperLimit: end });
-      await genMinimumPhaseResponse(cutsIdx);
+      await genMinimumPhaseResponse(cutsIdx); // improves phase stability
       await postDelete(cutsIdx);
       return cutsIdx; // min. phase cuts filter now at cutsIdx
     }
     async function generateEQFilters(idx, start, end, targetCurveIdx) {
       const minPhaseIdx = await genMinimumPhaseResponse(idx); // prevents EQ artifacts
-      const boostsIdx = await getBoostsFilter(minPhaseIdx, start, end, targetCurveIdx);
+      const boostsIdx = await generateBoostFilters(minPhaseIdx, start, end, targetCurveIdx);
       const minPhaseIdxWithBoost = await postNext('Arithmetic', [boostsIdx, minPhaseIdx], {function: "A * B"});
-      const cutsIdx = await getCutsFilter(minPhaseIdxWithBoost, start, end, targetCurveIdx);
+      const cutsIdx = await generateCutFilters(minPhaseIdxWithBoost, start, end, targetCurveIdx);
       const finalFilterIdx = await postNext('Arithmetic', [cutsIdx, boostsIdx], {function: "A * B"});
-      await genMinimumPhaseResponse(finalFilterIdx); // for good measure
+      await genMinimumPhaseResponse(finalFilterIdx); // improves phase stability
       await postDelete(finalFilterIdx);
       await postDelete(cutsIdx);
       await postDelete(minPhaseIdxWithBoost);
