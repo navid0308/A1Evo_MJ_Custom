@@ -1866,7 +1866,7 @@
         }
       }
       else {
-        const speakerTargetLevelOffset = await getTargetLevelOffset(idx, Math.max(start, 200), Math.min(end, 20000));
+        const speakerTargetLevelOffset = await getTargetLevelOffset(idx, Math.max(start, 200), Math.min(end, 2000));
         tcLevelOffset = Math.max(tcLevelOffset, speakerTargetLevelOffset);
       }
       return tcLevelOffset;
@@ -2355,7 +2355,7 @@
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=24000) {
       // finds high -6dB point from mean SPL
-      const meanSPL = await getAvgSPL(idx, 300, 3000) - await getTargetLevelOffset(idx, 300, 3000);
+      const meanSPL = await getAvgSPL(idx, 200, 2000) - await getTargetLevelOffset(idx, 200, 2000);
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
