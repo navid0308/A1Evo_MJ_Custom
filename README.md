@@ -7,7 +7,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update 3/6/2026 PureEQ v3.4.2 changelog -
+### Update 3/5/2026 PureEQ v3.4.2 changelog -
 This update is applicable to both REW and Audyssey filtering
 * Fix an issue where SW alignment could be incorrect in certain cases
   * This update will also take into account initial XOs for SW alignment
