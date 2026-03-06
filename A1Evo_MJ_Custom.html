@@ -2148,7 +2148,9 @@
       const boostsIdx = await getBoostsFilter(minPhaseIdx, start, end, targetCurveIdx);
       const minPhaseIdxWithBoost = await postNext('Arithmetic', [boostsIdx, minPhaseIdx], {function: "A * B"});
       const cutsIdx = await getCutsFilter(minPhaseIdxWithBoost, start, end, targetCurveIdx);
-      await postNext('Arithmetic', [cutsIdx, boostsIdx], {function: "A * B"});
+      const finalFilterIdx = await postNext('Arithmetic', [cutsIdx, boostsIdx], {function: "A * B"});
+      await genMinimumPhaseResponse(finalFilterIdx); // for good measure
+      await postDelete(finalFilterIdx);
       await postDelete(cutsIdx);
       await postDelete(minPhaseIdxWithBoost);
       await postDelete(boostsIdx);
