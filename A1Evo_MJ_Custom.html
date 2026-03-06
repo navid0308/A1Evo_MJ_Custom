@@ -1842,7 +1842,7 @@
         avgIdx += 2;
       }
     }
-    async function getTargetLevelOffset(idx, start, end) {
+    async function getDynamicFill(idx, start, end) {
       // flips the response to ignore peaks and determine offset needed to bring the baseline to target
       const targetSPL = await getAvgSPL(idx, start, end);
       await postNext('Smooth', idx, { smoothing: "Psy" }); // prevents drastic adjustments
@@ -1850,23 +1850,23 @@
                                 {function: "1 / A", targetLevel: targetSPL});
       await postNext('Smooth', idx, { smoothing: "1/48" }); // revert
       // peaks are now dips, and linear power avg will ignore them
-      const targetLevelOffset = await getAvgSPL(flippedIdx, start, end);
+      const dynamicFill = await getAvgSPL(flippedIdx, start, end);
       await postDelete(flippedIdx);
-      return targetLevelOffset;
+      return dynamicFill;
     }
-    async function getEQTargetLevelOffset(idx, start, end, isSub) {
+    async function getTargetLevelOffset(idx, start, end, isSub) {
       // gets response baseline up to target so EQ primarily focuses on cuts
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
       if (isSub) {
         // use full bandwidth if possible
-        const subTargetLevelOffset = await getTargetLevelOffset(idx, Math.min(start, 30), Math.max(end, 80));
+        const subTargetLevelOffset = await getDynamicFill(idx, Math.min(start, 30), Math.max(end, 80));
         tcLevelOffset = Math.max(tcLevelOffset, subTargetLevelOffset);
         if (tcLevelOffset > 0) {
           console.warn(`SW dynamic bass fill (dip compensation): ${subTargetLevelOffset.toFixed(2)}dB`);
         }
       }
       else {
-        const speakerTargetLevelOffset = await getTargetLevelOffset(idx, Math.max(start, 200), Math.min(end, 2000));
+        const speakerTargetLevelOffset = await getDynamicFill(idx, Math.max(start, 200), Math.min(end, 2000));
         tcLevelOffset = Math.max(tcLevelOffset, speakerTargetLevelOffset);
       }
       return tcLevelOffset;
@@ -2110,7 +2110,10 @@
                                   targetLevel: 75.0 });
       const flippedTCIdx = await postNext("Arithmetic", [targetCurveIdx, targetCurveIdx],
                                 { function: "1 / A",
-                                  targetLevel: 75.0 });
+                                  targetLevel: 75.0,
+                                  lowerLimit: start, // adding in the limits seem to prevent
+                                  upperLimit: end }); // excessive boosting beyond roll-off
+      await postNext('Smooth', flippedTCIdx, { smoothing: "Psy" }); // smoothes out artifacts from limits
       const flippedBoostIdx = await postNext("Arithmetic", [flippedTCIdx, flippedIdx],
                                 { function: "A / B",
                                   maxGain: 0,
@@ -2118,7 +2121,7 @@
                                   upperLimit: end });
       const boostIdx = await postNext("Arithmetic", [flippedBoostIdx, flippedBoostIdx],
                                 { function: "1 / A",
-                                  targetLevel: 0.0 });
+                                  targetLevel: 0.0 }); // flip the boost filter right side up
       await genMinimumPhaseResponse(boostIdx);
       await postDelete(boostIdx);
       await postDelete(flippedBoostIdx);
@@ -2128,7 +2131,7 @@
     }
     async function getCutsFilter(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
-      await postNext('Smooth', idx, { smoothing: "Var" });
+      await postNext('Smooth', idx, { smoothing: "Var" }); // cut as precisely as possible
       await postNext('Smooth', targetCurveIdx, { smoothing: "Var" });
       const cutsIdx = await postNext("Arithmetic", [targetCurveIdx, idx],
                                 { function: "A / B",
@@ -2140,9 +2143,9 @@
       return cutsIdx; // min. phase cuts filter now at cutsIdx
     }
     async function generateEQFilters(idx, start, end, targetCurveIdx) {
-      const minPhaseIdx = await genMinimumPhaseResponse(idx);
+      const minPhaseIdx = await genMinimumPhaseResponse(idx); // prevents EQ artifacts
       const boostsIdx = await getBoostsFilter(minPhaseIdx, start, end, targetCurveIdx);
-      const minPhaseIdxWithBoost = await postNext('Arithmetic', [minPhaseIdx, boostsIdx], {function: "A * B"});
+      const minPhaseIdxWithBoost = await postNext('Arithmetic', [boostsIdx, minPhaseIdx], {function: "A * B"});
       const cutsIdx = await getCutsFilter(minPhaseIdxWithBoost, start, end, targetCurveIdx);
       await postNext('Arithmetic', [cutsIdx, boostsIdx], {function: "A * B"});
       await postDelete(cutsIdx);
@@ -2164,7 +2167,7 @@
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
         // adjust target curve level to follow response baseline and generate EQ filters
-        const targetLevelOffset = await getEQTargetLevelOffset(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
+        const targetLevelOffset = await getTargetLevelOffset(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
         await postNext('Add SPL offset', targetCurveIdx, { offset: -targetLevelOffset });
         const filterIdx = await generateEQFilters(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], targetCurveIdx);
         await postNext('Add SPL offset', targetCurveIdx, { offset: targetLevelOffset });
@@ -2342,7 +2345,7 @@
     }
     async function getSpeakerLFRolloff(idx, start=20, end=250) {
       // finds low -3dB point from mean SPL
-      const meanSPL = await getAvgSPL(idx, 200, 2000) - await getTargetLevelOffset(idx, 200, 2000);
+      const meanSPL = await getAvgSPL(idx, 200, 2000) - await getDynamicFill(idx, 200, 2000);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2355,7 +2358,7 @@
     }
     async function getSpeakerHFRolloff(idx, start=10000, end=24000) {
       // finds high -6dB point from mean SPL
-      const meanSPL = await getAvgSPL(idx, 200, 2000) - await getTargetLevelOffset(idx, 200, 2000);
+      const meanSPL = await getAvgSPL(idx, 200, 2000) - await getDynamicFill(idx, 200, 2000);
       const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2368,7 +2371,7 @@
     }
     async function getSubwooferLFRolloff(idx, start=10, end=80) {
       // finds low -3dB point from mean SPL
-      const meanSPL = await getAvgSPL(idx, 30, 80) - await getTargetLevelOffset(idx, 30, 80);
+      const meanSPL = await getAvgSPL(idx, 30, 80) - await getDynamicFill(idx, 30, 80);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
@@ -2392,7 +2395,7 @@
     }
     async function getSubwooferHFRolloff(idx, start=30, end=320) {
       // finds high -6dB point from mean SPL
-      const meanSPL = await getAvgSPL(idx, 30, 80) - await getTargetLevelOffset(idx, 30, 80);
+      const meanSPL = await getAvgSPL(idx, 30, 80) - await getDynamicFill(idx, 30, 80);
       const response = await fetchSafe('frequency-response?smoothing=1%2F6&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
