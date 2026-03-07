@@ -2349,38 +2349,31 @@
     async function getLFRolloff(idx, meanSPL, isSub=true) {
       // finds low -3dB point from mean SPL
       const [start, end] = isSub ? [10, 80] : [20, 250];
-      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const idxWithBPF = await genBandpassedResponse(idx, start, end);
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idxWithBPF);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
-      let checkFreq = end, rolloff = end, breakFreq = end / 2;
-      let inRolloff = false;
-      for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - meanSPL) >= -3) {
-          inRolloff = false;
-          rolloff = checkFreq;
-          breakFreq = rolloff / 2;
-        }
-        else {
-          inRolloff = true;
-        }
-        if (inRolloff && checkFreq <= breakFreq) {
-          break;
-        }
-        checkFreq /= octave;
+      let rolloff = start;
+      for (let i = 0; i < rpArray.length; i++) {
+        if ((rpArray[i] - meanSPL) >= -3) { break; }
+        rolloff *= octave;
       }
-      return Math.max(rolloff, start);
+      await postDelete(idxWithBPF);
+      return Math.min(rolloff, end);
     }
     async function getHFRolloff(idx, meanSPL, isSub=true) {
       // finds high -6dB point from mean SPL
       const [start, end] = isSub ? [30, 320] : [8000, 24000];
-      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
+      const idxWithBPF = await genBandpassedResponse(idx, start, end);
+      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idxWithBPF);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - meanSPL) >= -6) { break; } // keep this one simple
+        if ((rpArray[i] - meanSPL) >= -6) { break; }
         rolloff /= octave;
       }
+      await postDelete(idxWithBPF);
       return Math.max(rolloff, start);
     }
     async function calculateSpeakerRolloffs() {
