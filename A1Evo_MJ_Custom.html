@@ -1379,7 +1379,7 @@
       await calculateSubBandwidth();
       await optimizeSubDelay();
       useAudyFiltering ? await generateTargetCurves() : await generateREWFilters();
-      await finalizeXO(); // still uses raw responses
+      await finalizeXO(); // after EQ takes into account any gains from REW filters
       finalizeTrims();
       finalizeDistances();
       await drawResults();
@@ -2610,7 +2610,7 @@
       console.log("Finalizing crossover frequencies...");
       sanityCheckInitialXO(); // update initialXOs based on subwoofer bandwidth
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
-      const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
+      const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
       for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
@@ -2620,9 +2620,9 @@
         const startFreq = initialXO / 2;
         const endFreq = initialXO * 2;
         // prepare speaker pair if it's not a single channel
-        let mlpSPIdx = cmdIdMLPIndices[commandId[i]];
+        let mlpSPIdx = cmdIdMLPIndicesEQ[commandId[i]];
         if (!singleChannel) {
-          const mlpSPIdxR = cmdIdMLPIndices[commandId[i + 1]];
+          const mlpSPIdxR = cmdIdMLPIndicesEQ[commandId[i + 1]];
           mlpSPIdx = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
         }
         let bestXO = initialXO, minAvgDip = Infinity; // initialize

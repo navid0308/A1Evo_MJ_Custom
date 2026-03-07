@@ -13,7 +13,6 @@ One thing I have been quietly chasing is bass that's weighty like Audyssey filte
   * Wide boosts - uses REW arithmetic to generate boost filters using 1/1 smoothing
   * Precise cuts - uses REW arithmetic to generate cut filters using Var smoothing
   * Significantly better target curve tracking
-* Use raw MLP responses when finalizing XO so it's in sync with Audyssey filtering
 * Rewrite roll-off determination logic into more compact functions
 * Remove REW filtering boost sliders and all related code
 * Add in subtle animation when expanding/collapsing PEQ filters section
