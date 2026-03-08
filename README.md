@@ -15,6 +15,8 @@ One thing I have been quietly chasing is bass that's weighty like Audyssey filte
   * Significantly better target curve tracking
 * Rewrite roll-off determination logic into more compact functions
 * Use bandpassing to remove infrasonic noise for cleaner roll-off detection
+* Remove all adjustments to target level offset and dynamic bass fill
+  * This technique is no longer needed with the new REW filtering approach
 * Remove REW filtering boost sliders and all related code
 * Add in subtle animation when expanding/collapsing PEQ filters section
 As a general note, take it easy on the bass with this version.
