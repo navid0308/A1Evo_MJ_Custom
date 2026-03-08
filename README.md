@@ -7,7 +7,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v4.0.0 changelog -
+### Update 3/8/2026 PureEQ v4.0.0 changelog -
 One thing I have been quietly chasing is bass that's weighty like Audyssey filtering, with a natural sounding midrange and treble like REW filtering. This was the primary motivation for v4.
 * Completely rewrite REW filtering to boost using wide filters and cut using narrow filters
   * Wide boosts - uses REW arithmetic to generate boost filters using 1/1 smoothing
@@ -605,6 +605,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
