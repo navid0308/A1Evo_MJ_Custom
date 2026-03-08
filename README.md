@@ -7,6 +7,18 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v4.0.0 changelog -
+One thing I have been quietly chasing is bass that's weighty like Audyssey filtering, with a natural sounding midrange and treble like REW filtering. This was the primary motivation for v4.
+* Completely rewrite REW filtering to boost using wide filters and cut using narrow filters
+  * Wide boosts - uses REW arithmetic to generate boost filters using 1/1 smoothing
+  * Precise cuts - uses REW arithmetic to generate cut filters using Var smoothing
+  * Significantly better target curve tracking
+* Rewrite roll-off determination logic into more compact functions
+* Use bandpassing to remove infrasonic noise for cleaner roll-off detection
+* Remove REW filtering boost sliders and all related code
+* Add in subtle animation when expanding/collapsing PEQ filters section
+As a general note, take it easy on the bass with this version.
+
 ### Update 3/5/2026 PureEQ v3.4.2 changelog -
 This update is applicable to both REW and Audyssey filtering
 * Fix an issue where SW alignment could be incorrect in certain cases
