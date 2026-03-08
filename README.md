@@ -23,6 +23,7 @@ One thing I have been quietly chasing is bass that's weighty like Audyssey filte
   * Significantly simplify auto-level offset calculation
 * Remove REW filtering boost sliders and all related code
 * Add in subtle animation when expanding/collapsing PEQ filters section
+
 As a general note, take it easy on the bass with this version.
 
 ### Update 3/5/2026 PureEQ v3.4.2 changelog -
@@ -605,6 +606,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
