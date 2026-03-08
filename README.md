@@ -13,8 +13,11 @@ One thing I have been quietly chasing is bass that's weighty like Audyssey filte
   * Wide boosts - uses REW arithmetic to generate boost filters using 1/1 smoothing
   * Precise cuts - uses REW arithmetic to generate cut filters using Var smoothing
   * Significantly better target curve tracking
+* Move finalize XO stage prior to EQ for better evaluating raw phase interaction
+  * This will also sync up final XO values between the different filtering modes
 * Rewrite roll-off determination logic into more compact functions
-* Use bandpassing to remove infrasonic noise for cleaner roll-off detection
+  * Mean SPL is now calculated based on the region around roll-off
+  * Use bandpassing to remove infrasonic noise for cleaner roll-off detection
 * Remove all adjustments to target level offset and dynamic bass fill
   * This technique is no longer needed with the new REW filtering approach
   * Significantly simplify auto-level offset calculation

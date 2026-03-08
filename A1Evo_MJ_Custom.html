@@ -1378,8 +1378,8 @@
       await calculateSpeakerRolloffs();
       await calculateSubBandwidth();
       await optimizeSubDelay();
+      await finalizeXO(); // use pre-EQ measurements for XO finalization
       useAudyFiltering ? await generateTargetCurves() : await generateREWFilters();
-      await finalizeXO(); // after EQ takes into account any gains from REW filters
       finalizeTrims();
       finalizeDistances();
       await drawResults();
@@ -2227,7 +2227,6 @@
         // store for later; subtract 1 because target curve will be removed
         cmdIdFilterIndices[commandId[i]] = customFilterIdx - 1;
         // passthrough raw responses as the EQ-ed responses since Audyssey EQ can't be known ahead of time
-        // note: these lists are used for finalizing XO
         cmdIdMLPIndicesEQ[commandId[i]] = mlpIdx;
         cmdIdAVGIndicesEQ[commandId[i]] = avgIdx;
       }
@@ -2560,7 +2559,7 @@
       console.log("Finalizing crossover frequencies...");
       sanityCheckInitialXO(); // update initialXOs based on subwoofer bandwidth
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
-      const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
+      const mlpSWIdx = cmdIdMLPIndices[commandId[nChannels]];
       for (let i = 1; i <= nSpeakers; i++) {
         // check if single channel or speaker pair
         const singleChannel = isSingleChannel(commandId[i]);
@@ -2570,9 +2569,9 @@
         const startFreq = initialXO / 2;
         const endFreq = initialXO * 2;
         // prepare speaker pair if it's not a single channel
-        let mlpSPIdx = cmdIdMLPIndicesEQ[commandId[i]];
+        let mlpSPIdx = cmdIdMLPIndices[commandId[i]];
         if (!singleChannel) {
-          const mlpSPIdxR = cmdIdMLPIndicesEQ[commandId[i + 1]];
+          const mlpSPIdxR = cmdIdMLPIndices[commandId[i + 1]];
           mlpSPIdx = await postNext('Magn plus phase average', [mlpSPIdx, mlpSPIdxR]); // do not use VA. it unfairly benefits single channel speakers
         }
         let bestXO = initialXO, minAvgDip = Infinity; // initialize
@@ -2953,9 +2952,9 @@
       const arrayLength = Math.min(freqArray.length, targetArray.length);
       const dipsArray = []; // records dips and ignores the region above target
       for (let i = 0; i < arrayLength; i++) {
-        dipsArray.push(Math.min(freqArray[i] - targetArray[i], 0));
+        dipsArray.push(Math.max(targetArray[i] - freqArray[i], 0));
       }
-      const avgDip = -1 * getFreqArrayAvgdB(dipsArray); // report the average dip as a positive dB value
+      const avgDip = getFreqArrayAvgdB(dipsArray);
       return avgDip;
     }
     async function getExactTrim(idx, start, end) {
