@@ -457,8 +457,8 @@
             <span class="explanation">Avoids delays that requires subwoofer polarity inversion. Note: Phase dial at 180° isn't the same as polarity inversion.</span>
           </label>
           <label>
-            <input type="checkbox" id="useAudy2Umik" onchange="updateCheckboxStates()">
-            Use Audy2Umik Calibration File
+            <input type="checkbox" id="applyAudy2Umik" onchange="updateCheckboxStates()">
+            Apply Audy2Umik Calibration File
             <span class="explanation">Applies the Audy2Umik calibration file to generally improve optimization accuracy. Refer to FAQ for more information.</span>
           </label>
         </div>
@@ -520,7 +520,7 @@
     let adyContents, fileName, sOs, isCirrusLogic, flDist, nChannels, nSpeakers, nSubs, noCenter, isStarted = false;
     let targetCurvePath, targetCurveName, targetResponse, noInversion = false, swInvMsg = "", isAudy = true;
     let bassMode = "Standard", noSub = false, subLoTrim, subHiTrim, subLoDelay, subHiDelay, useAudyFiltering = false;
-    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false, useAudy2Umik = false;
+    let minXO = 40, maxXO = 250, previousDelay = null, swChannelCount = 0, dialogueEnhancer = false, applyAudy2Umik = false;
     const freqIndex = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250]; // common denominator
     const customLevel = [], customDistance = [], customCrossover = [];
     const mSec = [], invertSub = [], commandId = [], minDelayRangeSpan = 6, haasOffset = 1;
@@ -1347,7 +1347,7 @@
       useAudyFiltering = document.getElementById('useAudyFiltering').checked;
       dialogueEnhancer = document.getElementById('dialogueEnhancer').checked;
       noInversion = document.getElementById('noInversion').checked;
-      useAudy2Umik = document.getElementById('useAudy2Umik').checked;
+      applyAudy2Umik = document.getElementById('applyAudy2Umik').checked;
     }
     function lockOptions() {
       updateCheckboxStates(); // final sanity check
@@ -1357,8 +1357,8 @@
       Object.freeze(dialogueEnhancer);
       document.getElementById('noInversion').disabled = true;
       Object.freeze(noInversion);
-      document.getElementById('useAudy2Umik').disabled = true;
-      Object.freeze(useAudy2Umik);
+      document.getElementById('applyAudy2Umik').disabled = true;
+      Object.freeze(applyAudy2Umik);
       // lock advanced settings
       lockEQTable();
     }
@@ -1496,7 +1496,7 @@
       if (!noSub) {
         console.info(`  Subwoofer polarity inversion allowed: ${noInversion ? "No" : "Yes"}.`);
       }
-      console.log(`  Use Audy2Umik calibration file: ${useAudy2Umik ? "Yes" : "No"}.`);
+      console.log(`  Apply Audy2Umik calibration file: ${applyAudy2Umik ? "Yes" : "No"}.`);
       if (useAudyFiltering) {
         console.warn(`  ***Audyssey Filtering Enabled***`);
       }
@@ -2118,9 +2118,7 @@
       const boostsIdx = await generateBoostFilters(minPhaseIdx, start, end, targetCurveIdx);
       const minPhaseIdxWithBoost = await postNext('Arithmetic', [boostsIdx, minPhaseIdx], {function: "A * B"});
       const cutsIdx = await generateCutFilters(minPhaseIdxWithBoost, start, end, targetCurveIdx);
-      const finalFilterIdx = await postNext('Arithmetic', [cutsIdx, boostsIdx], {function: "A * B"});
-      await genMinimumPhaseResponse(finalFilterIdx); // improves phase stability
-      await postDelete(finalFilterIdx);
+      await postNext('Arithmetic', [cutsIdx, boostsIdx], {function: "A * B"}); // combined filter
       await postDelete(cutsIdx);
       await postDelete(minPhaseIdxWithBoost);
       await postDelete(boostsIdx);
@@ -2137,13 +2135,12 @@
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - equalizing channel...`);
         const isSub = commandId[i].startsWith("SW");
-        const mlpIdx = cmdIdMLPIndices[commandId[i]];
+        const mlpIdx = cmdIdMLPIndices[commandId[i]]; // used to hold custom PEQ filters
         const avgIdx = cmdIdAVGIndices[commandId[i]];
         // generate room correction filters using broad boosts and precise cuts
         const filterIdx = await generateEQFilters(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], targetCurveIdx);
-        // add any user desired customizations & prepare AL compensation trim offset for custom filters
+        // add any user desired customizations
         const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]);
-        const customFilterTrimOffset = await getALOffset(customFilterIdx, isSub);
         await postNext('Arithmetic', [filterIdx, customFilterIdx], {function: "A * B"}); // combined filter
         await postDelete(customFilterIdx);
         await postDelete(filterIdx); // combined filters now at filterIdx
@@ -2157,25 +2154,24 @@
         await fetch_mREW(mlpEqResponseIdx, 'PUT', { title: `${commandId[i]}-mlp-equalized` });
         const eqResponseIdx = await postNext('Arithmetic', [avgIdx, filterIdx], {function: "A * B"});
         await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
-        // compensate equalized response & trims for auto level
+        // compensate all relevant responses & trims for auto level
+        await postNext('Add SPL offset', mlpIdx, { offset: ALOffset }); // offset "-mlp"
+        await postNext('Add SPL offset', avgIdx, { offset: ALOffset }); // offset "-avg"
+        await postNext('Add SPL offset', mlpEqResponseIdx, { offset: ALOffset }); // offset "-mlp-equalized"
+        await postNext('Add SPL offset', eqResponseIdx, { offset: ALOffset }); // offset "-avg-equalized"
+        const customLevelOriginal = customLevel[i];
+        if(isSub) {
+          for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
+            customLevel[j] += ALOffset;
+          }
+        }
+        else {
+          customLevel[i] += ALOffset;
+        }
+        // log results
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const trimOffset = customFilterTrimOffset + // compensate for any AL shift from custom filters
-                          (isSub ? await getSubwooferTrim(mlpEqResponseIdx) : await getSpeakerTrim(mlpEqResponseIdx));
-        if (trimOffset != 0) {
-          await postNext('Add SPL offset', mlpIdx, { offset: trimOffset }); // offset "-mlp"
-          await postNext('Add SPL offset', avgIdx, { offset: trimOffset }); // offset "-avg"
-          await postNext('Add SPL offset', mlpEqResponseIdx, { offset: trimOffset }); // offset "-mlp-equalized"
-          await postNext('Add SPL offset', eqResponseIdx, { offset: trimOffset }); // offset "-avg-equalized"
-          const customLevelOriginal = customLevel[i];
-          if(isSub) {
-            for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
-              customLevel[j] += trimOffset;
-            }
-          }
-          else {
-            customLevel[i] += trimOffset;
-          }
-          logUpdate += ` | auto-level offset: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB (${trimOffset.toFixed(2)}dB)`;
+        if (Math.abs(ALOffset) > 0.03) {
+          logUpdate += ` | auto-level offset: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB (${ALOffset.toFixed(2)}dB)`;
         }
         console.infoUpdate(logUpdate);
         // store for later; subtract 1 because target curve will be removed
@@ -2196,35 +2192,36 @@
       for (let i = 1; i <= nChannels; i++) {
         console.info(`${commandId[i].padStart(3, ".")} - generating target curve...`);
         const isSub = commandId[i].startsWith("SW");
-        const mlpIdx = cmdIdMLPIndices[commandId[i]];
+        const mlpIdx = cmdIdMLPIndices[commandId[i]]; // used to hold custom PEQ filters
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // add in all user customizations & calculate any AL offset
+        // auto-level target curve like the MultEQ app would
+        const TCOffset = await getALOffset(targetCurveIdx, isSub);
+        await postNext('Add SPL offset', targetCurveIdx, { offset: -TCOffset });
+        // add in all user customizations & auto-level it
         const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]); // add any user desired customizations
-        const TCOffset = await getALOffset(targetCurveIdx, isSub); // used to auto-level target curve so app doesn't
         const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
-        // get rid of phase data since it needs to be applied to target curve which is magnitude only
-        await postSafe(`${baseUrl}/${customFilterIdx}/command`, { command: "Response magnitude copy" }, "Completed");
-        await postDelete(customFilterIdx); // custom filter idx is now magnitude only
-        // combine any custom filter with the target curve and AL offset it
-        // note: this will be the "filter" in audyssey filtering mode
+        await postNext('Add SPL offset', customFilterIdx, { offset: -ALOffset });
+        // generate final target curve using the auto leveled filter; this is the 'filter' in AF
+        // note: using AL-ed filter helps sanity check that AL comp works as expected on generated target curves
         await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
         await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
-        await postNext('Add SPL offset', customFilterIdx, { offset: -(TCOffset + ALOffset) });
         await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
-        // auto-level compensation for custom filters
-        const trimOffset = ALOffset;
+        // compensate all relevant responses & trims for auto level
+        await postNext('Add SPL offset', mlpIdx, { offset: ALOffset }); // offset "-mlp"
+        await postNext('Add SPL offset', avgIdx, { offset: ALOffset }); // offset "-avg"
+        const customLevelOriginal = customLevel[i];
+        if(isSub) {
+          for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
+            customLevel[j] += ALOffset;
+          }
+        }
+        else {
+          customLevel[i] += ALOffset;
+        }
+        // log results
         let logUpdate = `${commandId[i].padStart(3, ".")} - target curve created`;
-        if (trimOffset != 0) {
-          const customLevelOriginal = customLevel[i];
-          if(isSub) {
-            for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
-              customLevel[j] += trimOffset;
-            }
-          }
-          else {
-            customLevel[i] += trimOffset;
-          }
-          logUpdate += ` | auto-level offset: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB (${trimOffset.toFixed(2)}dB)`;
+        if (Math.abs(ALOffset) > 0.03) {
+          logUpdate += ` | auto-level offset: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB (${ALOffset.toFixed(2)}dB)`;
         }
         console.infoUpdate(logUpdate);
         // store for later; subtract 1 because target curve will be removed
@@ -2272,7 +2269,7 @@
     }
     function finalizeTrims() {
       console.log("Final speaker" + (noSub ? "" : " & subwoofer") + " trims:")
-      if (useAudy2Umik) { addAudy2UmikALOffset(); }
+      if (applyAudy2Umik) { addAudy2UmikALOffset(); }
       sanityCheckSpeakerTrims();
       for (let i = 1; i <= nSpeakers; i++) {
         const customLevelOriginal = customLevel[i];
@@ -2869,8 +2866,9 @@
       if (sOs === 300 && volAdjust != 0) {
         console.warn(`Adjusting combined sub level by ${volAdjust.toFixed(2)}dB to best follow the target curve...`);
         for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {
+          const customLevelOriginal = customLevel[i];
           customLevel[i] += volAdjust;
-          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${(customLevel[i] - volAdjust).toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
+          console.info(`${commandId[i].padStart(3, ".")} - shifted: ${customLevelOriginal.toFixed(2)}dB → ${customLevel[i].toFixed(2)}dB`);
         }
       }
       // cleanup individual sub measurements
@@ -2997,7 +2995,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.075) {
+      for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
@@ -3048,7 +3046,7 @@
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
-      for (let i = loDelay; i <= hiDelay; i += 0.075) {
+      for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
         const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
@@ -3213,7 +3211,7 @@
       let freq = startFreq;
       for (let k = 0; k < fltArray.length; k++) {
         let splValue = fltArray[k] + (isSub ? 0 : antiHFRolloff[k]);
-        if (useAudy2Umik) {
+        if (applyAudy2Umik) {
           splValue += audy2umik[k + (isSub ? 0 : a2uSpeakerStart)];
         }
         fltPoints.push([freq, splValue]);
@@ -3329,7 +3327,7 @@
       const adyNameMJC = getadyName(fileName, `_MJC${getCurrentVersion()}`
                                 + (useAudyFiltering ? "-AF" : "")
                                 + (dialogueEnhancer ? "-DE" : "")
-                                + (useAudy2Umik ? "-A2U" : "")
+                                + (applyAudy2Umik ? "-A2U" : "")
                                 + `${swInvMsg}_${tcName}` // these tend to be long
                                 + `_${getCurrentTimestamp()}.ady`);
       console.log(`Please save the following optimized .ady file when prompted-\n\n\t'${adyNameMJC}'\n\n`);
