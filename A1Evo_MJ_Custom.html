@@ -2350,7 +2350,7 @@
       // finds low -3dB point from mean SPL
       const [start, end] = isSub ? [10, 80] : [20, 250];
       const idxWithBPF = await genBandpassedResponse(idx, start, end);
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idxWithBPF);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idxWithBPF);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
@@ -2365,7 +2365,7 @@
       // finds high -6dB point from mean SPL
       const [start, end] = isSub ? [30, 320] : [8000, 24000];
       const idxWithBPF = await genBandpassedResponse(idx, start, end);
-      const response = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idxWithBPF);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idxWithBPF);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
