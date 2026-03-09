@@ -8,7 +8,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 
 ## Changelogs
 ### Update 3/9/2026 PureEQ v4.1.0 changelog -
-Turns out dynamic bass fill and target level offset were contribuiting quite significantly (and positively), despite the new REW filtering approach looking like it didn't need them. As such, they are being added back in with this version. :)
+Turns out dynamic bass fill and target level offset were contributing quite significantly (and positively), despite the new REW filtering approach looking like it didn't need them. As such, they are being added back in with this version. :)
 * Add dynamic bass fill and target level offset logic back in
   * This better lines up the response baseline to target and prioritizes cuts over boosts
 * Revert auto-level compensation logic to the prior version - this is required to properly support the other changes in this update
@@ -613,6 +613,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
