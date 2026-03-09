@@ -7,6 +7,13 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 3/9/2026 PureEQ v4.1.0 changelog -
+Turns out dynamic bass fill and target level offset were contribuiting quite significantly (and positively), despite the new REW filtering approach looking like it didn't need them. As such, they are being added back in with this version. :)
+* Add dynamic bass fill and target level offset logic back in
+  * This better lines up the response baseline to target and prioritizes cuts over boosts
+* Revert auto-level compensation logic to the prior version - this is required to properly support the other changes in this update
+* Move XO finalization to after EQ generation to take advantage of any gains - this mimics the behavior of the first v4 beta
+
 ### Update 3/8/2026 PureEQ v4.0.0 changelog -
 One thing I have been quietly chasing is bass that's weighty like Audyssey filtering, with a natural sounding midrange and treble like REW filtering. This was the primary motivation for v4.
 * Completely rewrite REW filtering to boost using wide filters and cut using narrow filters
