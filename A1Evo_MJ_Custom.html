@@ -2074,8 +2074,8 @@
     }
     async function generateBoostFilters(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
-      await postNext('Smooth', idx, { smoothing: "1/1" }); // boost as broad as possible
-      await postNext('Smooth', targetCurveIdx, { smoothing: "1/1" });
+      await postNext('Smooth', idx, { smoothing: "1/48" });
+      await postNext('Smooth', targetCurveIdx, { smoothing: "1/48" });
       const flippedIdx = await postNext("Arithmetic", [idx, idx],
                                 { function: "1 / A",
                                   targetLevel: 75.0 });
@@ -2084,7 +2084,8 @@
                                   targetLevel: 75.0,
                                   lowerLimit: start, // adding in the limits seem to prevent
                                   upperLimit: end }); // excessive boosting beyond roll-off
-      await postNext('Smooth', flippedTCIdx, { smoothing: "Psy" }); // smoothes out artifacts from limits
+      await postNext('Smooth', flippedIdx, { smoothing: "1/1" }); // boost as broad as possible
+      await postNext('Smooth', flippedTCIdx, { smoothing: "1/1" });
       const flippedBoostsIdx = await postNext("Arithmetic", [flippedTCIdx, flippedIdx],
                                 { function: "A / B",
                                   maxGain: 0,
@@ -2327,7 +2328,7 @@
     }
     async function getHFRolloff(idx, isSub=true) {
       // finds high -6dB point from mean SPL
-      const [start, end] = isSub ? [30, 320] : [2000, 20000];
+      const [start, end] = isSub ? [30, 320] : [2000, 24000];
       const meanSPL = await getAvgSPL(idx, start, end);
       const response = await fetchSafe('frequency-response?smoothing=1%2F1&ppo=96', idx);
       const rpArray = response2array(response, start, end);
