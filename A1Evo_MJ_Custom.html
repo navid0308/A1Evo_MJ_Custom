@@ -2114,7 +2114,7 @@
                                   targetLevel: 75.0,
                                   lowerLimit: start, // adding in the limits seem to prevent
                                   upperLimit: end }); // excessive boosting beyond roll-off
-      await postNext('Smooth', flippedIdx, { smoothing: "1/1" }); // boost as broad as possible
+      await postNext('Smooth', flippedIdx, { smoothing: "1/1" }); // boost as broadly as possible
       await postNext('Smooth', flippedTCIdx, { smoothing: "1/1" });
       const flippedBoostsIdx = await postNext("Arithmetic", [flippedTCIdx, flippedIdx],
                                 { function: "A / B",
