@@ -2574,26 +2574,10 @@
         console.warn(`You will need to switch polarity of EACH of your ${swChannelCount} subwoofers!`);
       }
     }
-    function sanityCheckInitialXO() {
-      for (let i = 1; i <= nSpeakers; i++) {
-        const singleChannel = isSingleChannel(commandId[i]);
-        const cmdIds = (singleChannel ? commandId[i] : `${commandId[i]} & ${commandId[1 + i]}`).padStart(9, ".");
-        const initialXO = customCrossover[i];
-        customCrossover[i] = Math.max(minXO, customCrossover[i]);
-        if (!singleChannel) {
-          customCrossover[i + 1] = customCrossover[i];
-          i++;
-        }
-        if (initialXO != customCrossover[i]) {
-          console.warn(`${cmdIds} initial XO below usable XO range - shifted: ${initialXO}hz → ${customCrossover[i]}hz`);
-        }
-      }
-    }
     async function finalizeXO() {
       if (noSub) { return; }
       // note: raw responses are used for EQ to better evaluate phase interaction
       console.log("Finalizing crossover frequencies...");
-      sanityCheckInitialXO(); // update initialXOs based on subwoofer bandwidth
       console.info(`Usable XO range: ${minXO}hz - ${maxXO}hz (based on subwoofer bandwidth)`);
       const mlpSWIdx = cmdIdMLPIndicesEQ[commandId[nChannels]];
       for (let i = 1; i <= nSpeakers; i++) {
