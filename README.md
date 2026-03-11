@@ -7,6 +7,13 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 3/11/2026 PureEQ v4.1.1 changelog -
+This update only applies to REW filtering
+* Fix an issue where the response would sometimes have a leftover peak after EQ
+* Simplify and reduce the boost generation steps to speed up the workflow
+* Use 1/1 smoothing for roll-off determination
+* Add in several clarifying comments to explain the flow of logic
+
 ### Update 3/9/2026 PureEQ v4.1.0 changelog -
 Turns out dynamic bass fill and target level offset were contributing quite significantly (and positively), despite the new REW filtering approach looking like it didn't need them. As such, they are being added back in with this version. :)
 * Add dynamic bass fill and target level offset logic back in
