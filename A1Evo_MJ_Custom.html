@@ -1844,15 +1844,14 @@
     }
     async function getDynamicFill(idx, start, end) {
       // flips the response to ignore peaks and determine offset needed to bring the baseline to target
-      const targetSPL = await getAvgSPL(idx, start, end);
-      const minPhaseIdx = await genMinimumPhaseResponse(idx);
-      await postNext('Smooth', minPhaseIdx, { smoothing: "Psy" }); // prevents drastic adjustments
-      const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
-                                {function: "1 / A", targetLevel: targetSPL});
-      // peaks are now dips, and linear power avg will ignore them
-      const dynamicFill = await getAvgSPL(flippedMPIdx, start, end);
-      await postDelete(flippedMPIdx);
-      await postDelete(minPhaseIdx);
+      const meanSPL = await getAvgSPL(idx, start, end);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx); // prevents drastic adjustments
+      const freqArray = response2array(freqResponse, start, end);
+      const invFreqArray = []; // invert response 'about' mean SPL
+      for (let i = 0; i < freqArray.length; i++) {
+        invFreqArray.push(meanSPL - freqArray[i]);
+      }
+      const dynamicFill = getFreqArrayAvgdB(invFreqArray); // offset needed to line up baseline to target
       return dynamicFill;
     }
     async function getTargetLevelOffset(idx, start, end, isSub) {
@@ -2571,6 +2570,19 @@
         console.warn(`You will need to switch polarity of EACH of your ${swChannelCount} subwoofers!`);
       }
     }
+    async function getAvgDip(idx, start, end) {
+      // returns average "dip" relative to target curve between start and end frequencies
+      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
+      const freqArray = response2array(freqResponse, start, end);
+      const targetArray = response2array(targetResponse, start, end);
+      const arrayLength = Math.min(freqArray.length, targetArray.length);
+      const dipsArray = []; // records dips and ignores the region above target
+      for (let i = 0; i < arrayLength; i++) {
+        dipsArray.push(Math.max(targetArray[i] - freqArray[i], 0));
+      }
+      const avgDip = getFreqArrayAvgdB(dipsArray);
+      return avgDip;
+    }
     async function finalizeXO() {
       if (noSub) { return; }
       // note: raw responses are used for EQ to better evaluate phase interaction
@@ -2960,19 +2972,6 @@
       const freqArray = response2array(freqResponse, start, end);
       const avgSPL = getFreqArrayAvgdB(freqArray);
       return avgSPL; // average dB SPL
-    }
-    async function getAvgDip(idx, start, end) {
-      // returns average "dip" relative to target curve between start and end frequencies
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Psy&ppo=96', idx);
-      const freqArray = response2array(freqResponse, start, end);
-      const targetArray = response2array(targetResponse, start, end);
-      const arrayLength = Math.min(freqArray.length, targetArray.length);
-      const dipsArray = []; // records dips and ignores the region above target
-      for (let i = 0; i < arrayLength; i++) {
-        dipsArray.push(Math.max(targetArray[i] - freqArray[i], 0));
-      }
-      const avgDip = getFreqArrayAvgdB(dipsArray);
-      return avgDip;
     }
     async function getExactTrim(idx, start, end) {
       // calculates SPL offset against target curve @75dB
