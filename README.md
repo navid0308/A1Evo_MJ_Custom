@@ -8,7 +8,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 
 ## Changelogs
 ### Update 3/11/2026 PureEQ v4.1.1 changelog -
-This update only applies to REW filtering
+This update applies to both filtering modes
 * Fix an issue where the response would sometimes have a leftover peak after EQ
 * Simplify and reduce the boost generation steps to speed up the workflow
 * Use 1/1 smoothing for roll-off determination
@@ -620,6 +620,7 @@ Thanks to all who tested! New version released this morning with the following c
 * Dynamic EQ mode - run the script without a target curve selected to EQ to Flat and enable Dynamic EQ
 * Improved movie mode target curve tracking in the high frequencies
 * Improved general averaging, leveling and EQ performance
+
 
 
 
