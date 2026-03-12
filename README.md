@@ -7,6 +7,16 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v4.2.0 changelog -
+This update improves the performance for both filtering modes
+* Use an inverted smoothing approach to ignore peaks and infrasonic noise to extract the response baseline
+  * Does a much better job of rejecting noise and ignoring peaks
+  * Fine tune roll-off search ranges used for mean SPL calculation & search
+* Update dynamic fill to use the new baseline extraction approach
+  * This should perform much better in cases with lots of infrasonic noise and/or sharp narrow peaks
+* Switch back to aggregate bandwidth for multiple subwoofer alignment
+* Use higher levels of smoothing when boosting in the highs
+
 ### Update 3/11/2026 PureEQ v4.1.1 changelog -
 This update applies to both filtering modes
 * Fix an issue where the response would sometimes have a leftover peak after EQ
