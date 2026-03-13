@@ -2340,7 +2340,7 @@
     }
     async function getLFRolloff(idx, isSub=true) {
       // finds low -3dB point from mean SPL
-      const [start, end] = isSub ? [10, 160] : [20, 320];
+      const [start, end] = isSub ? [10, 120] : [20, 250];
       const meanSPL = await getAvgSPL(idx, start, end);
       const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
