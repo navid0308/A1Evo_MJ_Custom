@@ -2355,7 +2355,7 @@
     async function getHFRolloff(idx, isSub=true) {
       // finds high -6dB point from mean SPL
       // assumes idx is baseline response
-      const [start, end] = isSub ? [20, 320] : [8000, 24000];
+      const [start, end] = isSub ? [20, 320] : [4000, 24000];
       const meanSPL = await getAvgSPL(idx, start, end);
       const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const rpArray = response2array(response, start, end);
