@@ -15,7 +15,6 @@ This update improves the performance for both filtering modes
 * Update dynamic fill to use the new baseline extraction approach
   * This should perform much better in cases with lots of infrasonic noise and/or sharp narrow peaks
 * Switch back to aggregate bandwidth for multiple subwoofer alignment
-* Use higher levels of smoothing when boosting in the highs
 
 ### Update 3/11/2026 PureEQ v4.1.1 changelog -
 This update applies to both filtering modes

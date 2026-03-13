@@ -2100,8 +2100,8 @@
     }
     async function generateBoostFilters(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
-      await postNext('Smooth', idx, { smoothing: "Var" });
-      await postNext('Smooth', targetCurveIdx, { smoothing: "Var" });
+      await postNext('Smooth', idx, { smoothing: "1/48" });
+      await postNext('Smooth', targetCurveIdx, { smoothing: "1/48" });
       // find full difference between target and response
       const fullEQIdx = await postNext("Arithmetic", [targetCurveIdx, idx],
                                 { function: "A / B" });
