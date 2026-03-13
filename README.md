@@ -11,7 +11,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 This update improves the performance for both filtering modes
 * Use an inverted smoothing approach to ignore peaks and infrasonic noise to extract the response baseline
   * Does a much better job of rejecting noise and ignoring peaks
-  * Fine tune roll-off search ranges used for mean SPL calculation & search
+* Fine tune roll-off search ranges used for mean SPL calculation & search
 * Update dynamic fill to use the new baseline extraction approach
   * Performs much better in cases with lots of infrasonic noise and/or sharp narrow peaks
 * Switch back to aggregate bandwidth for multiple subwoofer alignment
