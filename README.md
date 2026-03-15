@@ -7,6 +7,13 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v4.3.0 changelog -
+* Use wide frequency bands for leveling in REW filtering mode
+  * Speakers will be leveled using 300-3khz
+  * Subwoofers will be leveled using their full bandwidth
+* Use full bandwidth for calculating target level offset
+* Switch to Var smoothing for a bunch of the calculations
+
 ### Update 3/13/2026 PureEQ v4.2.0 changelog -
 This update improves the performance for both filtering modes
 * Use an inverted smoothing approach to ignore peaks and infrasonic noise to extract the response baseline
