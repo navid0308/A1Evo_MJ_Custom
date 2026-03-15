@@ -404,7 +404,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v4.2.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v4.3.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1854,17 +1854,10 @@
     async function getTargetLevelOffset(idx, start, end, isSub) {
       // gets response baseline up to target so EQ primarily focuses on cuts
       let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
-      if (isSub) {
-        // use full bandwidth if possible
-        const subTargetLevelOffset = await getDynamicFill(idx, Math.min(start, 30), Math.max(end, 80));
-        tcLevelOffset = Math.max(tcLevelOffset, subTargetLevelOffset);
-        if (tcLevelOffset > 0) {
-          console.warn(`SW dynamic bass fill (dip compensation): ${subTargetLevelOffset.toFixed(2)}dB`);
-        }
-      }
-      else {
-        const speakerTargetLevelOffset = await getDynamicFill(idx, Math.max(start, 200), Math.min(end, 2000));
-        tcLevelOffset = Math.max(tcLevelOffset, speakerTargetLevelOffset);
+      const targetLevelOffset = await getDynamicFill(idx, start, end); // use full bandwidth
+      tcLevelOffset = Math.max(tcLevelOffset, targetLevelOffset);
+      if (isSub && tcLevelOffset > 0) {
+        console.warn(`SW dynamic bass fill (dip compensation): ${targetLevelOffset.toFixed(2)}dB`);
       }
       return tcLevelOffset;
     }
@@ -2981,7 +2974,7 @@
     }
     async function getAvgSPL(idx, start, end) {
       // calculates average SPL between start and end frequencies
-      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
       const freqArray = response2array(freqResponse, start, end);
       const avgSPL = getFreqArrayAvgdB(freqArray);
       return avgSPL; // average dB SPL
@@ -2995,18 +2988,20 @@
       return offset; // raw dB offset
     }
     async function getSpeakerTrim(idx) {
-      // calculates trim where average SPL across 500hz-2khz matches target
-      const speakerTrim = await getExactTrim(idx, 500, 2000);
+      // calculates trim where average SPL across the midrange matches target
+      const [startFreq, endFreq] = useAudyFiltering ? [500, 2000] : [300, 3000];
+      const speakerTrim = await getExactTrim(idx, startFreq, endFreq);
       return speakerTrim;
     }
     async function getSubwooferTrim(idx) {
-      // calculates trim where average SPL across 30hz-80hz matches target
-      const subwooferTrim = await getExactTrim(idx, 30, 80);
+      // calculates trim where average SPL across the bass matches target
+      const [startFreq, endFreq] = useAudyFiltering ? [30, 80] : await getBandwidth(idx);
+      const subwooferTrim = await getExactTrim(idx, startFreq, endFreq);
       return subwooferTrim;
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
       // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
-      // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
+      // note: using Var smoothing + linear power conversion ensures even the slightest summations are penalized
       // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
@@ -3026,13 +3021,13 @@
       for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         let tempMagSum = getFreqArrayAvgdB(tempSumArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = getFreqArrayAvgdB(tempSumArrayInv);
           if (tempMagSum > tempMagSumInv) {
@@ -3057,7 +3052,7 @@
     }
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
       // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
-      // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
+      // note: using Var smoothing + linear power conversion ensures even the slightest summations are penalized
       // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
@@ -3077,13 +3072,13 @@
       for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         let tempMagSum = getFreqArrayAvgdB(tempSumArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = getFreqArrayAvgdB(tempSumArrayInv);
           if (tempMagSum > tempMagSumInv) {
