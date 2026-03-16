@@ -14,6 +14,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
   * Audyssey filtering and auto-level offset will continue to use 30-80hz for subwoofers & 500-2khz for speakers
 * Target level offset calculation will now use full bandwidth of response
 * Reduce steps in the baseline calculation function to speed up the script
+* Switch to 1/48 smoothing for evaluating SW alignment
 * Switch to 1/1 smoothing for SW response variation metric
 
 ### Update 3/13/2026 PureEQ v4.2.0 changelog -
