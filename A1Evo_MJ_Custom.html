@@ -1842,24 +1842,17 @@
         avgIdx += 2;
       }
     }
-    async function getDynamicFill(idx, start, end) {
-      // ignores peaks to bring the baseline up to target
-      const meanSPL = await getAvgSPL(idx, start, end);
-      const baselineIdx = await genBaseline(idx);
-      const baselineMeanSPL = await getAvgSPL(baselineIdx, start, end);
-      const dynamicFill = meanSPL - baselineMeanSPL; // offset needed to line up baseline to target
-      await postDelete(baselineIdx);
-      return dynamicFill;
-    }
     async function getTargetLevelOffset(idx, start, end, isSub) {
-      // gets response baseline up to target so EQ primarily focuses on cuts
-      let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
-      const targetLevelOffset = await getDynamicFill(idx, start, end); // use full bandwidth
-      tcLevelOffset = Math.max(tcLevelOffset, targetLevelOffset);
-      if (isSub && tcLevelOffset > 0) {
+      // finds offset to get baseline response up to target so EQ primarily focuses on cuts
+      const idxSPL = await getAvgSPL(idx, start, end);
+      const baselineIdx = await genBaselineResponse(idx);
+      const baselineIdxSPL = await getAvgSPL(baselineIdx, start, end);
+      const targetLevelOffset = Math.max(idxSPL - baselineIdxSPL, 0); // ensure target level doesn't go higher than 75dB
+      if (isSub && targetLevelOffset > 0) {
         console.warn(`SW dynamic bass fill (dip compensation): ${targetLevelOffset.toFixed(2)}dB`);
       }
-      return tcLevelOffset;
+      await postDelete(baselineIdx);
+      return targetLevelOffset;
     }
     async function getALOffset(idx, isSub) {
       const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
@@ -2361,7 +2354,7 @@
       }
       return Math.max(rolloff, start);
     }
-    async function genBaseline(idx) {
+    async function genBaselineResponse(idx) {
       // flips the response upside down, smoothes heavily, and flips it back up
       // this reduces infrasonic noise and peaks to expose the general trend line
       await postNext('Smooth', idx, { smoothing: "1/48" });
@@ -2377,7 +2370,7 @@
     }
     async function getBandwidth(idx, isSub=true) {
       // returns bandwidth of the response
-      const baselineIdx = await genBaseline(idx); // removes peaks and infrasonic noise
+      const baselineIdx = await genBaselineResponse(idx); // removes peaks and infrasonic noise
       const idxLFRolloff = await getLFRolloff(baselineIdx, isSub);
       const idxHFRolloff = await getHFRolloff(baselineIdx, isSub);
       await postDelete(baselineIdx);
