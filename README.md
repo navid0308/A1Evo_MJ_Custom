@@ -8,7 +8,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 
 ## Changelogs
 ### Update PureEQ v4.3.0 changelog -
-The goal of this update is 3 fold - improved dialogue clarity, immersive atmos bubble & wider soundstage
+The goal of this update is 3 fold - improved dialogue clarity, immersive atmos bubble & wider stereo soundstage
 * Use wide frequency bands for leveling in REW filtering mode
   * Speakers will be leveled using 300-3khz
   * Subwoofers will be leveled using 20-120hz
