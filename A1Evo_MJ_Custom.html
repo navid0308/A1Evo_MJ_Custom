@@ -1679,7 +1679,7 @@
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
       const isSub = measurements[indices[0]].title.startsWith("SW");
-      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const [startFreq, endFreq] = isSub ? [20, 120] : [300, 3000];
       const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
       for (let i = 1; i < indices.length; i++) {
         const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
@@ -1773,8 +1773,8 @@
       }
       const SWIndices = cmdIdIndices[commandId[nChannels]];
       if (SWIndices.length > 1) {
-        const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
-        console.warn(`${commandId[nChannels]} response variation between ${SWIndices.length} microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
+        const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 20, 120);
+        console.warn(`${commandId[nChannels]} response variation between ${SWIndices.length} microphone position(s) over 20hz - 120hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
@@ -1785,7 +1785,7 @@
       // assumes first measurement in 'indices' is MLP
       const measurements = await fetch_mREW();
       const isSub = measurements[indices[0]].title.startsWith("SW");
-      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const [startFreq, endFreq] = isSub ? [20, 120] : [300, 3000];
       const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
       for (let i = 1; i < indices.length; i++) {
         const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
@@ -1845,7 +1845,7 @@
     async function getDynamicFill(idx, start, end) {
       // ignores peaks to bring the baseline up to target
       const meanSPL = await getAvgSPL(idx, start, end);
-      const baselineIdx = await getBaseline(idx);
+      const baselineIdx = await genBaseline(idx);
       const baselineMeanSPL = await getAvgSPL(baselineIdx, start, end);
       const dynamicFill = meanSPL - baselineMeanSPL; // offset needed to line up baseline to target
       await postDelete(baselineIdx);
@@ -2336,7 +2336,7 @@
       // assumes idx is baseline response
       const [start, end] = isSub ? [10, 120] : [20, 250];
       const meanSPL = await getAvgSPL(idx, start, end);
-      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
@@ -2347,39 +2347,37 @@
       return Math.min(rolloff, end);
     }
     async function getHFRolloff(idx, isSub=true) {
-      // finds high -6dB point from mean SPL
+      // finds high -3dB point from mean SPL
       // assumes idx is baseline response
       const [start, end] = isSub ? [20, 320] : [4000, 24000];
       const meanSPL = await getAvgSPL(idx, start, end);
-      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - meanSPL) >= -6) { break; }
+        if ((rpArray[i] - meanSPL) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
     }
-    async function getBaseline(idx) {
+    async function genBaseline(idx) {
       // flips the response upside down, smoothes heavily, and flips it back up
       // this reduces infrasonic noise and peaks to expose the general trend line
-      const minPhaseIdx = await genMinimumPhaseResponse(idx);
-      await postNext('Smooth', minPhaseIdx, { smoothing: "1/48" });
-      const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
-                                { function: "1 / A",
+      await postNext('Smooth', idx, { smoothing: "1/48" });
+      const flippedIdx = await postNext("Arithmetic", [idx, idx],
+                                { function: "1 / |A|",
                                   targetLevel: 0.0 });
-      await postNext('Smooth', flippedMPIdx, { smoothing: "Psy" }); // gets rid of peaks and infrasonic noise
-      await postNext("Arithmetic", [flippedMPIdx, flippedMPIdx],
-                                { function: "1 / A",
+      await postNext('Smooth', flippedIdx, { smoothing: "Psy" }); // gets rid of peaks and infrasonic noise
+      await postNext("Arithmetic", [flippedIdx, flippedIdx],
+                                { function: "1 / |A|",
                                   targetLevel: 0.0 });
-      await postDelete(flippedMPIdx);
-      await postDelete(minPhaseIdx);
-      return minPhaseIdx; // baseline response now at minPhaseIdx
+      await postDelete(flippedIdx);
+      return flippedIdx; // baseline response now at flippedIdx
     }
     async function getBandwidth(idx, isSub=true) {
       // returns bandwidth of the response
-      const baselineIdx = await getBaseline(idx); // removes peaks and infrasonic noise
+      const baselineIdx = await genBaseline(idx); // removes peaks and infrasonic noise
       const idxLFRolloff = await getLFRolloff(baselineIdx, isSub);
       const idxHFRolloff = await getHFRolloff(baselineIdx, isSub);
       await postDelete(baselineIdx);
@@ -2727,7 +2725,7 @@
       if (indices.length <= 1) { return 0; }
       const responseArrays = [];
       for (let i = 0; i < indices.length; i++) {
-        const freqResponse = await fetchSafe("frequency-response?smoothing=Psy&ppo=96", indices[i]);
+        const freqResponse = await fetchSafe("frequency-response?smoothing=1%2F1&ppo=96", indices[i]);
         const freqArray = response2array(freqResponse, start, end);
         responseArrays.push(freqArray);
       }
@@ -2974,7 +2972,7 @@
     }
     async function getAvgSPL(idx, start, end) {
       // calculates average SPL between start and end frequencies
-      const freqResponse = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
+      const freqResponse = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', idx);
       const freqArray = response2array(freqResponse, start, end);
       const avgSPL = getFreqArrayAvgdB(freqArray);
       return avgSPL; // average dB SPL
@@ -2995,7 +2993,7 @@
     }
     async function getSubwooferTrim(idx) {
       // calculates trim where average SPL across the bass matches target
-      const [startFreq, endFreq] = useAudyFiltering ? [30, 80] : await getBandwidth(idx);
+      const [startFreq, endFreq] = useAudyFiltering ? [30, 80] : [20, 120];
       const subwooferTrim = await getExactTrim(idx, startFreq, endFreq);
       return subwooferTrim;
     }
@@ -3013,21 +3011,21 @@
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set"); // prevents messing with delays
       // make sure level differences do not affect alignment
-      const gainA = -1 * await getAvgSPL(ind1, 30, 80);
-      const gainB = -1 * await getAvgSPL(ind2, 30, 80);
+      const gainA = -1 * await getAvgSPL(ind1, 20, 120);
+      const gainB = -1 * await getAvgSPL(ind2, 20, 120);
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
       for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F48&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         let tempMagSum = getFreqArrayAvgdB(tempSumArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F48&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = getFreqArrayAvgdB(tempSumArrayInv);
           if (tempMagSum > tempMagSumInv) {
@@ -3064,21 +3062,21 @@
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set"); // prevents messing with delays
       // make sure level differences do not affect alignment
-      const gainA = -1 * await getAvgSPL(ind1, 30, 80);
-      const gainB = -1 * await getAvgSPL(ind2, 30, 80);
+      const gainA = -1 * await getAvgSPL(ind1, 20, 120);
+      const gainB = -1 * await getAvgSPL(ind2, 20, 120);
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
       for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=1%2F48&ppo=96');
         const tempSumArray = response2array(tempSum, start, end);
         let tempMagSum = getFreqArrayAvgdB(tempSumArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=1%2F48&ppo=96');
           const tempSumArrayInv = response2array(tempSumInv, start, end);
           const tempMagSumInv = getFreqArrayAvgdB(tempSumArrayInv);
           if (tempMagSum > tempMagSumInv) {
