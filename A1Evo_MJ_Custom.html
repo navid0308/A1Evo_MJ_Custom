@@ -2362,18 +2362,16 @@
     async function genBaselineResponse(idx) {
       // flips the response upside down, smoothes heavily, and flips it back up
       // this reduces infrasonic noise and peaks to expose the general trend line
-      const minPhaseIdx = await genMinimumPhaseResponse(idx);
-      await postNext('Smooth', minPhaseIdx, { smoothing: "1/48" });
-      const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
-                                { function: "1 / A",
+      await postNext('Smooth', idx, { smoothing: "1/48" });
+      const flippedIdx = await postNext("Arithmetic", [idx, idx],
+                                { function: "1 / |A|",
                                   targetLevel: 0.0 });
-      await postNext('Smooth', flippedMPIdx, { smoothing: "Psy" }); // gets rid of peaks and infrasonic noise
-      await postNext("Arithmetic", [flippedMPIdx, flippedMPIdx],
-                                { function: "1 / A",
+      await postNext('Smooth', flippedIdx, { smoothing: "Psy" }); // gets rid of peaks and infrasonic noise
+      await postNext("Arithmetic", [flippedIdx, flippedIdx],
+                                { function: "1 / |A|",
                                   targetLevel: 0.0 });
-      await postDelete(flippedMPIdx);
-      await postDelete(minPhaseIdx);
-      return minPhaseIdx; // baseline response now at minPhaseIdx
+      await postDelete(flippedIdx);
+      return flippedIdx; // baseline response now at flippedIdx
     }
     async function getBandwidth(idx, isSub=true) {
       // returns bandwidth of the response
