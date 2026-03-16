@@ -2147,14 +2147,22 @@
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // adjust target curve level to follow response baseline and generate EQ filters
+        // adjust response level to get baseline up to target and generate EQ filters
         const targetLevelOffset = await getTargetLevelOffset(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
-        await postNext('Add SPL offset', targetCurveIdx, { offset: -targetLevelOffset });
+        // raise the response baseline to target
+        if(isSub) {
+          for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
+            customLevel[j] += targetLevelOffset;
+          }
+        }
+        else {
+          customLevel[i] += targetLevelOffset;
+        }
+        await postNext('Add SPL offset', mlpIdx, { offset: targetLevelOffset });
+        await postNext('Add SPL offset', avgIdx, { offset: targetLevelOffset });
         const filterIdx = await generateEQFilters(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], targetCurveIdx);
-        await postNext('Add SPL offset', targetCurveIdx, { offset: targetLevelOffset });
-        // add any user desired customizations & prepare AL compensation trim offset for custom filters
+        // add any user desired customizations
         const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]);
-        const customFilterTrimOffset = await getALOffset(customFilterIdx, isSub);
         await postNext('Arithmetic', [filterIdx, customFilterIdx], {function: "A * B"}); // combined filter
         await postDelete(customFilterIdx);
         await postDelete(filterIdx); // combined filters now at filterIdx
@@ -2170,9 +2178,9 @@
         await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
         // compensate equalized response & trims for auto level
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const trimOffset = customFilterTrimOffset + // compensate for any AL shift from custom filters
-                          (isSub ? await getSubwooferTrim(mlpEqResponseIdx) : await getSpeakerTrim(mlpEqResponseIdx));
-        if (trimOffset != 0) {
+        // auto-level compensation for room correction & custom filters
+        const trimOffset = ALOffset;
+        if (trimOffset.toFixed(2) != '0.00') {
           await postNext('Add SPL offset', mlpIdx, { offset: trimOffset }); // offset "-mlp"
           await postNext('Add SPL offset', avgIdx, { offset: trimOffset }); // offset "-avg"
           await postNext('Add SPL offset', mlpEqResponseIdx, { offset: trimOffset }); // offset "-mlp-equalized"
@@ -2209,23 +2217,21 @@
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // add in all user customizations & calculate any AL offset
-        const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]); // add any user desired customizations
-        const TCOffset = await getALOffset(targetCurveIdx, isSub); // used to auto-level target curve so app doesn't
-        const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
-        // get rid of phase data since it needs to be applied to target curve which is magnitude only
-        await postSafe(`${baseUrl}/${customFilterIdx}/command`, { command: "Response magnitude copy" }, "Completed");
-        await postDelete(customFilterIdx); // custom filter idx is now magnitude only
-        // combine any custom filter with the target curve and AL offset it
-        // note: this will be the "filter" in audyssey filtering mode
+        // auto-level target curve so MultEQ app doesn't
+        const TCOffset = await getALOffset(targetCurveIdx, isSub);
+        await postNext('Add SPL offset', targetCurveIdx, { offset: -TCOffset });
+        // add in all user customizations & combine with the target curve; this will be the "filter" in audyssey filtering mode
+        const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]);
         await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
         await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
-        await postNext('Add SPL offset', customFilterIdx, { offset: -(TCOffset + ALOffset) });
         await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
+        // auto-level the final 'filter', i.e. target curve
+        const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
+        await postNext('Add SPL offset', customFilterIdx, { offset: -ALOffset });
         // auto-level compensation for custom filters
         const trimOffset = ALOffset;
         let logUpdate = `${commandId[i].padStart(3, ".")} - target curve created`;
-        if (trimOffset != 0) {
+        if (trimOffset.toFixed(2) != '0.00') {
           const customLevelOriginal = customLevel[i];
           if(isSub) {
             for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
@@ -2240,8 +2246,7 @@
         console.infoUpdate(logUpdate);
         // store for later; subtract 1 because target curve will be removed
         cmdIdFilterIndices[commandId[i]] = customFilterIdx - 1;
-        // passthrough raw responses as the EQ-ed responses since Audyssey EQ can't be known ahead of time
-        // note: these lists are used for finalizing XO
+        // passthrough raw responses as the EQ-ed responses since Audyssey EQ can't be known ahead of time; these lists are used for finalizing XO
         cmdIdMLPIndicesEQ[commandId[i]] = mlpIdx;
         cmdIdAVGIndicesEQ[commandId[i]] = avgIdx;
       }
@@ -2357,6 +2362,7 @@
     async function genBaselineResponse(idx) {
       // flips the response upside down, smoothes heavily, and flips it back up
       // this reduces infrasonic noise and peaks to expose the general trend line
+      // note: using min. phase is marginally more accurate but takes up a lot more time
       await postNext('Smooth', idx, { smoothing: "1/48" });
       const flippedIdx = await postNext("Arithmetic", [idx, idx],
                                 { function: "1 / |A|",

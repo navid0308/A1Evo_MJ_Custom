@@ -14,6 +14,7 @@ This update improves dialogue clarity and atmos bubble in REW filtering mode
   * Subwoofers will be leveled using 20-120hz
   * Audyssey filtering and auto-level compensation will continue to use 30-80hz for subwoofers & 500-2khz for speakers
 * Target level offset calculation will now use full bandwidth of response
+* Clean up auto-leveling logic for both filtering modes
 * Reduce steps in the baseline calculation function to speed up the script
 * Switch to 1/48 smoothing for evaluating SW alignment
 * Switch to 1/1 smoothing for SW response variation metric
