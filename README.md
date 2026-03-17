@@ -7,6 +7,20 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v5.0.0 changelog -
+The goal of this update is 3 fold - improved dialogue clarity, immersive atmos bubble & wider stereo soundstage
+* Use wide frequency bands for leveling in REW filtering mode
+  * Speakers will be leveled using 300-3khz
+  * Subwoofers will be leveled using 20-120hz
+  * Audyssey filtering and auto-level compensation will continue to use 30-80hz for subwoofers & 500-2khz for speakers
+* Target level offset calculation will now use full bandwidth of response
+* Reduce steps when calculating response baseline - this should speed up the script
+* Update EQ logic to use magnitude only arithmetic operations as they seem to be more stable
+  * This also results in smoother filters, and should produce a more natural sound
+  * Filters are ultimately 'converted' to minimum phase for application purposes
+* Clean up auto-leveling logic for both filtering modes
+* Switch to 1/1 smoothing for SW response variation metric
+
 ### Update 3/13/2026 PureEQ v4.2.0 changelog -
 This update improves the performance for both filtering modes
 * Use an inverted smoothing approach to ignore peaks and infrasonic noise to extract the response baseline

@@ -404,7 +404,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v4.2.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v5.0.0</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1679,7 +1679,7 @@
       if (indices.length <= 1) { return; }
       const measurements = await fetch_mREW();
       const isSub = measurements[indices[0]].title.startsWith("SW");
-      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const [startFreq, endFreq] = isSub ? [20, 120] : [300, 3000];
       const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
       for (let i = 1; i < indices.length; i++) {
         const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
@@ -1773,8 +1773,8 @@
       }
       const SWIndices = cmdIdIndices[commandId[nChannels]];
       if (SWIndices.length > 1) {
-        const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 30, 80);
-        console.warn(`${commandId[nChannels]} response variation between ${SWIndices.length} microphone position(s) over 30hz - 80hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
+        const SWMaxDelta = await calculateMaxDeltaOfResponses(SWIndices, 20, 120);
+        console.warn(`${commandId[nChannels]} response variation between ${SWIndices.length} microphone position(s) over 20hz - 120hz: ±${(SWMaxDelta / 2).toFixed(2)}dB`);
       }
       const [loDelay, hiDelay] = getDelayRangeOfFinalSub();
       console.info(`Available bass system volume adjustment range → { ${subLoTrim}dB : ${subHiTrim}dB }`);
@@ -1785,7 +1785,7 @@
       // assumes first measurement in 'indices' is MLP
       const measurements = await fetch_mREW();
       const isSub = measurements[indices[0]].title.startsWith("SW");
-      const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
+      const [startFreq, endFreq] = isSub ? [20, 120] : [300, 3000];
       const mlpSPL = await getAvgSPL(indices[0], startFreq, endFreq);
       for (let i = 1; i < indices.length; i++) {
         const idxSPL = await getAvgSPL(indices[i], startFreq, endFreq);
@@ -1842,31 +1842,17 @@
         avgIdx += 2;
       }
     }
-    async function getDynamicFill(idx, start, end) {
-      // ignores peaks to bring the baseline up to target
-      const meanSPL = await getAvgSPL(idx, start, end);
-      const baselineIdx = await getBaseline(idx);
-      const baselineMeanSPL = await getAvgSPL(baselineIdx, start, end);
-      const dynamicFill = meanSPL - baselineMeanSPL; // offset needed to line up baseline to target
-      await postDelete(baselineIdx);
-      return dynamicFill;
-    }
     async function getTargetLevelOffset(idx, start, end, isSub) {
-      // gets response baseline up to target so EQ primarily focuses on cuts
-      let tcLevelOffset = 0; // ensure target level doesn't go higher than 75dB
-      if (isSub) {
-        // use full bandwidth if possible
-        const subTargetLevelOffset = await getDynamicFill(idx, Math.min(start, 30), Math.max(end, 80));
-        tcLevelOffset = Math.max(tcLevelOffset, subTargetLevelOffset);
-        if (tcLevelOffset > 0) {
-          console.warn(`SW dynamic bass fill (dip compensation): ${subTargetLevelOffset.toFixed(2)}dB`);
-        }
+      // finds offset to get baseline response up to target so EQ primarily focuses on cuts
+      const idxSPL = await getAvgSPL(idx, start, end);
+      const baselineIdx = await genBaselineResponse(idx);
+      const baselineIdxSPL = await getAvgSPL(baselineIdx, start, end);
+      const targetLevelOffset = Math.max(idxSPL - baselineIdxSPL, 0); // ensure target level doesn't go higher than 75dB
+      if (isSub && targetLevelOffset > 0) {
+        console.warn(`SW dynamic bass fill (dip compensation): ${targetLevelOffset.toFixed(2)}dB`);
       }
-      else {
-        const speakerTargetLevelOffset = await getDynamicFill(idx, Math.max(start, 200), Math.min(end, 2000));
-        tcLevelOffset = Math.max(tcLevelOffset, speakerTargetLevelOffset);
-      }
-      return tcLevelOffset;
+      await postDelete(baselineIdx);
+      return targetLevelOffset;
     }
     async function getALOffset(idx, isSub) {
       const [startFreq, endFreq] = isSub ? [30, 80] : [500, 2000];
@@ -2100,29 +2086,29 @@
     }
     async function generateBoostFilters(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
-      await postNext('Smooth', idx, { smoothing: "1/48" });
-      await postNext('Smooth', targetCurveIdx, { smoothing: "1/48" });
-      // find full difference between target and response
-      const fullEQIdx = await postNext("Arithmetic", [targetCurveIdx, idx],
-                                { function: "A / B" });
-      // only keep the boosts that are within response bandwidth; it will be upside down after this step
-      const flippedBoostsIdx = await postNext("Arithmetic", [fullEQIdx, fullEQIdx],
-                                { function: "1 / A",
+      await postNext('Smooth', idx, { smoothing: "Psy" });
+      await postNext('Smooth', targetCurveIdx, { smoothing: "Psy" });
+      const flippedIdx = await postNext("Arithmetic", [idx, idx],
+                                { function: "1 / |A|",
+                                  targetLevel: 0.0 });
+      const flippedTCIdx = await postNext("Arithmetic", [targetCurveIdx, targetCurveIdx],
+                                { function: "1 / |A|",
+                                  targetLevel: 0.0 });
+      const flippedBoostsIdx = await postNext("Arithmetic", [flippedTCIdx, flippedIdx],
+                                { function: "|A| / |B|",
                                   maxGain: 0,
                                   lowerLimit: start,
-                                  upperLimit: end,
-                                  targetLevel: 0.0 });
-      // use heavy 1/1 smoothing and flip the boosts right side up; this also smoothes out kinks from limits
-      // note: using heavy smoothing while upside down tones down the boosts thanks to linear power averaging
+                                  upperLimit: end });
       await postNext('Smooth', flippedBoostsIdx, { smoothing: "1/1" });
       const boostsIdx = await postNext("Arithmetic", [flippedBoostsIdx, flippedBoostsIdx],
-                                { function: "1 / A",
+                                { function: "1 / |A|",
                                   targetLevel: 0.0 });
-      await genMinimumPhaseResponse(boostsIdx); // improves phase stability
+      await genMinimumPhaseResponse(boostsIdx); // simulates necessary phase for A*B
       await postDelete(boostsIdx);
       await postDelete(flippedBoostsIdx);
-      await postDelete(fullEQIdx);
-      return fullEQIdx; // min. phase boosts filter now at fullEQIdx
+      await postDelete(flippedTCIdx);
+      await postDelete(flippedIdx);
+      return flippedIdx; // min. phase boosts filter now at flippedIdx
     }
     async function generateCutFilters(idx, targetCurveIdx) {
       // assumes both idxs are minimum phase
@@ -2131,9 +2117,9 @@
       await postNext('Smooth', targetCurveIdx, { smoothing: "Var" });
       // generates filters to knock down any part of the response that's above target
       const cutsIdx = await postNext("Arithmetic", [targetCurveIdx, idx],
-                                { function: "A / B",
+                                { function: "|A| / |B|",
                                   maxGain: 0 });
-      await genMinimumPhaseResponse(cutsIdx); // improves phase stability
+      await genMinimumPhaseResponse(cutsIdx); // simulates necessary phase for A*B
       await postDelete(cutsIdx);
       return cutsIdx; // min. phase cuts filter now at cutsIdx
     }
@@ -2161,14 +2147,22 @@
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // adjust target curve level to follow response baseline and generate EQ filters
+        // adjust response level to get baseline up to target and generate EQ filters
         const targetLevelOffset = await getTargetLevelOffset(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], isSub);
-        await postNext('Add SPL offset', targetCurveIdx, { offset: -targetLevelOffset });
+        // raise the response baseline to target
+        if(isSub) {
+          for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
+            customLevel[j] += targetLevelOffset;
+          }
+        }
+        else {
+          customLevel[i] += targetLevelOffset;
+        }
+        await postNext('Add SPL offset', mlpIdx, { offset: targetLevelOffset });
+        await postNext('Add SPL offset', avgIdx, { offset: targetLevelOffset });
         const filterIdx = await generateEQFilters(avgIdx, m3dBPoints[i][0], m3dBPoints[i][1], targetCurveIdx);
-        await postNext('Add SPL offset', targetCurveIdx, { offset: targetLevelOffset });
-        // add any user desired customizations & prepare AL compensation trim offset for custom filters
+        // add any user desired customizations
         const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]);
-        const customFilterTrimOffset = await getALOffset(customFilterIdx, isSub);
         await postNext('Arithmetic', [filterIdx, customFilterIdx], {function: "A * B"}); // combined filter
         await postDelete(customFilterIdx);
         await postDelete(filterIdx); // combined filters now at filterIdx
@@ -2184,9 +2178,9 @@
         await fetch_mREW(eqResponseIdx, 'PUT', { title: `${commandId[i]}-avg-equalized` });
         // compensate equalized response & trims for auto level
         let logUpdate = `${commandId[i].padStart(3, ".")} - equalized`;
-        const trimOffset = customFilterTrimOffset + // compensate for any AL shift from custom filters
-                          (isSub ? await getSubwooferTrim(mlpEqResponseIdx) : await getSpeakerTrim(mlpEqResponseIdx));
-        if (trimOffset != 0) {
+        // auto-level compensation for room correction & custom filters
+        const trimOffset = ALOffset;
+        if (trimOffset.toFixed(2) != '0.00') {
           await postNext('Add SPL offset', mlpIdx, { offset: trimOffset }); // offset "-mlp"
           await postNext('Add SPL offset', avgIdx, { offset: trimOffset }); // offset "-avg"
           await postNext('Add SPL offset', mlpEqResponseIdx, { offset: trimOffset }); // offset "-mlp-equalized"
@@ -2223,23 +2217,21 @@
         const isSub = commandId[i].startsWith("SW");
         const mlpIdx = cmdIdMLPIndices[commandId[i]];
         const avgIdx = cmdIdAVGIndices[commandId[i]];
-        // add in all user customizations & calculate any AL offset
-        const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]); // add any user desired customizations
-        const TCOffset = await getALOffset(targetCurveIdx, isSub); // used to auto-level target curve so app doesn't
-        const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
-        // get rid of phase data since it needs to be applied to target curve which is magnitude only
-        await postSafe(`${baseUrl}/${customFilterIdx}/command`, { command: "Response magnitude copy" }, "Completed");
-        await postDelete(customFilterIdx); // custom filter idx is now magnitude only
-        // combine any custom filter with the target curve and AL offset it
-        // note: this will be the "filter" in audyssey filtering mode
+        // auto-level target curve so MultEQ app doesn't
+        const TCOffset = await getALOffset(targetCurveIdx, isSub);
+        await postNext('Add SPL offset', targetCurveIdx, { offset: -TCOffset });
+        // add in all user customizations & combine with the target curve; this will be the "filter" in audyssey filtering mode
+        const customFilterIdx = await getUserCustomizations(mlpIdx, commandId[i]);
         await postNext('Arithmetic', [targetCurveIdx, customFilterIdx], {function: "A * B"});
         await postDelete(customFilterIdx); // custom filter idx is now target curve with custom filters
-        await postNext('Add SPL offset', customFilterIdx, { offset: -(TCOffset + ALOffset) });
         await fetch_mREW(customFilterIdx, 'PUT', { title: `${commandId[i]}-targetCurve` });
+        // auto-level the final 'filter', i.e. target curve
+        const ALOffset = await getALOffset(customFilterIdx, isSub); // used to compensate for custom PEQ auto-level
+        await postNext('Add SPL offset', customFilterIdx, { offset: -ALOffset });
         // auto-level compensation for custom filters
         const trimOffset = ALOffset;
         let logUpdate = `${commandId[i].padStart(3, ".")} - target curve created`;
-        if (trimOffset != 0) {
+        if (trimOffset.toFixed(2) != '0.00') {
           const customLevelOriginal = customLevel[i];
           if(isSub) {
             for (let j = nSpeakers + 1; j <= nSpeakers + nSubs; j++) {
@@ -2254,8 +2246,7 @@
         console.infoUpdate(logUpdate);
         // store for later; subtract 1 because target curve will be removed
         cmdIdFilterIndices[commandId[i]] = customFilterIdx - 1;
-        // passthrough raw responses as the EQ-ed responses since Audyssey EQ can't be known ahead of time
-        // note: these lists are used for finalizing XO
+        // passthrough raw responses as the EQ-ed responses since Audyssey EQ can't be known ahead of time; these lists are used for finalizing XO
         cmdIdMLPIndicesEQ[commandId[i]] = mlpIdx;
         cmdIdAVGIndicesEQ[commandId[i]] = avgIdx;
       }
@@ -2343,7 +2334,7 @@
       // assumes idx is baseline response
       const [start, end] = isSub ? [10, 120] : [20, 250];
       const meanSPL = await getAvgSPL(idx, start, end);
-      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx); // Var balances out Psy baseline
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = start;
@@ -2354,39 +2345,37 @@
       return Math.min(rolloff, end);
     }
     async function getHFRolloff(idx, isSub=true) {
-      // finds high -6dB point from mean SPL
+      // finds high -3dB point from mean SPL
       // assumes idx is baseline response
       const [start, end] = isSub ? [20, 320] : [4000, 24000];
       const meanSPL = await getAvgSPL(idx, start, end);
-      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx);
+      const response = await fetchSafe('frequency-response?smoothing=Var&ppo=96', idx); // Var balances out Psy baseline
       const rpArray = response2array(response, start, end);
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - meanSPL) >= -6) { break; }
+        if ((rpArray[i] - meanSPL) >= -3) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);
     }
-    async function getBaseline(idx) {
+    async function genBaselineResponse(idx) {
       // flips the response upside down, smoothes heavily, and flips it back up
       // this reduces infrasonic noise and peaks to expose the general trend line
-      const minPhaseIdx = await genMinimumPhaseResponse(idx);
-      await postNext('Smooth', minPhaseIdx, { smoothing: "1/48" });
-      const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
-                                { function: "1 / A",
+      await postNext('Smooth', idx, { smoothing: "1/48" });
+      const flippedIdx = await postNext("Arithmetic", [idx, idx],
+                                { function: "1 / |A|",
                                   targetLevel: 0.0 });
-      await postNext('Smooth', flippedMPIdx, { smoothing: "Psy" }); // gets rid of peaks and infrasonic noise
-      await postNext("Arithmetic", [flippedMPIdx, flippedMPIdx],
-                                { function: "1 / A",
+      await postNext('Smooth', flippedIdx, { smoothing: "Psy" }); // gets rid of peaks and infrasonic noise
+      await postNext("Arithmetic", [flippedIdx, flippedIdx],
+                                { function: "1 / |A|",
                                   targetLevel: 0.0 });
-      await postDelete(flippedMPIdx);
-      await postDelete(minPhaseIdx);
-      return minPhaseIdx; // baseline response now at minPhaseIdx
+      await postDelete(flippedIdx);
+      return flippedIdx; // baseline response now at flippedIdx
     }
     async function getBandwidth(idx, isSub=true) {
       // returns bandwidth of the response
-      const baselineIdx = await getBaseline(idx); // removes peaks and infrasonic noise
+      const baselineIdx = await genBaselineResponse(idx); // removes peaks and infrasonic noise
       const idxLFRolloff = await getLFRolloff(baselineIdx, isSub);
       const idxHFRolloff = await getHFRolloff(baselineIdx, isSub);
       await postDelete(baselineIdx);
@@ -2734,7 +2723,7 @@
       if (indices.length <= 1) { return 0; }
       const responseArrays = [];
       for (let i = 0; i < indices.length; i++) {
-        const freqResponse = await fetchSafe("frequency-response?smoothing=Psy&ppo=96", indices[i]);
+        const freqResponse = await fetchSafe("frequency-response?smoothing=1%2F1&ppo=96", indices[i]);
         const freqArray = response2array(freqResponse, start, end);
         responseArrays.push(freqArray);
       }
@@ -2995,13 +2984,15 @@
       return offset; // raw dB offset
     }
     async function getSpeakerTrim(idx) {
-      // calculates trim where average SPL across 500hz-2khz matches target
-      const speakerTrim = await getExactTrim(idx, 500, 2000);
+      // calculates trim where average SPL across the midrange matches target
+      const [startFreq, endFreq] = useAudyFiltering ? [500, 2000] : [300, 3000];
+      const speakerTrim = await getExactTrim(idx, startFreq, endFreq);
       return speakerTrim;
     }
     async function getSubwooferTrim(idx) {
-      // calculates trim where average SPL across 30hz-80hz matches target
-      const subwooferTrim = await getExactTrim(idx, 30, 80);
+      // calculates trim where average SPL across the bass matches target
+      const [startFreq, endFreq] = useAudyFiltering ? [30, 80] : [20, 120];
+      const subwooferTrim = await getExactTrim(idx, startFreq, endFreq);
       return subwooferTrim;
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
@@ -3018,8 +3009,8 @@
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set"); // prevents messing with delays
       // make sure level differences do not affect alignment
-      const gainA = -1 * await getAvgSPL(ind1, 30, 80);
-      const gainB = -1 * await getAvgSPL(ind2, 30, 80);
+      const gainA = -1 * await getAvgSPL(ind1, 20, 120);
+      const gainB = -1 * await getAvgSPL(ind2, 20, 120);
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
@@ -3069,8 +3060,8 @@
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set"); // prevents messing with delays
       // make sure level differences do not affect alignment
-      const gainA = -1 * await getAvgSPL(ind1, 30, 80);
-      const gainB = -1 * await getAvgSPL(ind2, 30, 80);
+      const gainA = -1 * await getAvgSPL(ind1, 20, 120);
+      const gainB = -1 * await getAvgSPL(ind2, 20, 120);
       await postSafe("http://localhost:4735/alignment-tool/gain-a", gainA, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", gainB, "Value set");
       console.info("Starting...")
