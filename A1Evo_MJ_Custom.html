@@ -404,7 +404,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v5.0.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v5.0.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2345,7 +2345,7 @@
       return Math.min(rolloff, end);
     }
     async function getHFRolloff(idx, isSub=true) {
-      // finds high -3dB point from mean SPL
+      // finds high -6dB point from mean SPL
       // assumes idx is baseline response
       const [start, end] = isSub ? [20, 320] : [4000, 24000];
       const meanSPL = await getAvgSPL(idx, start, end);
@@ -2354,7 +2354,7 @@
       const octave = Math.pow(2, 1/96);
       let rolloff = end;
       for (let i = rpArray.length - 1; i >= 0; i--) {
-        if ((rpArray[i] - meanSPL) >= -3) { break; }
+        if ((rpArray[i] - meanSPL) >= -6) { break; }
         rolloff /= octave;
       }
       return Math.max(rolloff, start);

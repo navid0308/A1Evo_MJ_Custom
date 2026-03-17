@@ -7,6 +7,9 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 3/17/2026 PureEQ v5.0.1 changelog -
+* Revert back to using -6dB point for HF roll-off
+
 ### Update 3/16/2026 PureEQ v5.0.0 changelog -
 The goal of this update is 3 fold - improved dialogue clarity, immersive atmos bubble & wider stereo soundstage
 * Use wide frequency bands for leveling in REW filtering mode
