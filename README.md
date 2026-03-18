@@ -8,8 +8,7 @@ Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325
 
 ## Changelogs
 ### Update PureEQ v5.1.0 changelog -
-* Switch back to regular trace arithmetic for EQ filter generation
-  * Magnitude only EQ could produce unwanted artifacts in the filter
+* Update boost logic smoothing sequence to better focus on the general response trend line
 * Switch back to calculating target level offset using SBIR affected region of speakers
 * Use 'Vector Sum' to better define directional subwoofer bandwidths
 
