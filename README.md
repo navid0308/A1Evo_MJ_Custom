@@ -7,6 +7,12 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update PureEQ v5.1.0 changelog -
+* Switch back to regular trace arithmetic for EQ filter generation
+  * Magnitude only EQ could produce unwanted artifacts in the EQ filter
+* Switch back to calculating target level offset using SBIR affected region of speakers
+* Use 'Vector Sum' to better define directional subwoofer bandwidths
+
 ### Update 3/17/2026 PureEQ v5.0.1 changelog -
 * Revert back to using -6dB point for HF roll-off
 

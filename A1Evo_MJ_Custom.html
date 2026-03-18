@@ -1845,9 +1845,9 @@
     async function getTargetLevelOffset(idx, start, end, isSub) {
       // finds offset to get baseline response up to target so EQ primarily focuses on cuts
       const [startFreq, endFreq] = isSub ? [Math.min(start, 30), Math.max(end, 80)] : [Math.max(start, 200), Math.min(end, 2000)];
-      const idxSPL = await getAvgSPL(idx, start, end);
+      const idxSPL = await getAvgSPL(idx, startFreq, endFreq);
       const baselineIdx = await genBaselineResponse(idx);
-      const baselineIdxSPL = await getAvgSPL(baselineIdx, start, end);
+      const baselineIdxSPL = await getAvgSPL(baselineIdx, startFreq, endFreq);
       const targetLevelOffset = Math.max(idxSPL - baselineIdxSPL, 0); // ensure target level doesn't go higher than 75dB
       if (isSub && targetLevelOffset > 0) {
         console.warn(`SW dynamic bass fill (dip compensation): ${targetLevelOffset.toFixed(2)}dB`);
@@ -2087,29 +2087,29 @@
     }
     async function generateBoostFilters(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
-      await postNext('Smooth', idx, { smoothing: "Psy" });
-      await postNext('Smooth', targetCurveIdx, { smoothing: "Psy" });
-      const flippedIdx = await postNext("Arithmetic", [idx, idx],
-                                { function: "1 / |A|",
-                                  targetLevel: 0.0 });
-      const flippedTCIdx = await postNext("Arithmetic", [targetCurveIdx, targetCurveIdx],
-                                { function: "1 / |A|",
-                                  targetLevel: 0.0 });
-      const flippedBoostsIdx = await postNext("Arithmetic", [flippedTCIdx, flippedIdx],
-                                { function: "|A| / |B|",
+      await postNext('Smooth', idx, { smoothing: "1/48" });
+      await postNext('Smooth', targetCurveIdx, { smoothing: "1/48" });
+      // find full difference between target and response
+      const fullEQIdx = await postNext("Arithmetic", [targetCurveIdx, idx],
+                                { function: "A / B" });
+      // only keep the boosts that are within response bandwidth; it will be upside down after this step
+      const flippedBoostsIdx = await postNext("Arithmetic", [fullEQIdx, fullEQIdx],
+                                { function: "1 / A",
                                   maxGain: 0,
                                   lowerLimit: start,
-                                  upperLimit: end });
+                                  upperLimit: end,
+                                  targetLevel: 0.0 });
+      // use heavy 1/1 smoothing and flip the boosts right side up; this also smoothes out kinks from limits
+      // note: using heavy smoothing while upside down tones down the boosts thanks to linear power averaging
       await postNext('Smooth', flippedBoostsIdx, { smoothing: "1/1" });
       const boostsIdx = await postNext("Arithmetic", [flippedBoostsIdx, flippedBoostsIdx],
-                                { function: "1 / |A|",
+                                { function: "1 / A",
                                   targetLevel: 0.0 });
-      await genMinimumPhaseResponse(boostsIdx); // simulates necessary phase for A*B
+      await genMinimumPhaseResponse(boostsIdx); // improves phase stability
       await postDelete(boostsIdx);
       await postDelete(flippedBoostsIdx);
-      await postDelete(flippedTCIdx);
-      await postDelete(flippedIdx);
-      return flippedIdx; // min. phase boosts filter now at flippedIdx
+      await postDelete(fullEQIdx);
+      return fullEQIdx; // min. phase boosts filter now at fullEQIdx
     }
     async function generateCutFilters(idx, targetCurveIdx) {
       // assumes both idxs are minimum phase
@@ -2118,9 +2118,9 @@
       await postNext('Smooth', targetCurveIdx, { smoothing: "Var" });
       // generates filters to knock down any part of the response that's above target
       const cutsIdx = await postNext("Arithmetic", [targetCurveIdx, idx],
-                                { function: "|A| / |B|",
+                                { function: "A / B",
                                   maxGain: 0 });
-      await genMinimumPhaseResponse(cutsIdx); // simulates necessary phase for A*B
+      await genMinimumPhaseResponse(cutsIdx); // improves phase stability
       await postDelete(cutsIdx);
       return cutsIdx; // min. phase cuts filter now at cutsIdx
     }
@@ -2363,16 +2363,18 @@
     async function genBaselineResponse(idx) {
       // flips the response upside down, smoothes heavily, and flips it back up
       // this reduces infrasonic noise and peaks to expose the general trend line
-      await postNext('Smooth', idx, { smoothing: "1/48" });
-      const flippedIdx = await postNext("Arithmetic", [idx, idx],
-                                { function: "1 / |A|",
+      const minPhaseIdx = await genMinimumPhaseResponse(idx);
+      await postNext('Smooth', minPhaseIdx, { smoothing: "1/48" });
+      const flippedMPIdx = await postNext("Arithmetic", [minPhaseIdx, minPhaseIdx],
+                                { function: "1 / A",
                                   targetLevel: 0.0 });
-      await postNext('Smooth', flippedIdx, { smoothing: "Psy" }); // gets rid of peaks and infrasonic noise
-      await postNext("Arithmetic", [flippedIdx, flippedIdx],
-                                { function: "1 / |A|",
+      await postNext('Smooth', flippedMPIdx, { smoothing: "Psy" }); // gets rid of peaks and infrasonic noise
+      await postNext("Arithmetic", [flippedMPIdx, flippedMPIdx],
+                                { function: "1 / A",
                                   targetLevel: 0.0 });
-      await postDelete(flippedIdx);
-      return flippedIdx; // baseline response now at flippedIdx
+      await postDelete(flippedMPIdx);
+      await postDelete(minPhaseIdx);
+      return minPhaseIdx; // baseline response now at minPhaseIdx
     }
     async function getBandwidth(idx, isSub=true) {
       // returns bandwidth of the response
