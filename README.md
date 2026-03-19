@@ -7,7 +7,7 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
-### Update PureEQ v5.1.0 changelog -
+### Update 3/18/2026 PureEQ v5.1.0 changelog -
 * Switch back to calculating target level offset using SBIR affected region of speakers
 * Use 'Vector Sum' to better define directional subwoofer bandwidths
 * Calculate mean SPL using the same smoothing used for roll-off determination
