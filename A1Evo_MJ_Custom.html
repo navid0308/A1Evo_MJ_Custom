@@ -2088,8 +2088,8 @@
     }
     async function generateBoostFilters(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
-      await postNext('Smooth', idx, { smoothing: "1/48" });
-      await postNext('Smooth', targetCurveIdx, { smoothing: "1/48" });
+      await postNext('Smooth', idx, { smoothing: "Psy" });
+      await postNext('Smooth', targetCurveIdx, { smoothing: "Psy" });
       const flippedIdx = await postNext("Arithmetic", [idx, idx],
                                 { function: "1 / |A|",
                                   targetLevel: 0.0 });
