@@ -404,7 +404,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v5.2.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v5.2.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -2088,8 +2088,8 @@
     }
     async function generateBoostFilters(idx, start, end, targetCurveIdx) {
       // assumes both idxs are minimum phase
-      await postNext('Smooth', idx, { smoothing: "1/48" });
-      await postNext('Smooth', targetCurveIdx, { smoothing: "1/48" });
+      await postNext('Smooth', idx, { smoothing: "Var" });
+      await postNext('Smooth', targetCurveIdx, { smoothing: "Var" });
       const flippedIdx = await postNext("Arithmetic", [idx, idx],
                                 { function: "1 / A",
                                   targetLevel: 0.0 });
@@ -2364,7 +2364,7 @@
     async function genBaselineResponse(idx) {
       // flips the response upside down, smoothes heavily, and flips it back up
       // this reduces infrasonic noise and peaks to expose the general trend line
-      await postNext('Smooth', idx, { smoothing: "1/48" });
+      await postNext('Smooth', idx, { smoothing: "Var" });
       const flippedIdx = await postNext("Arithmetic", [idx, idx],
                                 { function: "1 / A",
                                   targetLevel: 0.0 });

@@ -7,6 +7,11 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 3/22/2026 PureEQ v5.2.1 changelog -
+This is a minor update and only affects REW filtering mode
+* Marginally reduce filter artifacts in the high frequencies by using 'Var' smoothing for the boost generation & baseline calculation
+  * Final boost filters will continue to use 1/1 smoothing for tone control-like adjustments
+
 ### Update 3/20/2026 PureEQ v5.2.0 changelog -
 This one is a bit of an experiment based on lessons learned. There is a definition and weight to the sound of v4.x which I have been missing in v5.x. However, there is spaciousness and improved dialogue clarity with v5.x. Goal with this update is to find a middle ground.
 * Switch to regular arithmetic for EQ filter creation - this adds higher definition & weight to the sound, similar to v4.x
