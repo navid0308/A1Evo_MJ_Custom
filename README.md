@@ -7,6 +7,12 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 3/24/2026 PureEQ v5.2.2 changelog -
+* Reduce target level offset calculation range to ignore frequencies above 10khz - marginally improves stability
+* Smooth out audy2umik top end to improve consistency between the different applications
+  * Update the fixed auto-level offsets when audy2umik option is used
+  * Audy2umik calibration file also updated with higher smoothing
+
 ### Update 3/22/2026 PureEQ v5.2.1 changelog -
 This is a minor update and only affects REW filtering mode
 * Marginally reduce filter artifacts in the high frequencies by using 'Var' smoothing for the boost generation & baseline calculation
