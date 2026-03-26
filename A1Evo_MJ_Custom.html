@@ -3006,12 +3006,9 @@
       return subwooferTrim;
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
-      // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
-      // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
-      // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
+      // note: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
-      let isInverted = false, requiredDelay = NaN, minSum = Infinity;
-      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
+      let isInverted = false, requiredDelay = NaN, minFlippedSPL = Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postAlign('Reset all');
@@ -3027,42 +3024,37 @@
       for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
-        const tempSumArray = response2array(tempSum, start, end);
-        let tempMagSum = getLinearPowerAvg(tempSumArray);
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+        const tempSumFlippedArray = response2array(tempSum, start, end).map(value => -1 * value); // flip to expose cancellations
+        let tempSumFlippedSPL = getLinearPowerAvg(tempSumFlippedArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
-          const tempSumArrayInv = response2array(tempSumInv, start, end);
-          const tempMagSumInv = getLinearPowerAvg(tempSumArrayInv);
-          if (tempMagSum > tempMagSumInv) {
-            tempMagSum = tempMagSumInv;
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+          const tempSumFlippedArrayInv = response2array(tempSumInv, start, end).map(value => -1 * value); // flip to expose cancellations
+          const tempSumFlippedSPLInv = getLinearPowerAvg(tempSumFlippedArrayInv);
+          if (tempSumFlippedSPL > tempSumFlippedSPLInv) {
+            tempSumFlippedSPL = tempSumFlippedSPLInv;
             tempSumInverted = true;
           }
           await postSafe("http://localhost:4735/alignment-tool/invert-b", false, "Value set");
         }
-        if (minSum > tempMagSum) {
-          minSum = tempMagSum;
+        if (minFlippedSPL > tempSumFlippedSPL) { // pick alignment with least cancellations
+          minFlippedSPL = tempSumFlippedSPL;
           requiredDelay = i;
           isInverted = tempSumInverted;
         }
       }
       console.infoUpdate(`Optimal delay: ${requiredDelay.toFixed(2)}ms, Inverted: ${isInverted}`);
-      // restore original polarity just as a good practice
-      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
       // restore original gain just as a good practice
       await postSafe("http://localhost:4735/alignment-tool/gain-a", 0, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", 0, "Value set");
       return [requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
-      // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
-      // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
-      // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
+      // note: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
-      let isInverted = false, requiredDelay = NaN, minSum = Infinity;
-      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
+      let isInverted = false, requiredDelay = NaN, minFlippedSPL = Infinity;
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postAlign('Reset all');
@@ -3078,30 +3070,28 @@
       for (let i = loDelay; i <= hiDelay; i += 0.03) {
         console.infoUpdate(`Checking: ${i.toFixed(2)}ms, Best: ${requiredDelay.toFixed(2)}ms Inverted: ${isInverted}`);
         await postSafe("http://localhost:4735/alignment-tool/delay-b", i, "Value set");
-        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
-        const tempSumArray = response2array(tempSum, start, end);
-        let tempMagSum = getLinearPowerAvg(tempSumArray);
+        const tempSum = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+        const tempSumFlippedArray = response2array(tempSum, start, end).map(value => -1 * value); // flip to expose cancellations
+        let tempSumFlippedSPL = getLinearPowerAvg(tempSumFlippedArray);
         let tempSumInverted = false;
         if (!noInversion) {
           await postSafe("http://localhost:4735/alignment-tool/invert-b", true, "Value set");
-          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Psy&ppo=96');
-          const tempSumArrayInv = response2array(tempSumInv, start, end);
-          const tempMagSumInv = getLinearPowerAvg(tempSumArrayInv);
-          if (tempMagSum > tempMagSumInv) {
-            tempMagSum = tempMagSumInv;
+          const tempSumInv = await fetchAlign('aligned-frequency-response?smoothing=Var&ppo=96');
+          const tempSumFlippedArrayInv = response2array(tempSumInv, start, end).map(value => -1 * value); // flip to expose cancellations
+          const tempSumFlippedSPLInv = getLinearPowerAvg(tempSumFlippedArrayInv);
+          if (tempSumFlippedSPL > tempSumFlippedSPLInv) {
+            tempSumFlippedSPL = tempSumFlippedSPLInv;
             tempSumInverted = true;
           }
           await postSafe("http://localhost:4735/alignment-tool/invert-b", false, "Value set");
         }
-        if (minSum > tempMagSum) {
-          minSum = tempMagSum;
+        if (minFlippedSPL > tempSumFlippedSPL) { // pick alignment with least cancellations
+          minFlippedSPL = tempSumFlippedSPL;
           requiredDelay = i;
           isInverted = tempSumInverted;
         }
       }
       console.infoUpdate(`Optimal delay: ${requiredDelay.toFixed(2)}ms, Inverted: ${isInverted}`);
-      // restore original polarity so aligned sum is correct
-      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
       // restore original gain so aligned sum is correct
       await postSafe("http://localhost:4735/alignment-tool/gain-a", 0, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", 0, "Value set");

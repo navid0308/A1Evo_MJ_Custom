@@ -13,6 +13,7 @@ I have been experimenting with using a wider range for level matching non-MLP po
   * This range will also be used for the Android volume bug check and fix
 * Switch back to magnitude only arithmetic - this produces highs that are exceptionally natural and spacious
 * Convert EQ filter to minimum phase at a later stage to prevent sharp drop-offs in the infrasonics
+* Rework SW alignment logic to better scrutinize cancellations due to phase mismatch
 * Fix an issue where directional .adys with only 1 position would crash when calculating SW bandwidth
 
 ### Update 3/24/2026 PureEQ v5.2.2 changelog -
