@@ -7,6 +7,14 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 3/26/2026 PureEQ v5.3.0 changelog -
+I have been experimenting with using a wider range for level matching non-MLP positions to MLP prior to spatially averaging. The idea was to improve correlation between MLP and AVG so EQ filters benefit MLP more. In the process I found that it produced a sound that was too heavy on the fundamentals and was lacking air. To balance it out, I switched back to magnitude only arithmetic for EQ filter generation. So far, I am loving the results!
+* Use 250-10khz for level matching non-MLP positions to MLP for better correlation between AVG & MLP
+  * This range will also be used for the Android volume bug check and fix
+* Switch back to magnitude only arithmetic - this produces highs that are exceptionally natural and spacious
+* Convert EQ filter to minimum phase at a later stage to prevent sharp drop-offs in the infrasonics
+* Fix an issue where directional .adys with only 1 position would crash when calculating SW bandwidth
+
 ### Update 3/24/2026 PureEQ v5.2.2 changelog -
 * Reduce target level offset calculation range to ignore frequencies above 10khz - marginally improves stability
 * Smooth out audy2umik top end to improve consistency between the different applications
