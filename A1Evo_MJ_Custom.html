@@ -2825,22 +2825,22 @@
       let aggSubEPIdx = swCmdIdsWithEPResponses[sortedSwCmdIds[0]]; // holds aggregate EP response
       const refSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[0]]; // closest subwoofer
       // initial "aggregate" subwoofer is the reference subwoofer
-      const aggSubSAIdx = cmdIdIndices[sortedSwCmdIds[0]].length > 1 ?
-                          await postNext('Magn plus phase average', cmdIdIndices[sortedSwCmdIds[0]]) // improves stability
+      const aggSubVSIdx = cmdIdIndices[sortedSwCmdIds[0]].length > 1 ?
+                          await postNext('Vector sum', cmdIdIndices[sortedSwCmdIds[0]]) // improves stability
                         : await genSub(cmdIdIndices[sortedSwCmdIds[0]][0]); // simply copy the response if it's a 1 position .ady
-      let [aggSubStartFreq, aggSubEndFreq] = await getBandwidth(aggSubSAIdx);
-      await postDelete(aggSubSAIdx);
+      let [aggSubStartFreq, aggSubEndFreq] = await getBandwidth(aggSubVSIdx);
+      await postDelete(aggSubVSIdx);
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
         const thisSubCmdId = sortedSwCmdIds[i];
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1)); // used for delay limit calculations
         const thisSubEPIdx = swCmdIdsWithEPResponses[sortedSwCmdIds[i]];
         const thisSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[i]];
         // determine bandwidth of "this" subwoofer
-        const thisSubSAIdx = cmdIdIndices[sortedSwCmdIds[i]].length > 1 ?
-                             await postNext('Magn plus phase average', cmdIdIndices[sortedSwCmdIds[i]]) // improves stability
+        const thisSubVSIdx = cmdIdIndices[sortedSwCmdIds[i]].length > 1 ?
+                             await postNext('Vector sum', cmdIdIndices[sortedSwCmdIds[i]]) // improves stability
                            : await genSub(cmdIdIndices[sortedSwCmdIds[i]][0]); // simply copy the response if it's a 1 position .ady
-        const [thisSubStartFreq, thisSubEndFreq] = await getBandwidth(thisSubSAIdx);
-        await postDelete(thisSubSAIdx);
+        const [thisSubStartFreq, thisSubEndFreq] = await getBandwidth(thisSubVSIdx);
+        await postDelete(thisSubVSIdx);
         // use aggregate subwoofer bandwidths to set evaluation range
         aggSubStartFreq = Math.min(aggSubStartFreq, thisSubStartFreq);
         aggSubEndFreq = Math.max(aggSubEndFreq, thisSubEndFreq);
