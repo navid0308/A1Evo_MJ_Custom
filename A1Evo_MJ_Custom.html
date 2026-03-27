@@ -404,7 +404,7 @@
 </head>
 <body>
 <div class="container">
-  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v5.3.0</span></h2>
+  <h2>A1Evo <strong>1-click</strong> Audyssey Optimization Tool <span class="version-number">MJ Custom - PureEQ v5.3.1</span></h2>
   <h3>Steps</h3>
   <ol>
     <li class="smaller-font">Download and install the free room correction software Room EQ Wizard (v5.40 Beta) in your computer
@@ -1440,7 +1440,7 @@
         const name = measurements[i].title;
         if (name.startsWith("SW")) {
           console.infoUpdate(`Skipping Audyssey microphone calibration file for ${name}...`);
-          await genSub(i); // response copy; applying _micCal produces 2x IR samples and affects AF in directional on cirrus logic
+          await responseCopy(i); // response copy; applying _micCal produces 2x IR samples and affects AF in directional on cirrus logic
         }
         else {
           console.infoUpdate(`Applying Audyssey microphone calibration file to ${name}...`);
@@ -1803,7 +1803,7 @@
       for (let i = 1; i <= nChannels; i++) {
         const indices = cmdIdIndices[commandId[i]];
         // move a copy of MLP measurement to the bottom for preserving
-        commandId[i].startsWith("SW") ? await genSub(indices[0]) : await genSpeaker(indices[0]);
+        await responseCopy(indices[0]);
         await fetch_mREW(mlpIdx, 'PUT', { title: `${commandId[i]}-mlp` });
         await postNext('Smooth', mlpIdx, { smoothing: "1/48" });
         // spatially average
@@ -1818,7 +1818,7 @@
                                                             rightWindowWidthms: rightWindow }, "Update processed");
         }
         else {
-          commandId[i].startsWith("SW") ? await genSub(indices[0]) : await genSpeaker(indices[0]); // nothing to average
+          await responseCopy(indices[0]); // nothing to average
         }
         await fetch_mREW(avgIdx, 'PUT', { title: `${commandId[i]}-avg` });
         await postNext('Smooth', avgIdx, { smoothing: "1/48" });
@@ -2681,7 +2681,7 @@
           let spFinalName = `${commandId[i]}final-mlp${spFinalInfo}`;
           let eqSpeaker = cmdIdMLPIndicesEQ[commandId[i]];
           if (noSub) {
-            await genSpeaker(eqSpeaker);
+            await responseCopy(eqSpeaker);
           }
           else {
             const eqSubwoofer = cmdIdMLPIndicesEQ[commandId[nChannels]];
@@ -2694,7 +2694,7 @@
           spFinalName = `${commandId[i]}final-avg${spFinalInfo}`;
           eqSpeaker = cmdIdAVGIndicesEQ[commandId[i]];
           if (noSub) {
-            await genSpeaker(eqSpeaker);
+            await responseCopy(eqSpeaker);
           }
           else {
             const eqSubwoofer = cmdIdAVGIndicesEQ[commandId[nChannels]];
@@ -2825,22 +2825,22 @@
       let aggSubEPIdx = swCmdIdsWithEPResponses[sortedSwCmdIds[0]]; // holds aggregate EP response
       const refSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[0]]; // closest subwoofer
       // initial "aggregate" subwoofer is the reference subwoofer
-      const aggSubSAIdx = cmdIdIndices[sortedSwCmdIds[0]].length > 1 ?
-                          await postNext('Magn plus phase average', cmdIdIndices[sortedSwCmdIds[0]]) // improves stability
-                        : await genSub(cmdIdIndices[sortedSwCmdIds[0]][0]); // simply copy the response if it's a 1 position .ady
-      let [aggSubStartFreq, aggSubEndFreq] = await getBandwidth(aggSubSAIdx);
-      await postDelete(aggSubSAIdx);
+      const aggSubVSIdx = cmdIdIndices[sortedSwCmdIds[0]].length > 1 ?
+                          await postNext('Vector sum', cmdIdIndices[sortedSwCmdIds[0]]) // improves stability
+                        : await responseCopy(cmdIdIndices[sortedSwCmdIds[0]][0]); // simply copy the response if it's a 1 position .ady
+      let [aggSubStartFreq, aggSubEndFreq] = await getBandwidth(aggSubVSIdx);
+      await postDelete(aggSubVSIdx);
       for (let i = 1; i < sortedSwCmdIds.length; i++) {
         const thisSubCmdId = sortedSwCmdIds[i];
         const thisSubNumber = parseInt(thisSubCmdId.slice(-1)); // used for delay limit calculations
         const thisSubEPIdx = swCmdIdsWithEPResponses[sortedSwCmdIds[i]];
         const thisSubIRStart = swCmdIdsWithIRStart[sortedSwCmdIds[i]];
         // determine bandwidth of "this" subwoofer
-        const thisSubSAIdx = cmdIdIndices[sortedSwCmdIds[i]].length > 1 ?
-                             await postNext('Magn plus phase average', cmdIdIndices[sortedSwCmdIds[i]]) // improves stability
-                           : await genSub(cmdIdIndices[sortedSwCmdIds[i]][0]); // simply copy the response if it's a 1 position .ady
-        const [thisSubStartFreq, thisSubEndFreq] = await getBandwidth(thisSubSAIdx);
-        await postDelete(thisSubSAIdx);
+        const thisSubVSIdx = cmdIdIndices[sortedSwCmdIds[i]].length > 1 ?
+                             await postNext('Vector sum', cmdIdIndices[sortedSwCmdIds[i]]) // improves stability
+                           : await responseCopy(cmdIdIndices[sortedSwCmdIds[i]][0]); // simply copy the response if it's a 1 position .ady
+        const [thisSubStartFreq, thisSubEndFreq] = await getBandwidth(thisSubVSIdx);
+        await postDelete(thisSubVSIdx);
         // use aggregate subwoofer bandwidths to set evaluation range
         aggSubStartFreq = Math.min(aggSubStartFreq, thisSubStartFreq);
         aggSubEndFreq = Math.max(aggSubEndFreq, thisSubEndFreq);
@@ -3011,13 +3011,13 @@
       // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
-      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postAlign('Reset all');
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set"); // prevents messing with delays
+      await postSafe("http://localhost:4735/alignment-tool/invert-a", true, "Value set"); // for finding max cancellation
       // make sure level differences do not affect alignment
       const gainA = -1 * await getAvgSPL(ind1, 20, 120);
       const gainB = -1 * await getAvgSPL(ind2, 20, 120);
@@ -3050,7 +3050,7 @@
       }
       console.infoUpdate(`Optimal delay: ${requiredDelay.toFixed(2)}ms, Inverted: ${isInverted}`);
       // restore original polarity just as a good practice
-      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
+      await postSafe("http://localhost:4735/alignment-tool/invert-a", false, "Value set");
       // restore original gain just as a good practice
       await postSafe("http://localhost:4735/alignment-tool/gain-a", 0, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", 0, "Value set");
@@ -3062,13 +3062,13 @@
       // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
       let isInverted = false, requiredDelay = NaN, minSum = Infinity;
-      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
       await postNext('Smooth', ind1, { smoothing: "1/48" });
       await postNext('Smooth', ind2, { smoothing: "1/48" });
       await postAlign('Reset all');
       await postSafe("http://localhost:4735/alignment-tool/index-a", ind1, "selected as measurement A");
       await postSafe("http://localhost:4735/alignment-tool/index-b", ind2, "selected as measurement B");
       await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set"); // prevents messing with delays
+      await postSafe("http://localhost:4735/alignment-tool/invert-a", true, "Value set"); // for finding max cancellation
       // make sure level differences do not affect alignment
       const gainA = -1 * await getAvgSPL(ind1, 20, 120);
       const gainB = -1 * await getAvgSPL(ind2, 20, 120);
@@ -3101,7 +3101,7 @@
       }
       console.infoUpdate(`Optimal delay: ${requiredDelay.toFixed(2)}ms, Inverted: ${isInverted}`);
       // restore original polarity so aligned sum is correct
-      await postSafe(`${baseUrl}/${ind2}/command`,{command: "Invert"}, "Invert completed");
+      await postSafe("http://localhost:4735/alignment-tool/invert-a", false, "Value set");
       // restore original gain so aligned sum is correct
       await postSafe("http://localhost:4735/alignment-tool/gain-a", 0, "Value set");
       await postSafe("http://localhost:4735/alignment-tool/gain-b", 0, "Value set");
@@ -3111,6 +3111,9 @@
       const alignedSum = await postAlign('Aligned sum');
       const parsedMessage = JSON.parse(alignedSum.message);
       const sumIndex = Object.keys(parsedMessage.results)[0];
+      // shift aligned sum to 0dB for subsequent alignments
+      const volAdjust = -1 * await getAvgSPL(sumIndex);
+      await postNext('Add SPL offset', sumIndex, { offset: volAdjust });
       return [requiredDelay, isInverted, sumIndex];
     }
     async function responseCopy(idx) {
