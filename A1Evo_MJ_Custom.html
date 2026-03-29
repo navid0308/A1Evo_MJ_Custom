@@ -3006,7 +3006,7 @@
       return subwooferTrim;
     }
     async function align4system(ind1, ind2, start, end, loDelay, hiDelay) {
-      // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
+      // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind1
       // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
       // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
@@ -3057,7 +3057,7 @@
       return [requiredDelay, isInverted];
     }
     async function alignMsub(ind1, ind2, start, end, loDelay, hiDelay) {
-      // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind2
+      // finds delay that produces maximum summation by optimizing for maximum cancellation with inverted ind1
       // note: using Psy smoothing + linear power conversion ensures even the slightest summations are penalized
       // note2: ind1 and ind2 are both excess phase responses, so this alignment is phase focused
       console.info(`Proximity based delay range: ${loDelay.toFixed(2)}ms <-> ${hiDelay.toFixed(2)}ms`);
