@@ -7,6 +7,19 @@ It's based on OCA's original work here - https://www.youtube.com/watch?v=lmZ5yV1
 Guides, Changes and FAQs - https://www.avsforum.com/threads/a1evo-mj-custom.3325897/
 
 ## Changelogs
+### Update 3/29/2026 PureEQ v5.4.0 changelog -
+This update applies a new technique to extract the full phase response, and use it for various optimizations
+* Introduce a new technique to extract full phase - response / magnitude of response
+  * Full phase responses are used for multiple subwoofer alignment - excess phase is not reliable if impulse is not at t=0
+  * Note: Excess phase responses will still be used for SW alignment to system, since speakers are time aligned to t=0
+* Evaluate per speaker dip reduction when finalizing crossover - previously it would look at the RMS average for speaker pairs
+* Use a marginally wider bandwidth for aligning SW to system - slight improvement in midbass
+* Allow more negative delay headroom when aligning SW to system - allows greater compensation for group delay
+* Ditch the usage of midrange based speaker time alignment - incompatible with upfiring speakers
+* Ditch the usage of FDW, since it can be easily mislead by noise
+  * Affects midrange based time alignment and subwoofer IR start calculation
+* Disable audy2umik option when manual measurements are used
+
 ### Update 3/27/2026 PureEQ v5.3.1 changelog -
 This is a minor update and it addresses a few edge cases
 * Use 'Vector sum' to overcome noisy directional SW responses and better identify bandwidth
