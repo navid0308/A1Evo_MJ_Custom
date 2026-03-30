@@ -1733,6 +1733,7 @@
         if (commandId[i + 1] === "C" && dialogueEnhancer) {
           console.warn(`Advancing center channel by ${haasOffset}ms to improve intelligibility (Haas effect).`);
           IRShift += haasOffset / 1000;
+          await postNext('Offset t=0', mlpSPIndices[i], {offset: haasOffset / 1000, unit: "seconds"});
         }
         mSec[i + 1] -= IRShift;
       }
