@@ -17,7 +17,6 @@ This update applies a new technique to extract the full phase response, and use 
 * Allow more negative delay headroom when aligning SW to system - allows greater compensation for group delay
 * Ditch the usage of midrange based speaker time alignment - incompatible with upfiring speakers
 * Ditch the usage of FDW, since it can be easily mislead by noise
-  * Affects midrange based time alignment and subwoofer IR start calculation
 * Disable audy2umik option when manual measurements are used
 
 ### Update 3/27/2026 PureEQ v5.3.1 changelog -
